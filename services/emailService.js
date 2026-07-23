@@ -7,6 +7,20 @@ const transporter = nodemailer.createTransport({
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
+    logger: true,
+    debug: true
+});
+
+transporter.verify(function (error, success) {
+    if (error) {
+        console.log("SMTP VERIFY ERROR:");
+        console.log(error);
+    } else {
+        console.log("SMTP SERVER READY");
     }
 });
 
