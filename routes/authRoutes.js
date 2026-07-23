@@ -277,7 +277,7 @@ router.get(
 
     }
 );
-console.log("testEmail =", typeof testEmail);
+
 router.post("/test-email", testEmail);
 
 module.exports = router;

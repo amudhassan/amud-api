@@ -10,11 +10,7 @@ const swaggerSpec = require("./config/swagger");
 
 dotenv.config();
 
-console.log("HOST:", process.env.DB_HOST);
-console.log("PORT:", process.env.DB_PORT);
-console.log("USER:", process.env.DB_USER);
-console.log("PASSWORD:", process.env.DB_PASSWORD);
-console.log("DATABASE:", process.env.DB_NAME);
+
 
 const app = express();
 
