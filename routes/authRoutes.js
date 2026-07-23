@@ -1,9 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const {
-    ...
-    testEmail
-} = require("../controllers/authController");
+
 
 const {
     registerUser,
@@ -13,7 +10,8 @@ const {
     forgotPassword,
     resetPassword,
     refreshToken,
-    logout
+    logout,
+    testEmail
 } = require("../controllers/authController");
 
 const {
@@ -279,6 +277,7 @@ router.get(
 
     }
 );
+console.log("testEmail =", typeof testEmail);
 router.post("/test-email", testEmail);
 
 module.exports = router;
