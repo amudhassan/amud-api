@@ -262,6 +262,38 @@ const logout = asyncHandler(async (req, res) => {
 
 });
 
+const { sendEmail } = require("../services/emailService");
+
+const testEmail = async (req, res) => {
+    try {
+
+        await sendEmail({
+            to: req.body.email,
+            subject: "Amud API Test Email",
+            html: `
+                <h2>🎉 Congratulations!</h2>
+                <p>Your email service is working successfully.</p>
+                <p>This email was sent from your Node.js Backend.</p>
+            `
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Email sent successfully"
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+};
+
 module.exports = { 
     registerUser,
     loginUser,
@@ -270,5 +302,6 @@ module.exports = {
     forgotPassword,
     resetPassword,
     refreshToken,
-    logout
+    logout,
+    testEmail
  };

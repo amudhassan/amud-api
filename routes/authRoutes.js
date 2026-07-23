@@ -1,5 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const {
+    ...
+    testEmail
+} = require("../controllers/authController");
 
 const {
     registerUser,
@@ -275,5 +279,6 @@ router.get(
 
     }
 );
+router.post("/test-email", testEmail);
 
 module.exports = router;
