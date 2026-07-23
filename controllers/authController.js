@@ -267,6 +267,10 @@ const { sendEmail } = require("../services/emailService");
 const testEmail = async (req, res) => {
     try {
 
+        console.log("STEP 1: Request received");
+
+        console.log("STEP 2: About to call sendEmail");
+
         await sendEmail({
             to: req.body.email,
             subject: "Amud API Test Email",
@@ -277,6 +281,8 @@ const testEmail = async (req, res) => {
             `
         });
 
+        console.log("STEP 3: sendEmail completed");
+
         return res.status(200).json({
             success: true,
             message: "Email sent successfully"
@@ -284,7 +290,7 @@ const testEmail = async (req, res) => {
 
     } catch (error) {
 
-        console.error(error);
+        console.error("STEP ERROR:", error);
 
         return res.status(500).json({
             success: false,
