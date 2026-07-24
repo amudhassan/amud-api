@@ -15,6 +15,7 @@ const {createPasswordResetToken,
       logoutUser,
       createEmailVerificationToken
     } = require("../services/authService");
+
 const crypto = require("crypto");
 
 
@@ -41,11 +42,15 @@ const registerUser = asyncHandler(async (req, res, next) => {
         .randomBytes(32)
         .toString("hex");
 
+        const hashedEmailVerificationToken = crypto
+    .createHash("sha256")
+    .update(emailVerificationToken)
+    .digest("hex");
+
     const emailVerificationExpires =
         new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-        const verificationUrl =
-    `${process.env.API_URL}/api/auth/verify-email?token=${emailVerificationToken}`;
+        
 
     const result = await pool.query(
         `INSERT INTO users
@@ -71,38 +76,16 @@ const registerUser = asyncHandler(async (req, res, next) => {
             email,
             hashedPassword,
             role,
-            emailVerificationToken,
+            hashedEmailVerificationToken,
             emailVerificationExpires
         ]
     );
 
-    await sendEmail({
-    to: email,
-    subject: "Verify Your Email Address",
-    html: `
-        <h2>Welcome to Amud API</h2>
-
-        <p>Thank you for registering.</p>
-
-        <p>Please verify your email by clicking the button below:</p>
-
-        <p>
-            <a href="${verificationUrl}"
-               style="
-                    background:#2563eb;
-                    color:#fff;
-                    padding:12px 20px;
-                    text-decoration:none;
-                    border-radius:6px;
-                    display:inline-block;
-               ">
-                Verify Email
-            </a>
-        </p>
-
-        <p>If you did not create this account, you can safely ignore this email.</p>
-    `
-});
+await sendVerificationEmail(
+    email,
+    emailVerificationToken,
+    "register"
+);
 
     return res.status(201).json({
         success: true,
@@ -242,18 +225,21 @@ const forgotPassword = asyncHandler(async (req, res, next) => {
 
     const result = await createPasswordResetToken(email);
 
-    if (!result) {
-        return next(
-            new AppError("User not found", 404)
-        );
-    }
+    const genericResponse = {
+    success: true,
+    message:
+        "If an account with that email exists, a password reset link has been sent."
+};
 
-    return res.status(200).json({
-        success: true,
-        message: "Password reset token generated successfully",
-        resetToken: result.resetToken,
-        expiresAt: result.expiresAt
-    });
+if (!result) {
+    return res.status(200).json(genericResponse);
+}
+   await sendPasswordResetEmail(
+    result.user.email,
+    result.resetToken
+   );
+
+   return res.status(200).json(genericResponse);
 
 });
 
@@ -333,6 +319,10 @@ const logout = asyncHandler(async (req, res) => {
 const verifyEmail = asyncHandler(async (req, res, next) => {
 
     const { token } = req.query;
+    const hashedVerificationToken = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
 
     if (!token) {
         return next(
@@ -347,7 +337,7 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
         WHERE email_verification_token = $1
         AND email_verification_expires > NOW()
         `,
-        [token]
+        [hashedVerificationToken]
     );
 
     if (result.rows.length === 0) {
@@ -365,7 +355,7 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
             email_verification_expires = NULL
         WHERE email_verification_token = $1
         `,
-        [token]
+        [hashedVerificationToken]
     );
 
     return res.status(200).json({
@@ -375,7 +365,10 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
 
 });
 
-const { sendEmail } = require("../services/emailService");
+const { sendEmail,
+    sendVerificationEmail,
+    sendPasswordResetEmail
+ } = require("../services/emailService");
 
 const testEmail = async (req, res) => {
     try {
@@ -433,36 +426,13 @@ const resendVerificationEmail = asyncHandler(async (req, res, next) => {
         return res.status(200).json(genericResponse);
     }
 
-    const verificationUrl =
-        `${process.env.API_URL}/api/auth/verify-email?token=${result.verificationToken}`;
+    
 
-    await sendEmail({
-        to: result.user.email,
-        subject: "Verify Your Email Address",
-        html: `
-            <h2>Verify Your Email</h2>
-
-            <p>You requested a new email verification link.</p>
-
-            <p>
-                <a href="${verificationUrl}"
-                   style="
-                        background:#2563eb;
-                        color:#fff;
-                        padding:12px 20px;
-                        text-decoration:none;
-                        border-radius:6px;
-                        display:inline-block;
-                   ">
-                    Verify Email
-                </a>
-            </p>
-
-            <p>This link will expire after 24 hours.</p>
-
-            <p>If you did not request this email, you can safely ignore it.</p>
-        `
-    });
+ await sendVerificationEmail(
+    result.user.email,
+    result.verificationToken,
+    "resend"
+);
 
     return res.status(200).json(genericResponse);
 

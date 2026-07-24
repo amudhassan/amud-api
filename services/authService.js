@@ -161,9 +161,14 @@ const createEmailVerificationToken = async (email) => {
         };
     }
 
-    const verificationToken = crypto
-        .randomBytes(32)
-        .toString("hex");
+   const verificationToken = crypto
+    .randomBytes(32)
+    .toString("hex");
+
+const hashedVerificationToken = crypto
+    .createHash("sha256")
+    .update(verificationToken)
+    .digest("hex");
 
     const expiresAt = new Date(
         Date.now() + 24 * 60 * 60 * 1000
@@ -175,7 +180,7 @@ const createEmailVerificationToken = async (email) => {
              email_verification_expires = $2
          WHERE public_id = $3`,
         [
-            verificationToken,
+            hashedVerificationToken,
             expiresAt,
             user.public_id
         ]
