@@ -7,7 +7,7 @@ const AppError = require("../utils/AppError");
 const {generateAccessToken, generateRefreshToken, generateResetToken} = require("../utils/token");
 const {createPasswordResetToken, resetUserPassword, saveRefreshToken, verifyRefreshToken, logoutUser} = require("../services/authService");
 const crypto = require("crypto");
-const {sendEmail} = require("../services/emailService");
+
 
 const registerUser = asyncHandler(async (req, res, next) => {
 
