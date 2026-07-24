@@ -13,7 +13,8 @@ const {createPasswordResetToken,
      saveRefreshToken, 
      verifyRefreshToken,
       logoutUser,
-      createEmailVerificationToken
+      createEmailVerificationToken,
+      rotateRefreshToken
     } = require("../services/authService");
 
 const crypto = require("crypto");
@@ -287,27 +288,61 @@ const refreshToken = asyncHandler(async (req, res, next) => {
         );
     }
 
-    const user = await verifyRefreshToken(refreshToken);
+    try {
 
-    if (!user) {
+        const {
+            user,
+            newRefreshToken
+        } = await rotateRefreshToken(refreshToken);
+
+        const accessToken = generateAccessToken(user);
+
+        return res.status(200).json({
+            success: true,
+            message: "Access token refreshed successfully",
+            accessToken,
+            refreshToken: newRefreshToken
+        });
+
+    } catch (error) {
+
         return next(
-            new AppError("Invalid or expired refresh token", 401)
+            new AppError(
+                "Invalid or expired refresh token",
+                401
+            )
         );
+
     }
-
-    const accessToken = generateAccessToken(user);
-
-    return res.status(200).json({
-        success: true,
-        message: "Access token refreshed successfully",
-        accessToken
-    });
 
 });
 
-const logout = asyncHandler(async (req, res) => {
+const logout = asyncHandler(async (req, res, next) => {
 
-    await logoutUser(req.user.public_id);
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+        return next(
+            new AppError(
+                "Refresh token is required",
+                400
+            )
+        );
+    }
+
+    const revoked = await logoutUser(
+        req.user.public_id,
+        refreshToken
+    );
+
+    if (!revoked) {
+        return next(
+            new AppError(
+                "Invalid or already revoked refresh token",
+                401
+            )
+        );
+    }
 
     return res.status(200).json({
         success: true,

@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-
+const { authLimiter } = require("../middleware/rateLimiter");
 
 const {
     registerUser,
@@ -27,6 +27,8 @@ const {
 } = require("../validators/authValidator");
 
 const validateRequest = require("../middleware/validateRequest");
+
+
 
 /**
  * @swagger
@@ -67,6 +69,7 @@ const validateRequest = require("../middleware/validateRequest");
 
 router.post(
     "/register",
+    authLimiter,
     registerValidation,
     validateRequest,
     registerUser
@@ -93,7 +96,10 @@ router.post(
  *         description: Invalid or expired verification token
  */
 
-router.get("/verify-email", verifyEmail);
+router.get(
+    "/verify-email",
+     verifyEmail
+    );
 
 /**
  * @swagger
@@ -127,11 +133,13 @@ router.get("/verify-email", verifyEmail);
 
 router.post(
     "/resend-verification", 
+    authLimiter,
     resendVerificationEmail
 );
 
 router.post(
     "/login",
+    authLimiter,
     loginValidation,
     validateRequest,
     loginUser
@@ -153,7 +161,11 @@ router.post(
  *         description: Unauthorized
  */
 
-router.get("/profile", authMiddleware, getProfile);
+router.get(
+    "/profile",
+     authMiddleware,
+      getProfile
+    );
 
 /**
  * @swagger
@@ -189,7 +201,11 @@ router.get("/profile", authMiddleware, getProfile);
  *         description: Unauthorized
  */
 
-router.put("/change-password" , authMiddleware, changePassword);
+router.put(
+    "/change-password",
+     authMiddleware,
+     changePassword
+    );
 
 /**
  * @swagger
@@ -217,7 +233,11 @@ router.put("/change-password" , authMiddleware, changePassword);
  *         description: User not found
  */
 
-router.post("/forgot-password", forgotPassword);
+router.post(
+    "/forgot-password",
+    authLimiter,
+     forgotPassword
+    );
 
 /**
  * @swagger
@@ -249,7 +269,11 @@ router.post("/forgot-password", forgotPassword);
  *         description: Invalid or expired reset token
  */
 
-router.post("/reset-password" ,resetPassword);
+router.post(
+    "/reset-password",
+    authLimiter,
+    resetPassword
+);
 
 /**
  * @swagger
@@ -283,16 +307,30 @@ router.post("/refresh-token" ,refreshToken);
  * @swagger
  * /api/auth/logout:
  *   post:
- *     summary: Logout current user
+ *     summary: Logout current device
  *     tags:
  *       - Authentication
  *     security:
  *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *     responses:
  *       200:
  *         description: Logout successful
+ *       400:
+ *         description: Refresh token is required
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized, invalid, or already revoked token
  */
 
 router.post("/logout" ,authMiddleware, logout);
