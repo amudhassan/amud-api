@@ -312,6 +312,51 @@ const logout = asyncHandler(async (req, res) => {
 
 });
 
+const verifyEmail = asyncHandler(async (req, res, next) => {
+
+    const { token } = req.query;
+
+    if (!token) {
+        return next(
+            new AppError("Verification token is required", 400)
+        );
+    }
+
+    const result = await pool.query(
+        `
+        SELECT *
+        FROM users
+        WHERE email_verification_token = $1
+        AND email_verification_expires > NOW()
+        `,
+        [token]
+    );
+
+    if (result.rows.length === 0) {
+        return next(
+            new AppError("Invalid or expired verification link", 400)
+        );
+    }
+
+    await pool.query(
+        `
+        UPDATE users
+        SET
+            is_verified = TRUE,
+            email_verification_token = NULL,
+            email_verification_expires = NULL
+        WHERE email_verification_token = $1
+        `,
+        [token]
+    );
+
+    return res.status(200).json({
+        success: true,
+        message: "Email verified successfully."
+    });
+
+});
+
 const { sendEmail } = require("../services/emailService");
 
 const testEmail = async (req, res) => {
@@ -357,5 +402,6 @@ module.exports = {
     resetPassword,
     refreshToken,
     logout,
-    testEmail
+    testEmail,
+    verifyEmail
  };

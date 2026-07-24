@@ -11,7 +11,8 @@ const {
     resetPassword,
     refreshToken,
     logout,
-    testEmail
+    testEmail,
+    verifyEmail
 } = require("../controllers/authController");
 
 const {
@@ -69,6 +70,29 @@ router.post(
     validateRequest,
     registerUser
 );
+
+/**
+ * @swagger
+ * /api/auth/verify-email:
+ *   get:
+ *     summary: Verify user email address
+ *     tags:
+ *       - Authentication
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Email verification token
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Invalid or expired verification token
+ */
+
+router.get("/verify-email", verifyEmail);
 
 /**
  * @swagger
