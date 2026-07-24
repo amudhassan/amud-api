@@ -27,27 +27,45 @@ const registerUser = asyncHandler(async (req, res, next) => {
 
     const public_id = nanoid(30);
 
+    const emailVerificationToken = crypto
+        .randomBytes(32)
+        .toString("hex");
+
+    const emailVerificationExpires =
+        new Date(Date.now() + 24 * 60 * 60 * 1000);
+
     const result = await pool.query(
         `INSERT INTO users
-        (public_id, full_name, email, password, role)
-        VALUES ($1,$2,$3,$4,$5)
+        (
+            public_id,
+            full_name,
+            email,
+            password,
+            role,
+            email_verification_token,
+            email_verification_expires
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
         RETURNING
             public_id,
             full_name,
             email,
-            role`,
+            role,
+            is_verified`,
         [
             public_id,
             full_name,
             email,
             hashedPassword,
-            role
+            role,
+            emailVerificationToken,
+            emailVerificationExpires
         ]
     );
 
     return res.status(201).json({
         success: true,
-        message: "User registered successfully",
+        message: "User registered successfully. Please verify your email.",
         user: result.rows[0]
     });
 
