@@ -7,6 +7,7 @@ const AppError = require("../utils/AppError");
 const {generateAccessToken, generateRefreshToken, generateResetToken} = require("../utils/token");
 const {createPasswordResetToken, resetUserPassword, saveRefreshToken, verifyRefreshToken, logoutUser} = require("../services/authService");
 const crypto = require("crypto");
+const {sendEmail} = require("../services/emailService");
 
 const registerUser = asyncHandler(async (req, res, next) => {
 
@@ -33,6 +34,9 @@ const registerUser = asyncHandler(async (req, res, next) => {
 
     const emailVerificationExpires =
         new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        const verificationUrl =
+    `${process.env.API_URL}/api/auth/verify-email?token=${emailVerificationToken}`;
 
     const result = await pool.query(
         `INSERT INTO users
@@ -62,6 +66,34 @@ const registerUser = asyncHandler(async (req, res, next) => {
             emailVerificationExpires
         ]
     );
+
+    await sendEmail({
+    to: email,
+    subject: "Verify Your Email Address",
+    html: `
+        <h2>Welcome to Amud API</h2>
+
+        <p>Thank you for registering.</p>
+
+        <p>Please verify your email by clicking the button below:</p>
+
+        <p>
+            <a href="${verificationUrl}"
+               style="
+                    background:#2563eb;
+                    color:#fff;
+                    padding:12px 20px;
+                    text-decoration:none;
+                    border-radius:6px;
+                    display:inline-block;
+               ">
+                Verify Email
+            </a>
+        </p>
+
+        <p>If you did not create this account, you can safely ignore this email.</p>
+    `
+});
 
     return res.status(201).json({
         success: true,
