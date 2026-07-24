@@ -141,10 +141,59 @@ const logoutUser = async (public_id) => {
 
 };
 
+const createEmailVerificationToken = async (email) => {
+
+    const result = await pool.query(
+        "SELECT * FROM users WHERE email = $1",
+        [email]
+    );
+
+    if (result.rows.length === 0) {
+        return null;
+    }
+
+    const user = result.rows[0];
+
+    if (user.is_verified) {
+        return {
+            alreadyVerified: true,
+            user
+        };
+    }
+
+    const verificationToken = crypto
+        .randomBytes(32)
+        .toString("hex");
+
+    const expiresAt = new Date(
+        Date.now() + 24 * 60 * 60 * 1000
+    );
+
+    await pool.query(
+        `UPDATE users
+         SET email_verification_token = $1,
+             email_verification_expires = $2
+         WHERE public_id = $3`,
+        [
+            verificationToken,
+            expiresAt,
+            user.public_id
+        ]
+    );
+
+    return {
+        verificationToken,
+        expiresAt,
+        user
+    };
+
+};
+
 module.exports = {
     createPasswordResetToken,
     resetUserPassword,
     saveRefreshToken,
     verifyRefreshToken,
-    logoutUser
+    logoutUser,
+    createEmailVerificationToken
 };

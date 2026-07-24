@@ -4,8 +4,17 @@ const { nanoid } = require("nanoid");
 const jwt = require("jsonwebtoken");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
-const {generateAccessToken, generateRefreshToken, generateResetToken} = require("../utils/token");
-const {createPasswordResetToken, resetUserPassword, saveRefreshToken, verifyRefreshToken, logoutUser} = require("../services/authService");
+const {generateAccessToken, 
+    generateRefreshToken, 
+    generateResetToken
+} = require("../utils/token");
+const {createPasswordResetToken,
+     resetUserPassword, 
+     saveRefreshToken, 
+     verifyRefreshToken,
+      logoutUser,
+      createEmailVerificationToken
+    } = require("../services/authService");
 const crypto = require("crypto");
 
 
@@ -402,6 +411,63 @@ const testEmail = async (req, res) => {
     }
 };
 
+const resendVerificationEmail = asyncHandler(async (req, res, next) => {
+
+    const { email } = req.body;
+
+    if (!email) {
+        return next(
+            new AppError("Email is required", 400)
+        );
+    }
+
+    const result = await createEmailVerificationToken(email);
+
+    const genericResponse = {
+        success: true,
+        message:
+            "If the account exists and is not verified, a verification email has been sent."
+    };
+
+    if (!result || result.alreadyVerified) {
+        return res.status(200).json(genericResponse);
+    }
+
+    const verificationUrl =
+        `${process.env.API_URL}/api/auth/verify-email?token=${result.verificationToken}`;
+
+    await sendEmail({
+        to: result.user.email,
+        subject: "Verify Your Email Address",
+        html: `
+            <h2>Verify Your Email</h2>
+
+            <p>You requested a new email verification link.</p>
+
+            <p>
+                <a href="${verificationUrl}"
+                   style="
+                        background:#2563eb;
+                        color:#fff;
+                        padding:12px 20px;
+                        text-decoration:none;
+                        border-radius:6px;
+                        display:inline-block;
+                   ">
+                    Verify Email
+                </a>
+            </p>
+
+            <p>This link will expire after 24 hours.</p>
+
+            <p>If you did not request this email, you can safely ignore it.</p>
+        `
+    });
+
+    return res.status(200).json(genericResponse);
+
+});
+
 module.exports = { 
     registerUser,
     loginUser,
@@ -412,5 +478,6 @@ module.exports = {
     refreshToken,
     logout,
     testEmail,
-    verifyEmail
+    verifyEmail,
+    resendVerificationEmail
  };

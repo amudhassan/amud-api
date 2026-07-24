@@ -12,7 +12,8 @@ const {
     refreshToken,
     logout,
     testEmail,
-    verifyEmail
+    verifyEmail,
+    resendVerificationEmail
 } = require("../controllers/authController");
 
 const {
@@ -123,6 +124,11 @@ router.get("/verify-email", verifyEmail);
  *       401:
  *         description: Invalid email or password
  */
+
+router.post(
+    "/resend-verification", 
+    resendVerificationEmail
+);
 
 router.post(
     "/login",
