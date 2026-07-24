@@ -120,6 +120,15 @@ const loginUser = asyncHandler(async (req, res, next) => {
 
     const user = result.rows[0];
 
+    if (!user.is_verified) {
+    return next(
+        new AppError(
+            "Please verify your email before logging in.",
+            403
+        )
+    );
+}
+
     const isMatch = await bcrypt.compare(
         password,
         user.password
