@@ -4,6 +4,8 @@ const { nanoid } = require("nanoid");
 const jwt = require("jsonwebtoken");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
+const cloudinary = require("../config/cloudinary");
+const streamifier = require("streamifier");
 const {generateAccessToken, 
     generateRefreshToken, 
     generateResetToken
@@ -22,7 +24,9 @@ const crypto = require("crypto");
 
 const registerUser = asyncHandler(async (req, res, next) => {
 
-    const { full_name, email, password, role } = req.body;
+    const { full_name, email, password} = req.body;
+
+    const role = "user";
 
     const existingUser = await pool.query(
         "SELECT email FROM users WHERE email = $1",
@@ -196,6 +200,80 @@ const updateProfile = asyncHandler(async (req, res, next) => {
     return res.status(200).json({
         success: true,
         message: "Profile updated successfully",
+        user: result.rows[0]
+    });
+
+});
+
+const uploadProfilePicture = asyncHandler(async (req, res, next) => {
+
+    if (!req.file) {
+        return next(
+            new AppError("Please upload a profile image", 400)
+        );
+    }
+
+    const uploadFromBuffer = () => {
+
+        return new Promise((resolve, reject) => {
+
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    folder: "real-estate/profiles",
+                    resource_type: "image",
+                    transformation: [
+                        {
+                            width: 500,
+                            height: 500,
+                            crop: "fill",
+                            gravity: "face"
+                        }
+                    ]
+                },
+                (error, result) => {
+
+                    if (error) {
+                        return reject(error);
+                    }
+
+                    resolve(result);
+                }
+            );
+
+            streamifier
+                .createReadStream(req.file.buffer)
+                .pipe(uploadStream);
+        });
+    };
+
+    const uploadedImage = await uploadFromBuffer();
+
+    const result = await pool.query(
+        `UPDATE users
+         SET profile_image_url = $1
+         WHERE public_id = $2
+         RETURNING
+            public_id,
+            full_name,
+            email,
+            role,
+            is_verified,
+            profile_image_url`,
+        [
+            uploadedImage.secure_url,
+            req.user.public_id
+        ]
+    );
+
+    if (result.rows.length === 0) {
+        return next(
+            new AppError("User not found", 404)
+        );
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: "Profile picture uploaded successfully",
         user: result.rows[0]
     });
 
@@ -389,16 +467,18 @@ const logout = asyncHandler(async (req, res, next) => {
 const verifyEmail = asyncHandler(async (req, res, next) => {
 
     const { token } = req.query;
-    const hashedVerificationToken = crypto
+
+if (!token) {
+    return next(
+        new AppError("Verification token is required", 400)
+    );
+}
+
+const hashedVerificationToken = crypto
     .createHash("sha256")
     .update(token)
     .digest("hex");
 
-    if (!token) {
-        return next(
-            new AppError("Verification token is required", 400)
-        );
-    }
 
     const result = await pool.query(
         `
@@ -508,11 +588,13 @@ const resendVerificationEmail = asyncHandler(async (req, res, next) => {
 
 });
 
+
 module.exports = { 
     registerUser,
     loginUser,
     getProfile,
     updateProfile,
+    uploadProfilePicture,
     changePassword,
     forgotPassword,
     resetPassword,

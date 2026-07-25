@@ -7,6 +7,7 @@ const {
     loginUser,
     getProfile,
     updateProfile,
+    uploadProfilePicture,
     changePassword,
     forgotPassword,
     resetPassword,
@@ -30,7 +31,9 @@ const {
 
 const validateRequest = require("../middleware/validateRequest");
 
-
+const {
+    uploadProfileImage
+} = require("../middleware/uploadMiddleware");
 
 /**
  * @swagger
@@ -208,6 +211,12 @@ router.put(
     updateProfileValidation,
     validateRequest,
     updateProfile
+);
+router.put(
+    "/profile-picture",
+    authMiddleware,
+    uploadProfileImage.single("profile_image"),
+    uploadProfilePicture
 );
 
 router.put(
