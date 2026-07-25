@@ -43,7 +43,22 @@ const loginValidation = [
 
 ];
 
+const updateProfileValidation = [
+
+    body("full_name")
+        .trim()
+        .notEmpty()
+        .withMessage("Full name is required")
+        .bail()
+        .isLength({ min: 3, max: 100 })
+        .withMessage(
+            "Full name must be between 3 and 100 characters"
+        )
+
+];
+
 module.exports = {
     registerValidation,
-    loginValidation
+    loginValidation,
+    updateProfileValidation
 };
