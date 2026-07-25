@@ -117,6 +117,15 @@ const loginUser = asyncHandler(async (req, res, next) => {
 
     const user = result.rows[0];
 
+    if (user.deleted_at) {
+    return next(
+        new AppError(
+            "This account has been deleted. Please contact support to restore your account.",
+            403
+        )
+    );
+}
+
     if (!user.is_verified) {
     return next(
         new AppError(
@@ -274,6 +283,40 @@ const uploadProfilePicture = asyncHandler(async (req, res, next) => {
     return res.status(200).json({
         success: true,
         message: "Profile picture uploaded successfully",
+        user: result.rows[0]
+    });
+
+});
+
+const softDeleteAccount = asyncHandler(async (req, res, next) => {
+
+    const result = await pool.query(
+        `
+        UPDATE users
+        SET deleted_at = NOW()
+        WHERE public_id = $1
+        AND deleted_at IS NULL
+        RETURNING
+            public_id,
+            full_name,
+            email,
+            deleted_at
+        `,
+        [req.user.public_id]
+    );
+
+    if (result.rows.length === 0) {
+        return next(
+            new AppError(
+                "Account not found or already deleted",
+                404
+            )
+        );
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: "Account deleted successfully",
         user: result.rows[0]
     });
 
@@ -595,6 +638,7 @@ module.exports = {
     getProfile,
     updateProfile,
     uploadProfilePicture,
+    softDeleteAccount,
     changePassword,
     forgotPassword,
     resetPassword,

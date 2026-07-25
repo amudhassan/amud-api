@@ -8,6 +8,7 @@ const {
     getProfile,
     updateProfile,
     uploadProfilePicture,
+    softDeleteAccount,
     changePassword,
     forgotPassword,
     resetPassword,
@@ -217,6 +218,12 @@ router.put(
     authMiddleware,
     uploadProfileImage.single("profile_image"),
     uploadProfilePicture
+);
+
+router.delete(
+    "/delete-account",
+    authMiddleware,
+    softDeleteAccount
 );
 
 router.put(

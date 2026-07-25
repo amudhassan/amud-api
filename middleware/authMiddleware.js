@@ -1,37 +1,77 @@
 const jwt = require("jsonwebtoken");
+const pool = require("../config/db");
+const AppError = require("../utils/AppError");
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
 
     const authHeader = req.headers.authorization;
 
-    if (!authHeader) {
-        return res.status(401).json({
-            success: false,
-            message: "Access denied. No token provided."
-        });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return next(
+            new AppError(
+                "Access denied. No token provided.",
+                401
+            )
+        );
     }
 
     const token = authHeader.split(" ")[1];
 
     try {
-        console.log("TOKEN RECEIVED:", token);
 
         const decoded = jwt.verify(
             token,
             process.env.JWT_SECRET
         );
-        console.log("DECODED IN MIDDLEWARE:", decoded);
 
-        req.user = decoded;
+        const result = await pool.query(
+            `
+            SELECT
+                public_id,
+                full_name,
+                email,
+                role,
+                is_verified,
+                deleted_at,
+                profile_image_url
+            FROM users
+            WHERE public_id = $1
+            `,
+            [decoded.public_id]
+        );
+
+        if (result.rows.length === 0) {
+            return next(
+                new AppError(
+                    "User not found",
+                    404
+                )
+            );
+        }
+
+        const user = result.rows[0];
+
+        if (user.deleted_at) {
+            return next(
+                new AppError(
+                    "This account has been deleted. Access denied.",
+                    403
+                )
+            );
+        }
+
+        req.user = user;
 
         next();
 
     } catch (error) {
 
-        return res.status(403).json({
-            success: false,
-            message: "Invalid or expired token."
-        });
+        return next(
+            new AppError(
+                "Invalid or expired token.",
+                403
+            )
+        );
 
     }
 
@@ -40,14 +80,15 @@ const authMiddleware = (req, res, next) => {
 const authorizeRoles = (...roles) => {
 
     return (req, res, next) => {
-        
 
         if (!roles.includes(req.user.role)) {
 
-            return res.status(403).json({
-                success: false,
-                message: "Access denied"
-            });
+            return next(
+                new AppError(
+                    "Access denied.",
+                    403
+                )
+            );
 
         }
 
@@ -57,8 +98,7 @@ const authorizeRoles = (...roles) => {
 
 };
 
-module.exports ={
+module.exports = {
     authMiddleware,
     authorizeRoles
-
 };
