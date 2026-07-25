@@ -16,7 +16,8 @@ const {
     logout,
     testEmail,
     verifyEmail,
-    resendVerificationEmail
+    resendVerificationEmail,
+    restoreAccount
 } = require("../controllers/authController");
 
 const {
@@ -372,5 +373,12 @@ router.get(
 );
 
 router.post("/test-email", testEmail);
+
+router.patch(
+    "/restore-account/:public_id",
+    authMiddleware,
+    authorizeRoles("admin"),
+    restoreAccount
+);
 
 module.exports = router;

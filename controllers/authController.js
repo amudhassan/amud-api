@@ -631,6 +631,49 @@ const resendVerificationEmail = asyncHandler(async (req, res, next) => {
 
 });
 
+const restoreAccount = async (req, res, next) => {
+    try {
+        const { public_id } = req.params;
+
+        const result = await pool.query(
+            `
+            UPDATE users
+            SET deleted_at = NULL
+            WHERE public_id = $1
+            AND deleted_at IS NOT NULL
+            RETURNING
+                public_id,
+                full_name,
+                email,
+                role,
+                is_verified,
+                deleted_at
+            `,
+            [public_id]
+        );
+
+        if (result.rows.length === 0) {
+            return next(
+                new AppError(
+                    "Deleted account not found or account is already active.",
+                    404
+                )
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Account restored successfully.",
+            data: {
+                user: result.rows[0]
+            }
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
 
 module.exports = { 
     registerUser,
@@ -646,5 +689,6 @@ module.exports = {
     logout,
     testEmail,
     verifyEmail,
-    resendVerificationEmail
+    resendVerificationEmail,
+    restoreAccount
  };
