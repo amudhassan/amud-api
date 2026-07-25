@@ -6,6 +6,7 @@ const {
     registerUser,
     loginUser,
     getProfile,
+    updateProfile,
     changePassword,
     forgotPassword,
     resetPassword,
@@ -23,7 +24,8 @@ const {
 
 const {
     registerValidation,
-    loginValidation
+    loginValidation,
+    updateProfileValidation
 } = require("../validators/authValidator");
 
 const validateRequest = require("../middleware/validateRequest");
@@ -200,6 +202,13 @@ router.get(
  *       401:
  *         description: Unauthorized
  */
+router.put(
+    "/profile",
+    authMiddleware,
+    updateProfileValidation,
+    validateRequest,
+    updateProfile
+);
 
 router.put(
     "/change-password",

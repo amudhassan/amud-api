@@ -166,6 +166,41 @@ const getProfile = async (req, res) => {
     });
 
 };
+
+const updateProfile = asyncHandler(async (req, res, next) => {
+
+    const { full_name } = req.body;
+
+    const result = await pool.query(
+        `UPDATE users
+         SET full_name = $1
+         WHERE public_id = $2
+         RETURNING
+            public_id,
+            full_name,
+            email,
+            role,
+            is_verified`,
+        [
+            full_name,
+            req.user.public_id
+        ]
+    );
+
+    if (result.rows.length === 0) {
+        return next(
+            new AppError("User not found", 404)
+        );
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: "Profile updated successfully",
+        user: result.rows[0]
+    });
+
+});
+
 const changePassword = asyncHandler(async (req, res, next) => {
 
     const { currentPassword, newPassword } = req.body;
@@ -477,6 +512,7 @@ module.exports = {
     registerUser,
     loginUser,
     getProfile,
+    updateProfile,
     changePassword,
     forgotPassword,
     resetPassword,
