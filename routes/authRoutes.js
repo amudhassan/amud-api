@@ -17,7 +17,10 @@ const {
     testEmail,
     verifyEmail,
     resendVerificationEmail,
-    restoreAccount
+    restoreAccount,
+    getActiveSessions,
+    logoutSession,
+    logoutAllDevices
 } = require("../controllers/authController");
 
 const {
@@ -358,6 +361,24 @@ router.post("/refresh-token" ,refreshToken);
  *       401:
  *         description: Unauthorized, invalid, or already revoked token
  */
+
+router.get(
+    "/sessions",
+    authMiddleware,
+    getActiveSessions
+);
+
+router.delete(
+    "/sessions/:public_id",
+    authMiddleware,
+    logoutSession
+);
+
+router.delete(
+    "/sessions",
+    authMiddleware,
+    logoutAllDevices
+);
 
 router.post("/logout" ,authMiddleware, logout);
 router.get(

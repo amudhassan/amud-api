@@ -160,33 +160,36 @@ const verifyRefreshToken = async (refreshToken) => {
 };
 
 const rotateRefreshToken = async (oldRefreshToken) => {
-
     const client = await pool.connect();
 
     try {
-
         await client.query("BEGIN");
 
+        // 1. Verify old refresh token
         const decoded = jwt.verify(
             oldRefreshToken,
             process.env.JWT_SECRET
         );
 
+        // 2. Hash old refresh token
         const oldTokenHash = crypto
             .createHash("sha256")
             .update(oldRefreshToken)
             .digest("hex");
 
+        // 3. Find valid token and its user
         const userResult = await client.query(
-            `SELECT u.*
-             FROM refresh_tokens rt
-             JOIN users u
-               ON rt.user_public_id = u.public_id
-             WHERE rt.user_public_id = $1
-               AND rt.token_hash = $2
-               AND rt.revoked_at IS NULL
-               AND rt.expires_at > NOW()
-             FOR UPDATE`,
+            `
+            SELECT u.*
+            FROM refresh_tokens rt
+            INNER JOIN users u
+                ON rt.user_public_id = u.public_id
+            WHERE rt.user_public_id = $1
+              AND rt.token_hash = $2
+              AND rt.revoked_at IS NULL
+              AND rt.expires_at > NOW()
+            FOR UPDATE
+            `,
             [
                 decoded.public_id,
                 oldTokenHash
@@ -194,63 +197,145 @@ const rotateRefreshToken = async (oldRefreshToken) => {
         );
 
         if (userResult.rows.length === 0) {
-            throw new Error("Invalid refresh token");
+            throw new Error(
+                "Invalid or expired refresh token"
+            );
         }
 
         const user = userResult.rows[0];
 
-        await client.query(
-            `UPDATE refresh_tokens
-             SET revoked_at = NOW()
-             WHERE token_hash = $1`,
-            [oldTokenHash]
+        // 4. Block deleted accounts
+        if (user.deleted_at) {
+            throw new Error(
+                "This account has been deleted"
+            );
+        }
+
+        // 5. Find active session linked to old token
+        const sessionResult = await client.query(
+            `
+            SELECT *
+            FROM user_sessions
+            WHERE user_id = $1
+              AND refresh_token_hash = $2
+              AND revoked_at IS NULL
+              AND expires_at > NOW()
+            FOR UPDATE
+            `,
+            [
+                user.id,
+                oldTokenHash
+            ]
         );
 
-        const newRefreshToken = generateRefreshToken(user);
+        if (sessionResult.rows.length === 0) {
+            throw new Error(
+                "Active session not found"
+            );
+        }
 
+        const session = sessionResult.rows[0];
+
+        // 6. Revoke old refresh token
+        await client.query(
+            `
+            UPDATE refresh_tokens
+            SET revoked_at = NOW()
+            WHERE user_public_id = $1
+              AND token_hash = $2
+              AND revoked_at IS NULL
+            `,
+            [
+                user.public_id,
+                oldTokenHash
+            ]
+        );
+
+        // 7. Generate new refresh token
+        const newRefreshToken =
+            generateRefreshToken(user);
+
+        // 8. Hash new refresh token
         const newTokenHash = crypto
             .createHash("sha256")
             .update(newRefreshToken)
             .digest("hex");
 
-        const decodedNew = jwt.verify(
+        // 9. Decode new token to get exact expiry
+        const decodedNewToken = jwt.verify(
             newRefreshToken,
             process.env.JWT_SECRET
         );
 
+        const newExpiresAt = new Date(
+            decodedNewToken.exp * 1000
+        );
+
+        // 10. Save new refresh token
         await client.query(
-            `INSERT INTO refresh_tokens
-            (
+            `
+            INSERT INTO refresh_tokens (
                 user_public_id,
                 token_hash,
                 expires_at
             )
-            VALUES ($1,$2,$3)`,
+            VALUES ($1, $2, $3)
+            `,
             [
                 user.public_id,
                 newTokenHash,
-                new Date(decodedNew.exp * 1000)
+                newExpiresAt
             ]
         );
+
+        // 11. Update the same active session
+        const updatedSessionResult =
+            await client.query(
+                `
+                UPDATE user_sessions
+                SET
+                    refresh_token_hash = $1,
+                    last_used_at = NOW(),
+                    expires_at = $2
+                WHERE public_id = $3
+                  AND user_id = $4
+                  AND revoked_at IS NULL
+                RETURNING
+                    public_id,
+                    user_id,
+                    last_used_at,
+                    expires_at,
+                    revoked_at
+                `,
+                [
+                    newTokenHash,
+                    newExpiresAt,
+                    session.public_id,
+                    user.id
+                ]
+            );
+
+        if (updatedSessionResult.rows.length === 0) {
+            throw new Error(
+                "Failed to update active session"
+            );
+        }
 
         await client.query("COMMIT");
 
         return {
             user,
-            newRefreshToken
+            newRefreshToken,
+            session: updatedSessionResult.rows[0]
         };
 
     } catch (error) {
-
         await client.query("ROLLBACK");
         throw error;
 
     } finally {
-
         client.release();
-
     }
-
 };
 
 const logoutUser = async (public_id, refreshToken) => {

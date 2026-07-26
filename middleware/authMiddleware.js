@@ -27,6 +27,7 @@ const authMiddleware = async (req, res, next) => {
         const result = await pool.query(
             `
             SELECT
+                id,
                 public_id,
                 full_name,
                 email,

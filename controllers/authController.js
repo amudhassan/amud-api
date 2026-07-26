@@ -148,25 +148,63 @@ const loginUser = asyncHandler(async (req, res, next) => {
 
     const accessToken = generateAccessToken(user);
 
-    const refreshToken = generateRefreshToken(user);
+const refreshToken = generateRefreshToken(user);
 
-    await saveRefreshToken(
-        user.public_id,
-        refreshToken
-    );
+// Save refresh token kwenye users table (feature ya zamani)
+await saveRefreshToken(
+    user.public_id,
+    refreshToken
+);
 
-    return res.status(200).json({
-        success: true,
-        message: "Login successful",
-        accessToken,
-        refreshToken,
-        user: {
-            public_id: user.public_id,
-            full_name: user.full_name,
-            email: user.email,
-            role: user.role
-        }
-    });
+// Hash refresh token kwa ajili ya user_sessions
+const refreshTokenHash = crypto
+    .createHash("sha256")
+    .update(refreshToken)
+    .digest("hex");
+
+// Generate session ID
+const sessionPublicId = nanoid(24);
+
+// Expiry (badilisha kama refresh token yako ina muda tofauti)
+const expiresAt = new Date(
+    Date.now() + 7 * 24 * 60 * 60 * 1000
+);
+
+// Save session
+await pool.query(
+    `
+    INSERT INTO user_sessions (
+        public_id,
+        user_id,
+        refresh_token_hash,
+        user_agent,
+        ip_address,
+        expires_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6)
+    `,
+    [
+        sessionPublicId,
+        user.id,
+        refreshTokenHash,
+        req.headers["user-agent"] || null,
+        req.ip,
+        expiresAt
+    ]
+);
+
+return res.status(200).json({
+    success: true,
+    message: "Login successful",
+    accessToken,
+    refreshToken,
+    user: {
+        public_id: user.public_id,
+        full_name: user.full_name,
+        email: user.email,
+        role: user.role
+    }
+});
 
 });
 
@@ -674,6 +712,192 @@ const restoreAccount = async (req, res, next) => {
     }
 };
 
+const getActiveSessions = asyncHandler(async (req, res, next) => {
+
+    const result = await pool.query(
+        `
+        SELECT
+            public_id,
+            user_agent,
+            ip_address,
+            created_at,
+            last_used_at,
+            expires_at
+        FROM user_sessions
+        WHERE user_id = $1
+          AND revoked_at IS NULL
+        ORDER BY last_used_at DESC
+        `,
+        [req.user.id]
+    );
+
+    return res.status(200).json({
+        success: true,
+        count: result.rows.length,
+        sessions: result.rows
+    });
+
+});
+
+const logoutSession = asyncHandler(async (req, res, next) => {
+
+    const { public_id } = req.params;
+
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const sessionResult = await client.query(
+            `
+            SELECT
+                public_id,
+                refresh_token_hash,
+                user_agent,
+                ip_address
+            FROM user_sessions
+            WHERE public_id = $1
+              AND user_id = $2
+              AND revoked_at IS NULL
+            FOR UPDATE
+            `,
+            [
+                public_id,
+                req.user.id
+            ]
+        );
+
+        if (sessionResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return next(
+                new AppError(
+                    "Active session not found.",
+                    404
+                )
+            );
+        }
+
+        const session = sessionResult.rows[0];
+
+        await client.query(
+            `
+            UPDATE refresh_tokens
+            SET revoked_at = NOW()
+            WHERE token_hash = $1
+              AND revoked_at IS NULL
+            `,
+            [session.refresh_token_hash]
+        );
+
+        const revokedSessionResult = await client.query(
+            `
+            UPDATE user_sessions
+            SET revoked_at = NOW()
+            WHERE public_id = $1
+              AND user_id = $2
+              AND revoked_at IS NULL
+            RETURNING
+                public_id,
+                user_agent,
+                ip_address,
+                revoked_at
+            `,
+            [
+                public_id,
+                req.user.id
+            ]
+        );
+
+        await client.query("COMMIT");
+
+        return res.status(200).json({
+            success: true,
+            message: "Session logged out successfully.",
+            session: revokedSessionResult.rows[0]
+        });
+
+    } catch (error) {
+        await client.query("ROLLBACK");
+        return next(error);
+
+    } finally {
+        client.release();
+    }
+
+});
+
+const logoutAllDevices = asyncHandler(async (req, res, next) => {
+
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const sessionsResult = await client.query(
+            `
+            SELECT refresh_token_hash
+            FROM user_sessions
+            WHERE user_id = $1
+              AND revoked_at IS NULL
+            FOR UPDATE
+            `,
+            [req.user.id]
+        );
+
+        if (sessionsResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return next(
+                new AppError(
+                    "No active sessions found.",
+                    404
+                )
+            );
+        }
+
+        const tokenHashes = sessionsResult.rows.map(
+            session => session.refresh_token_hash
+        );
+
+        await client.query(
+            `
+            UPDATE refresh_tokens
+            SET revoked_at = NOW()
+            WHERE token_hash = ANY($1::text[])
+              AND revoked_at IS NULL
+            `,
+            [tokenHashes]
+        );
+
+        const revokedSessionsResult = await client.query(
+            `
+            UPDATE user_sessions
+            SET revoked_at = NOW()
+            WHERE user_id = $1
+              AND revoked_at IS NULL
+            RETURNING public_id
+            `,
+            [req.user.id]
+        );
+
+        await client.query("COMMIT");
+
+        return res.status(200).json({
+            success: true,
+            message: "Logged out from all devices successfully.",
+            revokedSessions: revokedSessionsResult.rows.length
+        });
+
+    } catch (error) {
+        await client.query("ROLLBACK");
+        return next(error);
+
+    } finally {
+        client.release();
+    }
+
+});
 
 module.exports = { 
     registerUser,
@@ -690,5 +914,8 @@ module.exports = {
     testEmail,
     verifyEmail,
     resendVerificationEmail,
-    restoreAccount
+    restoreAccount,
+    getActiveSessions,
+    logoutSession,
+    logoutAllDevices
  };
