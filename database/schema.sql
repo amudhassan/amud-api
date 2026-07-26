@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS users (
     password TEXT NOT NULL,
     role VARCHAR(50) NOT NULL DEFAULT 'user',
 
-    refresh_token TEXT,
     reset_token TEXT,
     reset_token_expires TIMESTAMPTZ,
 
