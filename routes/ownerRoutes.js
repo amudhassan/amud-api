@@ -4,12 +4,14 @@ const router = express.Router();
 
 const {
     createOwnerController,
-    getOwnersController
+    getOwnersController,
+    getSingleOwnerController
 } = require("../controllers/ownerController");
 
 const {
     createOwnerValidator,
-    getOwnersValidator
+    getOwnersValidator,
+    getSingleOwnerValidator
 } = require("../validators/ownerValidator");
 
 const {
@@ -30,6 +32,14 @@ router.get(
     getOwnersValidator,
     validateRequest,
     getOwnersController
+);
+
+router.get(
+    "/:public_id",
+    authMiddleware,
+    getSingleOwnerValidator,
+    validateRequest,
+    getSingleOwnerController
 );
 
 module.exports = router;

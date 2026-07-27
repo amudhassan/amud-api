@@ -3,7 +3,8 @@ const AppError = require("../utils/AppError");
 
 const {
     createOwner,
-    getOwners
+    getOwners,
+    getOwnerByPublicId
 } = require("../services/ownerService");
 
 const createOwnerController = asyncHandler(
@@ -67,7 +68,32 @@ const getOwnersController = asyncHandler(
     }
 );
 
+const getSingleOwnerController = asyncHandler(
+    async (req, res, next) => {
+        const owner = await getOwnerByPublicId({
+            ownerPublicId: req.params.public_id,
+            authenticatedUser: req.user
+        });
+
+        if (!owner) {
+            return next(
+                new AppError(
+                    "Owner not found.",
+                    404
+                )
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Owner retrieved successfully.",
+            data: owner
+        });
+    }
+);
+
 module.exports = {
     createOwnerController,
-    getOwnersController
+    getOwnersController,
+    getSingleOwnerController
 };

@@ -1,5 +1,6 @@
 const { body,
-    query
+    query,
+    param
  } = require("express-validator");
 
 const createOwnerValidator = [
@@ -179,7 +180,23 @@ const getOwnersValidator = [
         )
 ];
 
+const getSingleOwnerValidator = [
+    param("public_id")
+        .exists({ checkFalsy: true })
+        .withMessage("Owner public ID is required.")
+        .isString()
+        .withMessage("Owner public ID must be a string.")
+        .trim()
+        .isLength({ min: 7, max: 40 })
+        .withMessage(
+            "Owner public ID must contain between 7 and 40 characters."
+        )
+        .matches(/^owner_[A-Za-z0-9_-]+$/)
+        .withMessage("Invalid owner public ID format.")
+];
+
 module.exports = {
     createOwnerValidator,
-    getOwnersValidator
+    getOwnersValidator,
+    getSingleOwnerValidator
 };
