@@ -1,4 +1,6 @@
-const { body } = require("express-validator");
+const { body,
+    query
+ } = require("express-validator");
 
 const createOwnerValidator = [
     body("owner_type")
@@ -119,6 +121,65 @@ const createOwnerValidator = [
         )
 ];
 
+const getOwnersValidator = [
+    query("page")
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage(
+            "Page must be an integer greater than zero."
+        )
+        .toInt(),
+
+    query("limit")
+        .optional()
+        .isInt({ min: 1, max: 100 })
+        .withMessage(
+            "Limit must be an integer between 1 and 100."
+        )
+        .toInt(),
+
+    query("search")
+        .optional({ checkFalsy: true })
+        .isString()
+        .withMessage("Search must be a string.")
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage(
+            "Search cannot exceed 100 characters."
+        ),
+
+    query("owner_type")
+        .optional({ checkFalsy: true })
+        .isIn([
+            "individual",
+            "company",
+            "government",
+            "organization",
+            "partnership"
+        ])
+        .withMessage("Invalid owner type."),
+
+    query("status")
+        .optional({ checkFalsy: true })
+        .isIn([
+            "active",
+            "inactive",
+            "blocked"
+        ])
+        .withMessage("Invalid owner status."),
+
+    query("country")
+        .optional({ checkFalsy: true })
+        .isString()
+        .withMessage("Country must be a string.")
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage(
+            "Country cannot exceed 100 characters."
+        )
+];
+
 module.exports = {
-    createOwnerValidator
+    createOwnerValidator,
+    getOwnersValidator
 };

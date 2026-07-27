@@ -132,6 +132,165 @@ const createOwner = async ({
     }
 };
 
+const getOwners = async ({
+    authenticatedUser,
+    filters
+}) => {
+    const page = Number(filters.page) || 1;
+    const limit = Math.min(Number(filters.limit) || 20, 100);
+    const offset = (page - 1) * limit;
+
+    const values = [];
+    const conditions = [
+        "o.deleted_at IS NULL"
+    ];
+
+    let accessJoin = "";
+
+    let relationshipFields = `
+        NULL::VARCHAR AS relationship_role,
+        NULL::BOOLEAN AS is_primary,
+        NULL::BOOLEAN AS can_manage_properties,
+        NULL::BOOLEAN AS can_manage_finances
+    `;
+
+    /*
+     * Admin anaona owners wote.
+     * Regular user anaona owners aliounganishwa nao pekee.
+     */
+    if (authenticatedUser.role !== "admin") {
+        values.push(authenticatedUser.id);
+
+        const userIdParameter = `$${values.length}`;
+
+        accessJoin = `
+            INNER JOIN owner_users AS ou_access
+                ON ou_access.owner_id = o.id
+               AND ou_access.user_id = ${userIdParameter}
+               AND ou_access.revoked_at IS NULL
+        `;
+
+        relationshipFields = `
+            ou_access.relationship_role,
+            ou_access.is_primary,
+            ou_access.can_manage_properties,
+            ou_access.can_manage_finances
+        `;
+    }
+
+    if (filters.search) {
+        values.push(`%${filters.search.trim()}%`);
+
+        const searchParameter = `$${values.length}`;
+
+        conditions.push(`
+            (
+                o.display_name ILIKE ${searchParameter}
+                OR COALESCE(o.email, '') ILIKE ${searchParameter}
+                OR COALESCE(o.phone_number, '') ILIKE ${searchParameter}
+                OR COALESCE(
+                    o.registration_number,
+                    ''
+                ) ILIKE ${searchParameter}
+                OR COALESCE(
+                    o.tax_identification_number,
+                    ''
+                ) ILIKE ${searchParameter}
+            )
+        `);
+    }
+
+    if (filters.owner_type) {
+        values.push(filters.owner_type);
+
+        conditions.push(
+            `o.owner_type = $${values.length}`
+        );
+    }
+
+    if (filters.status) {
+        values.push(filters.status);
+
+        conditions.push(
+            `o.status = $${values.length}`
+        );
+    }
+
+    if (filters.country) {
+        values.push(filters.country.trim());
+
+        conditions.push(
+            `LOWER(o.country) = LOWER($${values.length})`
+        );
+    }
+
+    const whereClause = conditions.join(" AND ");
+
+    const countResult = await pool.query(
+        `
+        SELECT COUNT(*) AS total_records
+        FROM owners AS o
+        ${accessJoin}
+        WHERE ${whereClause}
+        `,
+        values
+    );
+
+    const totalRecords = Number(
+        countResult.rows[0].total_records
+    );
+
+    const dataValues = [...values];
+
+    dataValues.push(limit);
+    const limitParameter = `$${dataValues.length}`;
+
+    dataValues.push(offset);
+    const offsetParameter = `$${dataValues.length}`;
+
+    const ownersResult = await pool.query(
+        `
+        SELECT
+            o.public_id,
+            o.owner_type,
+            o.display_name,
+            o.registration_number,
+            o.tax_identification_number,
+            o.email,
+            o.phone_number,
+            o.alternative_phone,
+            o.address,
+            o.city,
+            o.region,
+            o.country,
+            o.status,
+            o.created_at,
+            o.updated_at,
+            ${relationshipFields}
+        FROM owners AS o
+        ${accessJoin}
+        WHERE ${whereClause}
+        ORDER BY o.created_at DESC
+        LIMIT ${limitParameter}
+        OFFSET ${offsetParameter}
+        `,
+        dataValues
+    );
+
+    return {
+        owners: ownersResult.rows,
+        pagination: {
+            page,
+            limit,
+            total_records: totalRecords,
+            total_pages: Math.ceil(
+                totalRecords / limit
+            )
+        }
+    };
+};
+
 module.exports = {
-    createOwner
+    createOwner,
+    getOwners
 };

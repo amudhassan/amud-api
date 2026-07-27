@@ -2,7 +2,8 @@ const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
 
 const {
-    createOwner
+    createOwner,
+    getOwners
 } = require("../services/ownerService");
 
 const createOwnerController = asyncHandler(
@@ -49,6 +50,24 @@ const createOwnerController = asyncHandler(
     }
 );
 
+const getOwnersController = asyncHandler(
+    async (req, res) => {
+        const result = await getOwners({
+            authenticatedUser: req.user,
+            filters: req.query
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Owners retrieved successfully.",
+            count: result.owners.length,
+            pagination: result.pagination,
+            data: result.owners
+        });
+    }
+);
+
 module.exports = {
-    createOwnerController
+    createOwnerController,
+    getOwnersController
 };

@@ -3,11 +3,13 @@ const express = require("express");
 const router = express.Router();
 
 const {
-    createOwnerController
+    createOwnerController,
+    getOwnersController
 } = require("../controllers/ownerController");
 
 const {
-    createOwnerValidator
+    createOwnerValidator,
+    getOwnersValidator
 } = require("../validators/ownerValidator");
 
 const {
@@ -21,6 +23,13 @@ router.post(
     createOwnerValidator,
     validateRequest,
     createOwnerController
+);
+router.get(
+    "/",
+    authMiddleware,
+    getOwnersValidator,
+    validateRequest,
+    getOwnersController
 );
 
 module.exports = router;
