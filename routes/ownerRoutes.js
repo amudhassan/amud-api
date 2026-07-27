@@ -36,6 +36,17 @@ const {
     updateOwnerUserValidator,
     revokeOwnerUserValidator
 } = require("../validators/ownerUserValidator");
+const {
+    getOwnerShareholdersController
+} = require(
+    "../controllers/ownerShareholderController"
+);
+
+const {
+    getOwnerShareholdersValidator
+} = require(
+    "../validators/ownerShareholderValidator"
+);
 
 router.post(
     "/",
@@ -65,6 +76,13 @@ router.post(
     validateRequest,
     addOwnerUserController
 );
+router.get(
+    "/:company_public_id/shareholders",
+    authMiddleware,
+    getOwnerShareholdersValidator,
+    validateRequest,
+    getOwnerShareholdersController
+);
 router.patch(
     "/:owner_public_id/users/:link_public_id",
     authMiddleware,
@@ -79,6 +97,7 @@ router.delete(
     validateRequest,
     revokeOwnerUserController
 );
+
 router.patch(
     "/:public_id/restore",
     authMiddleware,
@@ -86,6 +105,7 @@ router.patch(
     validateRequest,
     restoreOwnerController
 );
+
 router.get(
     "/:public_id",
     authMiddleware,
