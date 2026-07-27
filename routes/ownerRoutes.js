@@ -38,14 +38,16 @@ const {
 } = require("../validators/ownerUserValidator");
 const {
     getOwnerShareholdersController,
-    addOwnerShareholderController
+    addOwnerShareholderController,
+    updateOwnerShareholderController
 } = require(
     "../controllers/ownerShareholderController"
 );
 
 const {
     getOwnerShareholdersValidator,
-    addOwnerShareholderValidator
+    addOwnerShareholderValidator,
+    updateOwnerShareholderValidator
 } = require(
     "../validators/ownerShareholderValidator"
 );
@@ -91,6 +93,13 @@ router.post(
     addOwnerShareholderValidator,
     validateRequest,
     addOwnerShareholderController
+);
+router.patch(
+    "/:company_public_id/shareholders/:share_public_id",
+    authMiddleware,
+    updateOwnerShareholderValidator,
+    validateRequest,
+    updateOwnerShareholderController
 );
 router.patch(
     "/:owner_public_id/users/:link_public_id",

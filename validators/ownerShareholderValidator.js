@@ -167,8 +167,141 @@ const addOwnerShareholderValidator = [
             "Effective-from date must use the YYYY-MM-DD format."
         )
 ];
+const updateOwnerShareholderValidator = [
+    param("company_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Company owner public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Company owner public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Company owner public ID must contain between 7 and 40 characters."
+        )
+        .matches(
+            /^owner_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid company owner public ID format."
+        ),
+
+    param("share_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Share public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Share public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Share public ID must contain between 7 and 40 characters."
+        )
+        .matches(
+            /^share_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid share public ID format."
+        ),
+
+    body()
+        .custom(value => {
+            const allowedFields = [
+                "share_percentage",
+                "shareholder_type",
+                "effective_from"
+            ];
+
+            const suppliedFields =
+                Object.keys(value || {});
+
+            if (suppliedFields.length === 0) {
+                throw new Error(
+                    "At least one shareholding field must be supplied."
+                );
+            }
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (
+                unsupportedFields.length > 0
+            ) {
+                throw new Error(
+                    `Unsupported fields: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    body("share_percentage")
+        .optional()
+        .isFloat({
+            gt: 0,
+            max: 100
+        })
+        .withMessage(
+            "Share percentage must be greater than 0 and cannot exceed 100."
+        )
+        .custom(value => {
+            const valueText = String(value);
+
+            if (
+                !/^\d+(\.\d{1,4})?$/.test(
+                    valueText
+                )
+            ) {
+                throw new Error(
+                    "Share percentage cannot contain more than four decimal places."
+                );
+            }
+
+            return true;
+        })
+        .toFloat(),
+
+    body("shareholder_type")
+        .optional()
+        .isIn([
+            "ordinary",
+            "preferred",
+            "founder",
+            "institutional",
+            "government",
+            "partner"
+        ])
+        .withMessage(
+            "Invalid shareholder type."
+        ),
+
+    body("effective_from")
+        .optional()
+        .isISO8601({
+            strict: true
+        })
+        .withMessage(
+            "Effective-from date must use the YYYY-MM-DD format."
+        )
+];
 
 module.exports = {
     getOwnerShareholdersValidator,
-    addOwnerShareholderValidator
+    addOwnerShareholderValidator,
+    updateOwnerShareholderValidator
 };
