@@ -195,8 +195,198 @@ const getSingleOwnerValidator = [
         .withMessage("Invalid owner public ID format.")
 ];
 
+const updateOwnerValidator = [
+    param("public_id")
+        .exists({ checkFalsy: true })
+        .withMessage("Owner public ID is required.")
+        .isString()
+        .withMessage("Owner public ID must be a string.")
+        .trim()
+        .isLength({ min: 7, max: 40 })
+        .withMessage(
+            "Owner public ID must contain between 7 and 40 characters."
+        )
+        .matches(/^owner_[A-Za-z0-9_-]+$/)
+        .withMessage("Invalid owner public ID format."),
+
+    body()
+        .custom(value => {
+            const allowedFields = [
+                "owner_type",
+                "display_name",
+                "registration_number",
+                "tax_identification_number",
+                "email",
+                "phone_number",
+                "alternative_phone",
+                "address",
+                "city",
+                "region",
+                "country",
+                "status"
+            ];
+
+            const suppliedFields = Object.keys(
+                value || {}
+            );
+
+            if (suppliedFields.length === 0) {
+                throw new Error(
+                    "At least one owner field must be supplied."
+                );
+            }
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported fields: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    body("owner_type")
+        .optional()
+        .isIn([
+            "individual",
+            "company",
+            "government",
+            "organization",
+            "partnership"
+        ])
+        .withMessage("Invalid owner type."),
+
+    body("display_name")
+        .optional()
+        .isString()
+        .withMessage("Display name must be a string.")
+        .trim()
+        .isLength({ min: 2, max: 255 })
+        .withMessage(
+            "Display name must contain between 2 and 255 characters."
+        ),
+
+    body("registration_number")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage(
+            "Registration number must be a string."
+        )
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage(
+            "Registration number cannot exceed 100 characters."
+        ),
+
+    body("tax_identification_number")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage(
+            "Tax identification number must be a string."
+        )
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage(
+            "Tax identification number cannot exceed 100 characters."
+        ),
+
+    body("email")
+        .optional({ nullable: true, checkFalsy: true })
+        .isEmail()
+        .withMessage("A valid email address is required.")
+        .normalizeEmail(),
+
+    body("phone_number")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage("Phone number must be a string.")
+        .trim()
+        .isLength({ max: 30 })
+        .withMessage(
+            "Phone number cannot exceed 30 characters."
+        ),
+
+    body("alternative_phone")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage(
+            "Alternative phone must be a string."
+        )
+        .trim()
+        .isLength({ max: 30 })
+        .withMessage(
+            "Alternative phone cannot exceed 30 characters."
+        )
+        .custom((value, { req }) => {
+            if (
+                value &&
+                req.body.phone_number &&
+                value.trim() ===
+                    req.body.phone_number.trim()
+            ) {
+                throw new Error(
+                    "Alternative phone must be different from the primary phone number."
+                );
+            }
+
+            return true;
+        }),
+
+    body("address")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage("Address must be a string.")
+        .trim(),
+
+    body("city")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage("City must be a string.")
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage(
+            "City cannot exceed 100 characters."
+        ),
+
+    body("region")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage("Region must be a string.")
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage(
+            "Region cannot exceed 100 characters."
+        ),
+
+    body("country")
+        .optional()
+        .isString()
+        .withMessage("Country must be a string.")
+        .trim()
+        .isLength({ min: 2, max: 100 })
+        .withMessage(
+            "Country must contain between 2 and 100 characters."
+        ),
+
+    body("status")
+        .optional()
+        .isIn([
+            "active",
+            "inactive",
+            "blocked"
+        ])
+        .withMessage("Invalid owner status.")
+];
+
 module.exports = {
     createOwnerValidator,
     getOwnersValidator,
-    getSingleOwnerValidator
+    getSingleOwnerValidator,
+    updateOwnerValidator
 };

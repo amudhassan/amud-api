@@ -5,13 +5,15 @@ const router = express.Router();
 const {
     createOwnerController,
     getOwnersController,
-    getSingleOwnerController
+    getSingleOwnerController,
+    updateOwnerController
 } = require("../controllers/ownerController");
 
 const {
     createOwnerValidator,
     getOwnersValidator,
-    getSingleOwnerValidator
+    getSingleOwnerValidator,
+    updateOwnerValidator
 } = require("../validators/ownerValidator");
 
 const {
@@ -41,5 +43,11 @@ router.get(
     validateRequest,
     getSingleOwnerController
 );
-
+router.patch(
+    "/:public_id",
+    authMiddleware,
+    updateOwnerValidator,
+    validateRequest,
+    updateOwnerController
+);
 module.exports = router;

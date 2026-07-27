@@ -386,8 +386,175 @@ const getOwnerByPublicId = async ({
     return result.rows[0] || null;
 };
 
+const updateOwner = async ({
+    ownerPublicId,
+    ownerData,
+    authenticatedUser
+}) => {
+    const accessValues = [ownerPublicId];
+
+    let accessJoin = "";
+
+    /*
+     * Regular user lazima awe active primary representative.
+     * Admin hahitaji owner_users relationship.
+     */
+    if (authenticatedUser.role !== "admin") {
+        accessValues.push(authenticatedUser.id);
+
+        accessJoin = `
+            INNER JOIN owner_users AS ou_access
+                ON ou_access.owner_id = o.id
+               AND ou_access.user_id = $2
+               AND ou_access.revoked_at IS NULL
+               AND ou_access.is_primary = TRUE
+               AND ou_access.relationship_role IN (
+                    'owner',
+                    'representative',
+                    'manager'
+               )
+        `;
+    }
+
+    const ownerAccessResult = await pool.query(
+        `
+        SELECT o.id
+        FROM owners AS o
+        ${accessJoin}
+        WHERE o.public_id = $1
+          AND o.deleted_at IS NULL
+        LIMIT 1
+        `,
+        accessValues
+    );
+
+    if (ownerAccessResult.rows.length === 0) {
+        return null;
+    }
+
+    const ownerId = ownerAccessResult.rows[0].id;
+
+    const regularUserFields = [
+        "display_name",
+        "registration_number",
+        "tax_identification_number",
+        "email",
+        "phone_number",
+        "alternative_phone",
+        "address",
+        "city",
+        "region",
+        "country"
+    ];
+
+    const adminOnlyFields = [
+        "owner_type",
+        "status"
+    ];
+
+    const allowedFields =
+        authenticatedUser.role === "admin"
+            ? [...regularUserFields, ...adminOnlyFields]
+            : regularUserFields;
+
+    const nullableFields = new Set([
+        "registration_number",
+        "tax_identification_number",
+        "email",
+        "phone_number",
+        "alternative_phone",
+        "address",
+        "city",
+        "region"
+    ]);
+
+    const updateFields = [];
+    const updateValues = [];
+
+    for (const field of allowedFields) {
+        if (
+            !Object.prototype.hasOwnProperty.call(
+                ownerData,
+                field
+            )
+        ) {
+            continue;
+        }
+
+        let value = ownerData[field];
+
+        if (typeof value === "string") {
+            value = value.trim();
+        }
+
+        if (field === "email" && value) {
+            value = value.toLowerCase();
+        }
+
+        if (
+            nullableFields.has(field) &&
+            (value === "" || value === null)
+        ) {
+            value = null;
+        }
+
+        updateValues.push(value);
+
+        updateFields.push(
+            `${field} = $${updateValues.length}`
+        );
+    }
+
+    /*
+     * Validator inazuia empty body, lakini hii inalinda
+     * service ikiwa itaitwa kutoka sehemu nyingine.
+     */
+    if (updateFields.length === 0) {
+        return {
+            noChanges: true
+        };
+    }
+
+    updateValues.push(ownerId);
+    const ownerIdParameter = `$${updateValues.length}`;
+
+    const updateResult = await pool.query(
+        `
+        UPDATE owners
+        SET
+            ${updateFields.join(", ")},
+            updated_at = NOW()
+        WHERE id = ${ownerIdParameter}
+          AND deleted_at IS NULL
+        RETURNING
+            public_id,
+            owner_type,
+            display_name,
+            registration_number,
+            tax_identification_number,
+            email,
+            phone_number,
+            alternative_phone,
+            address,
+            city,
+            region,
+            country,
+            status,
+            created_at,
+            updated_at
+        `,
+        updateValues
+    );
+
+    return {
+        noChanges: false,
+        owner: updateResult.rows[0]
+    };
+};
+
 module.exports = {
     createOwner,
     getOwners,
-    getOwnerByPublicId
+    getOwnerByPublicId,
+    updateOwner
 };
