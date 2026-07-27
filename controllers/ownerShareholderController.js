@@ -5,7 +5,8 @@ const AppError =
     require("../utils/AppError");
 
 const {
-    getOwnerShareholders
+    getOwnerShareholders,
+    addOwnerShareholder
 } = require(
     "../services/ownerShareholderService"
 );
@@ -63,6 +64,123 @@ const getOwnerShareholdersController =
         }
     );
 
+    const addOwnerShareholderController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await addOwnerShareholder({
+                        companyPublicId:
+                            req.params
+                                .company_public_id,
+
+                        shareholderData:
+                            req.body,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Company owner not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.invalidCompanyType) {
+                    return next(
+                        new AppError(
+                            "Shareholders can only be added to company or partnership owners.",
+                            422
+                        )
+                    );
+                }
+
+                if (result.inactiveCompany) {
+                    return next(
+                        new AppError(
+                            "Shareholders cannot be added while the company owner is inactive.",
+                            409
+                        )
+                    );
+                }
+
+                if (result.shareholderNotFound) {
+                    return next(
+                        new AppError(
+                            "Active shareholder owner not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.selfShareholding) {
+                    return next(
+                        new AppError(
+                            "A company cannot be registered as its own shareholder.",
+                            422
+                        )
+                    );
+                }
+
+                if (
+                    result.duplicateShareholding
+                ) {
+                    return next(
+                        new AppError(
+                            "This shareholder already has an active shareholding of the supplied type.",
+                            409
+                        )
+                    );
+                }
+
+                if (
+                    result.shareLimitExceeded
+                ) {
+                    return next(
+                        new AppError(
+                            `The requested share percentage would exceed 100%. Current total: ${result.current_total}%. Remaining shares: ${result.remaining_shares}%.`,
+                            422
+                        )
+                    );
+                }
+
+                return res.status(201).json({
+                    success: true,
+
+                    message:
+                        "Shareholder added successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23505") {
+                    return next(
+                        new AppError(
+                            "The shareholder relationship conflicts with an existing active shareholding.",
+                            409
+                        )
+                    );
+                }
+
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "The supplied shareholding violates a business rule.",
+                            422
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
+    
 module.exports = {
-    getOwnerShareholdersController
+    getOwnerShareholdersController,
+    addOwnerShareholderController
 };
