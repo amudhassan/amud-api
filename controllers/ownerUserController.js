@@ -3,7 +3,8 @@ const AppError = require("../utils/AppError");
 
 const {
     getOwnerUsers,
-    addOwnerUser
+    addOwnerUser,
+    updateOwnerUser
 } = require("../services/ownerUserService");
 
 const getOwnerUsersController = asyncHandler(
@@ -126,7 +127,108 @@ const addOwnerUserController = asyncHandler(
     }
 );
 
+const updateOwnerUserController = asyncHandler(
+    async (req, res, next) => {
+        try {
+            const result = await updateOwnerUser({
+                ownerPublicId:
+                    req.params.owner_public_id,
+
+                linkPublicId:
+                    req.params.link_public_id,
+
+                linkData: req.body,
+
+                authenticatedUser: req.user
+            });
+
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Owner not found.",
+                        404
+                    )
+                );
+            }
+
+            if (result.linkNotFound) {
+                return next(
+                    new AppError(
+                        "Active owner-user relationship not found.",
+                        404
+                    )
+                );
+            }
+
+            if (result.forbidden) {
+                return next(
+                    new AppError(
+                        result.reason ||
+                            "You are not authorized to update this owner-user relationship.",
+                        403
+                    )
+                );
+            }
+
+            if (result.invalidPrimaryRole) {
+                return next(
+                    new AppError(
+                        "A primary representative must have the owner, representative or manager role.",
+                        422
+                    )
+                );
+            }
+
+            if (result.primaryRemovalBlocked) {
+                return next(
+                    new AppError(
+                        "The current primary representative cannot be removed directly. Promote another active user to primary instead.",
+                        409
+                    )
+                );
+            }
+
+            if (result.noChanges) {
+                return next(
+                    new AppError(
+                        "No valid owner-user fields were supplied.",
+                        400
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+                message:
+                    "Owner user updated successfully.",
+                data: result
+            });
+        } catch (error) {
+            if (error.code === "23505") {
+                return next(
+                    new AppError(
+                        "The updated relationship conflicts with an existing active relationship.",
+                        409
+                    )
+                );
+            }
+
+            if (error.code === "23514") {
+                return next(
+                    new AppError(
+                        "The updated owner-user relationship violates a business rule.",
+                        422
+                    )
+                );
+            }
+
+            return next(error);
+        }
+    }
+);
+
 module.exports = {
     getOwnerUsersController,
-    addOwnerUserController
+    addOwnerUserController,
+    updateOwnerUserController
 };

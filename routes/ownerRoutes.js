@@ -25,12 +25,14 @@ const validateRequest = require("../middleware/validateRequest");
 
 const {
     getOwnerUsersController,
-    addOwnerUserController
+    addOwnerUserController,
+    updateOwnerUserController
 } = require("../controllers/ownerUserController");
 
 const {
     getOwnerUsersValidator,
-    addOwnerUserValidator
+    addOwnerUserValidator,
+    updateOwnerUserValidator
 } = require("../validators/ownerUserValidator");
 
 router.post(
@@ -60,6 +62,13 @@ router.post(
     addOwnerUserValidator,
     validateRequest,
     addOwnerUserController
+);
+router.patch(
+    "/:owner_public_id/users/:link_public_id",
+    authMiddleware,
+    updateOwnerUserValidator,
+    validateRequest,
+    updateOwnerUserController
 );
 router.patch(
     "/:public_id/restore",
