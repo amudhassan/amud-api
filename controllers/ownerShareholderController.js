@@ -7,7 +7,8 @@ const AppError =
 const {
     getOwnerShareholders,
     addOwnerShareholder,
-    updateOwnerShareholder
+    updateOwnerShareholder,
+    closeOwnerShareholder
 } = require(
     "../services/ownerShareholderService"
 );
@@ -302,9 +303,98 @@ const getOwnerShareholdersController =
             }
         }
     );
+const closeOwnerShareholderController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await closeOwnerShareholder({
+                        companyPublicId:
+                            req.params
+                                .company_public_id,
 
+                        sharePublicId:
+                            req.params
+                                .share_public_id,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Company owner not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.invalidCompanyType) {
+                    return next(
+                        new AppError(
+                            "Shareholdings can only be managed for company or partnership owners.",
+                            422
+                        )
+                    );
+                }
+
+                if (result.inactiveCompany) {
+                    return next(
+                        new AppError(
+                            "Shareholdings cannot be closed by this user while the company owner is inactive.",
+                            409
+                        )
+                    );
+                }
+
+                if (
+                    result.shareholdingNotFound
+                ) {
+                    return next(
+                        new AppError(
+                            "Active shareholding not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (
+                    result.futureDatedShareholding
+                ) {
+                    return next(
+                        new AppError(
+                            `This shareholding cannot be closed before its effective date: ${result.effective_from}.`,
+                            409
+                        )
+                    );
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Shareholding closed successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "Closing this shareholding would violate a business rule.",
+                            422
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
 module.exports = {
     getOwnerShareholdersController,
     addOwnerShareholderController,
-    updateOwnerShareholderController
+    updateOwnerShareholderController,
+    closeOwnerShareholderController
 };

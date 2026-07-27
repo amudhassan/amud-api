@@ -299,9 +299,58 @@ const updateOwnerShareholderValidator = [
             "Effective-from date must use the YYYY-MM-DD format."
         )
 ];
+const closeOwnerShareholderValidator = [
+    param("company_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Company owner public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Company owner public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Company owner public ID must contain between 7 and 40 characters."
+        )
+        .matches(
+            /^owner_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid company owner public ID format."
+        ),
 
+    param("share_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Share public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Share public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Share public ID must contain between 7 and 40 characters."
+        )
+        .matches(
+            /^share_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid share public ID format."
+        )
+];
 module.exports = {
     getOwnerShareholdersValidator,
     addOwnerShareholderValidator,
-    updateOwnerShareholderValidator
+    updateOwnerShareholderValidator,
+    closeOwnerShareholderValidator
 };

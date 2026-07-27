@@ -1030,9 +1030,327 @@ const updateOwnerShareholder = async ({
         client.release();
     }
 };
+const closeOwnerShareholder = async ({
+    companyPublicId,
+    sharePublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const accessValues = [companyPublicId];
+
+        let accessJoin = "";
+
+        /*
+         * Regular user lazima awe na active owner-company link,
+         * finance permission na role inayoruhusiwa.
+         */
+        if (authenticatedUser.role !== "admin") {
+            accessValues.push(authenticatedUser.id);
+
+            accessJoin = `
+                INNER JOIN owner_users AS requester_link
+                    ON requester_link.owner_id = company.id
+                   AND requester_link.user_id = $2
+                   AND requester_link.revoked_at IS NULL
+                   AND requester_link.can_manage_finances = TRUE
+                   AND requester_link.relationship_role IN (
+                       'owner',
+                       'representative',
+                       'manager',
+                       'accountant'
+                   )
+            `;
+        }
+
+        /*
+         * Company row lock inalinda shareholding totals dhidi
+         * ya concurrent add, update au close operations.
+         */
+        const companyResult = await client.query(
+            `
+            SELECT
+                company.id,
+                company.public_id,
+                company.owner_type,
+                company.display_name,
+                company.registration_number,
+                company.tax_identification_number,
+                company.country,
+                company.status
+
+            FROM owners AS company
+
+            ${accessJoin}
+
+            WHERE company.public_id = $1
+              AND company.deleted_at IS NULL
+
+            LIMIT 1
+            FOR UPDATE OF company
+            `,
+            accessValues
+        );
+
+        /*
+         * Kwa regular user, null inaweza kumaanisha kampuni
+         * haipo au user hana access. Tunatumia 404 kwa security.
+         */
+        if (companyResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const company = companyResult.rows[0];
+
+        if (
+            !["company", "partnership"].includes(
+                company.owner_type
+            )
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                invalidCompanyType: true
+            };
+        }
+
+        /*
+         * Admin anaweza kufanya administrative cleanup hata
+         * company ikiwa inactive. Regular user hawezi.
+         */
+        if (
+            company.status !== "active" &&
+            authenticatedUser.role !== "admin"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                inactiveCompany: true
+            };
+        }
+
+        /*
+         * Pata active shareholding ya company iliyopo kwenye URL.
+         */
+        const shareholdingResult = await client.query(
+            `
+            SELECT
+                os.id,
+                os.public_id,
+                os.share_percentage,
+                os.shareholder_type,
+                os.is_active,
+                os.effective_from,
+                os.effective_to,
+                os.created_at,
+                os.updated_at,
+
+                shareholder.public_id
+                    AS shareholder_public_id,
+
+                shareholder.owner_type
+                    AS shareholder_owner_type,
+
+                shareholder.display_name
+                    AS shareholder_name,
+
+                shareholder.registration_number,
+                shareholder.tax_identification_number,
+                shareholder.email,
+                shareholder.phone_number,
+                shareholder.country,
+                shareholder.status
+                    AS shareholder_status,
+
+                (
+                    os.effective_from > CURRENT_DATE
+                ) AS is_future_dated
+
+            FROM owner_shareholders AS os
+
+            INNER JOIN owners AS shareholder
+                ON shareholder.id =
+                    os.shareholder_owner_id
+
+            WHERE os.company_owner_id = $1
+              AND os.public_id = $2
+              AND os.is_active = TRUE
+              AND os.effective_to IS NULL
+
+            LIMIT 1
+            FOR UPDATE OF os
+            `,
+            [
+                company.id,
+                sharePublicId
+            ]
+        );
+
+        if (shareholdingResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                shareholdingNotFound: true
+            };
+        }
+
+        const currentShareholding =
+            shareholdingResult.rows[0];
+
+        /*
+         * Zuia effective_to kuwa kabla ya effective_from.
+         */
+        if (currentShareholding.is_future_dated) {
+            await client.query("ROLLBACK");
+
+            return {
+                futureDatedShareholding: true,
+                effective_from:
+                    currentShareholding.effective_from
+            };
+        }
+
+        const closedResult = await client.query(
+            `
+            UPDATE owner_shareholders
+
+            SET
+                is_active = FALSE,
+                effective_to = CURRENT_DATE,
+                updated_at = NOW()
+
+            WHERE id = $1
+              AND is_active = TRUE
+              AND effective_to IS NULL
+
+            RETURNING
+                public_id AS share_public_id,
+                share_percentage,
+                shareholder_type,
+                is_active,
+                effective_from,
+                effective_to,
+                created_at,
+                updated_at
+            `,
+            [currentShareholding.id]
+        );
+
+        const summaryResult = await client.query(
+            `
+            SELECT
+                COUNT(*)::INTEGER
+                    AS active_shareholder_count,
+
+                COALESCE(
+                    SUM(share_percentage),
+                    0
+                )::NUMERIC(12,4)
+                    AS total_active_shares
+
+            FROM owner_shareholders
+
+            WHERE company_owner_id = $1
+              AND is_active = TRUE
+              AND effective_to IS NULL
+            `,
+            [company.id]
+        );
+
+        await client.query("COMMIT");
+
+        const totalActiveShares = Number(
+            summaryResult.rows[0]
+                .total_active_shares
+        );
+
+        const closedShareholding =
+            closedResult.rows[0];
+
+        closedShareholding.share_percentage =
+            Number(
+                closedShareholding.share_percentage
+            );
+
+        delete company.id;
+
+        return {
+            company,
+
+            shareholder: {
+                public_id:
+                    currentShareholding
+                        .shareholder_public_id,
+
+                owner_type:
+                    currentShareholding
+                        .shareholder_owner_type,
+
+                display_name:
+                    currentShareholding
+                        .shareholder_name,
+
+                registration_number:
+                    currentShareholding
+                        .registration_number,
+
+                tax_identification_number:
+                    currentShareholding
+                        .tax_identification_number,
+
+                email:
+                    currentShareholding.email,
+
+                phone_number:
+                    currentShareholding
+                        .phone_number,
+
+                country:
+                    currentShareholding.country,
+
+                status:
+                    currentShareholding
+                        .shareholder_status
+            },
+
+            shareholding:
+                closedShareholding,
+
+            summary: {
+                active_shareholder_count:
+                    summaryResult.rows[0]
+                        .active_shareholder_count,
+
+                total_active_shares:
+                    totalActiveShares,
+
+                remaining_shares:
+                    Number(
+                        (
+                            100 -
+                            totalActiveShares
+                        ).toFixed(4)
+                    ),
+
+                ownership_complete:
+                    totalActiveShares === 100
+            }
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 
 module.exports = {
     getOwnerShareholders,
     addOwnerShareholder,
-    updateOwnerShareholder
+    updateOwnerShareholder,
+    closeOwnerShareholder
 };
