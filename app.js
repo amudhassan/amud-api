@@ -7,6 +7,7 @@ const userRoutes = require("./routes/userRoutes");
 const errorHandler = require("./middleware/errorHandler");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./config/swagger");
+const ownerRoutes = require("./routes/ownerRoutes");
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use(
         path.join(__dirname, "uploads")
     )
 );
+app.use("/api/owners", ownerRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use(
