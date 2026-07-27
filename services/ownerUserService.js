@@ -748,9 +748,209 @@ const updateOwnerUser = async ({
         client.release();
     }
 };
+const revokeOwnerUser = async ({
+    ownerPublicId,
+    linkPublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const accessValues = [ownerPublicId];
+
+        let accessJoin = "";
+
+        /*
+         * Regular user lazima awe active primary representative
+         * mwenye role ya owner, representative au manager.
+         */
+        if (authenticatedUser.role !== "admin") {
+            accessValues.push(authenticatedUser.id);
+
+            accessJoin = `
+                INNER JOIN owner_users AS requester_link
+                    ON requester_link.owner_id = o.id
+                   AND requester_link.user_id = $2
+                   AND requester_link.revoked_at IS NULL
+                   AND requester_link.is_primary = TRUE
+                   AND requester_link.relationship_role IN (
+                       'owner',
+                       'representative',
+                       'manager'
+                   )
+            `;
+        }
+
+        const ownerResult = await client.query(
+            `
+            SELECT
+                o.id,
+                o.public_id,
+                o.owner_type,
+                o.display_name,
+                o.status
+            FROM owners AS o
+
+            ${accessJoin}
+
+            WHERE o.public_id = $1
+              AND o.deleted_at IS NULL
+
+            LIMIT 1
+            FOR UPDATE OF o
+            `,
+            accessValues
+        );
+
+        /*
+         * Kwa regular user, null pia inaweza kumaanisha
+         * hana authorization. Tunatumia 404 kwa security.
+         */
+        if (ownerResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const owner = ownerResult.rows[0];
+
+        /*
+         * LEFT JOIN inaruhusu admin kurevoke link hata kama
+         * user account yenyewe ilishafutwa.
+         */
+        const linkResult = await client.query(
+            `
+            SELECT
+                ou.id,
+                ou.public_id,
+                ou.relationship_role,
+                ou.is_primary,
+                ou.can_manage_properties,
+                ou.can_manage_finances,
+                ou.created_at,
+                ou.updated_at,
+
+                u.public_id AS user_public_id,
+                u.full_name,
+                u.email,
+                u.role AS user_role,
+                u.is_verified,
+                u.profile_image_url,
+                u.deleted_at AS user_deleted_at
+
+            FROM owner_users AS ou
+
+            LEFT JOIN users AS u
+                ON u.id = ou.user_id
+
+            WHERE ou.owner_id = $1
+              AND ou.public_id = $2
+              AND ou.revoked_at IS NULL
+
+            LIMIT 1
+            FOR UPDATE OF ou
+            `,
+            [
+                owner.id,
+                linkPublicId
+            ]
+        );
+
+        if (linkResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                linkNotFound: true
+            };
+        }
+
+        const currentLink = linkResult.rows[0];
+
+        /*
+         * Primary representative haondolewi moja kwa moja.
+         * Admin apromote mwingine kwanza; update endpoint
+         * itamshusha primary wa zamani atomically.
+         */
+        if (currentLink.is_primary === true) {
+            await client.query("ROLLBACK");
+
+            return {
+                primaryRevocationBlocked: true
+            };
+        }
+
+        /*
+         * Regular user haruhusiwi kuondoa relationship
+         * yenye role ya owner.
+         */
+        if (
+            authenticatedUser.role !== "admin" &&
+            currentLink.relationship_role === "owner"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                forbidden: true,
+                reason:
+                    "Only administrators can revoke an owner relationship."
+            };
+        }
+
+        const revokedLinkResult = await client.query(
+            `
+            UPDATE owner_users
+            SET
+            revoked_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+              AND revoked_at IS NULL
+            RETURNING
+                public_id AS link_public_id,
+                relationship_role,
+                is_primary,
+                can_manage_properties,
+                can_manage_finances,
+                created_at,
+                updated_at,
+                revoked_at
+            `,
+            [currentLink.id]
+        );
+
+        await client.query("COMMIT");
+
+        delete owner.id;
+
+        return {
+            forbidden: false,
+
+            owner,
+
+            user: {
+                public_id: currentLink.user_public_id,
+                full_name: currentLink.full_name,
+                email: currentLink.email,
+                role: currentLink.user_role,
+                is_verified: currentLink.is_verified,
+                profile_image_url:
+                    currentLink.profile_image_url,
+                deleted_at: currentLink.user_deleted_at
+            },
+
+            link: revokedLinkResult.rows[0]
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 
 module.exports = {
     getOwnerUsers,
     addOwnerUser,
-    updateOwnerUser
+    updateOwnerUser,
+    revokeOwnerUser
 };

@@ -237,9 +237,52 @@ const updateOwnerUserValidator = [
         )
         .toBoolean()
 ];
+const revokeOwnerUserValidator = [
+    param("owner_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage("Owner public ID is required.")
+        .isString()
+        .withMessage(
+            "Owner public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Owner public ID must contain between 7 and 40 characters."
+        )
+        .matches(/^owner_[A-Za-z0-9_-]+$/)
+        .withMessage(
+            "Invalid owner public ID format."
+        ),
 
+    param("link_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Owner-user link public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Owner-user link public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 12,
+            max: 40
+        })
+        .withMessage(
+            "Owner-user link public ID must contain between 12 and 40 characters."
+        )
+        .matches(/^owner_user_[A-Za-z0-9_-]+$/)
+        .withMessage(
+            "Invalid owner-user link public ID format."
+        )
+];
 module.exports = {
     getOwnerUsersValidator,
     addOwnerUserValidator,
-    updateOwnerUserValidator
+    updateOwnerUserValidator,
+    revokeOwnerUserValidator
 };

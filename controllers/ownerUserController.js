@@ -4,7 +4,8 @@ const AppError = require("../utils/AppError");
 const {
     getOwnerUsers,
     addOwnerUser,
-    updateOwnerUser
+    updateOwnerUser,
+    revokeOwnerUser
 } = require("../services/ownerUserService");
 
 const getOwnerUsersController = asyncHandler(
@@ -227,8 +228,67 @@ const updateOwnerUserController = asyncHandler(
     }
 );
 
+const revokeOwnerUserController = asyncHandler(
+    async (req, res, next) => {
+        const result = await revokeOwnerUser({
+            ownerPublicId:
+                req.params.owner_public_id,
+
+            linkPublicId:
+                req.params.link_public_id,
+
+            authenticatedUser: req.user
+        });
+
+        if (!result) {
+            return next(
+                new AppError(
+                    "Owner not found.",
+                    404
+                )
+            );
+        }
+
+        if (result.linkNotFound) {
+            return next(
+                new AppError(
+                    "Active owner-user relationship not found.",
+                    404
+                )
+            );
+        }
+
+        if (result.forbidden) {
+            return next(
+                new AppError(
+                    result.reason ||
+                        "You are not authorized to revoke this owner-user relationship.",
+                    403
+                )
+            );
+        }
+
+        if (result.primaryRevocationBlocked) {
+            return next(
+                new AppError(
+                    "The current primary representative cannot be revoked directly. Promote another active user to primary first.",
+                    409
+                )
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "Owner user revoked successfully.",
+            data: result
+        });
+    }
+);
+
 module.exports = {
     getOwnerUsersController,
     addOwnerUserController,
-    updateOwnerUserController
+    updateOwnerUserController,
+    revokeOwnerUserController
 };
