@@ -707,10 +707,116 @@ const softDeleteOwner = async ({
     }
 };
 
+const restoreOwner = async ({
+    ownerPublicId,
+    authenticatedUser
+}) => {
+    /*
+     * Defense in depth:
+     * hata service ikiitwa nje ya route, admin pekee ndiye anaruhusiwa.
+     */
+    if (authenticatedUser.role !== "admin") {
+        return {
+            forbidden: true
+        };
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const ownerResult = await client.query(
+            `
+            SELECT
+                id,
+                public_id,
+                owner_type,
+                display_name,
+                status,
+                deleted_at
+            FROM owners
+            WHERE public_id = $1
+              AND deleted_at IS NOT NULL
+            LIMIT 1
+            FOR UPDATE
+            `,
+            [ownerPublicId]
+        );
+
+        if (ownerResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const owner = ownerResult.rows[0];
+
+        /*
+         * Tunahesabu historical revoked links kwa audit,
+         * lakini hatuzifungui moja kwa moja.
+         */
+        const revokedLinksResult = await client.query(
+            `
+            SELECT COUNT(*)::INTEGER AS total
+            FROM owner_users
+            WHERE owner_id = $1
+              AND revoked_at IS NOT NULL
+            `,
+            [owner.id]
+        );
+
+        const restoredOwnerResult = await client.query(
+            `
+            UPDATE owners
+            SET
+                deleted_at = NULL,
+                status = 'inactive',
+                updated_at = NOW()
+            WHERE id = $1
+              AND deleted_at IS NOT NULL
+            RETURNING
+                public_id,
+                owner_type,
+                display_name,
+                registration_number,
+                tax_identification_number,
+                email,
+                phone_number,
+                alternative_phone,
+                address,
+                city,
+                region,
+                country,
+                status,
+                created_at,
+                updated_at,
+                deleted_at
+            `,
+            [owner.id]
+        );
+
+        await client.query("COMMIT");
+
+        return {
+            forbidden: false,
+            owner: restoredOwnerResult.rows[0],
+            reactivated_user_links: 0,
+            historical_revoked_user_links:
+                revokedLinksResult.rows[0].total
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
 module.exports = {
     createOwner,
     getOwners,
     getOwnerByPublicId,
     updateOwner,
-    softDeleteOwner
+    softDeleteOwner,
+    restoreOwner
 };

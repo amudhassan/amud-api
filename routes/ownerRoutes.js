@@ -7,7 +7,8 @@ const {
     getOwnersController,
     getSingleOwnerController,
     updateOwnerController,
-    softDeleteOwnerController
+    softDeleteOwnerController,
+    restoreOwnerController
 } = require("../controllers/ownerController");
 
 const {
@@ -36,7 +37,13 @@ router.get(
     validateRequest,
     getOwnersController
 );
-
+router.patch(
+    "/:public_id/restore",
+    authMiddleware,
+    getSingleOwnerValidator,
+    validateRequest,
+    restoreOwnerController
+);
 router.get(
     "/:public_id",
     authMiddleware,
@@ -58,4 +65,5 @@ router.delete(
     validateRequest,
     softDeleteOwnerController
 );
+
 module.exports = router;

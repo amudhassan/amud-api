@@ -6,7 +6,8 @@ const {
     getOwners,
     getOwnerByPublicId,
     updateOwner,
-    softDeleteOwner
+    softDeleteOwner,
+    restoreOwner
 } = require("../services/ownerService");
 
 const createOwnerController = asyncHandler(
@@ -214,10 +215,86 @@ const softDeleteOwnerController = asyncHandler(
     }
 );
 
+const restoreOwnerController = asyncHandler(
+    async (req, res, next) => {
+        if (req.user.role !== "admin") {
+            return next(
+                new AppError(
+                    "Only administrators can restore owners.",
+                    403
+                )
+            );
+        }
+
+        try {
+            const result = await restoreOwner({
+                ownerPublicId: req.params.public_id,
+                authenticatedUser: req.user
+            });
+
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Deleted owner not found.",
+                        404
+                    )
+                );
+            }
+
+            if (result.forbidden) {
+                return next(
+                    new AppError(
+                        "Only administrators can restore owners.",
+                        403
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: "Owner restored successfully.",
+                data: {
+                    owner: result.owner,
+                    reactivated_user_links:
+                        result.reactivated_user_links,
+                    historical_revoked_user_links:
+                        result.historical_revoked_user_links
+                }
+            });
+        } catch (error) {
+            /*
+             * Restore inaweza kugonga partial unique indexes
+             * ikiwa registration number au TIN imetumiwa na
+             * active owner mwingine baada ya deletion.
+             */
+            if (error.code === "23505") {
+                return next(
+                    new AppError(
+                        "Owner cannot be restored because the registration or tax identification number is already in use.",
+                        409
+                    )
+                );
+            }
+
+            if (error.code === "23514") {
+                return next(
+                    new AppError(
+                        "Owner cannot be restored because the restored information violates a business rule.",
+                        422
+                    )
+                );
+            }
+
+            return next(error);
+        }
+    }
+);
+
 module.exports = {
     createOwnerController,
     getOwnersController,
     getSingleOwnerController,
     updateOwnerController,
-    softDeleteOwnerController
+    softDeleteOwnerController,
+    restoreOwnerController
 };
