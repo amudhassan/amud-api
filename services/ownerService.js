@@ -552,9 +552,165 @@ const updateOwner = async ({
     };
 };
 
+const softDeleteOwner = async ({
+    ownerPublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const accessValues = [ownerPublicId];
+        let accessJoin = "";
+
+        /*
+         * Regular user lazima awe active primary representative.
+         * Admin hahitaji owner_users relationship.
+         */
+        if (authenticatedUser.role !== "admin") {
+            accessValues.push(authenticatedUser.id);
+
+            accessJoin = `
+                INNER JOIN owner_users AS ou_access
+                    ON ou_access.owner_id = o.id
+                   AND ou_access.user_id = $2
+                   AND ou_access.revoked_at IS NULL
+                   AND ou_access.is_primary = TRUE
+                   AND ou_access.relationship_role IN (
+                       'owner',
+                       'representative',
+                       'manager'
+                   )
+            `;
+        }
+
+        const ownerResult = await client.query(
+            `
+            SELECT
+                o.id,
+                o.public_id,
+                o.owner_type,
+                o.display_name,
+                o.status
+            FROM owners AS o
+            ${accessJoin}
+            WHERE o.public_id = $1
+              AND o.deleted_at IS NULL
+            LIMIT 1
+            FOR UPDATE OF o
+            `,
+            accessValues
+        );
+
+        if (ownerResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const owner = ownerResult.rows[0];
+
+        /*
+         * Tunazuia deletion ikiwa owner bado anahusika
+         * kwenye active ownership au shareholding.
+         */
+        const dependencyResult = await client.query(
+            `
+            SELECT
+                EXISTS (
+                    SELECT 1
+                    FROM property_owners
+                    WHERE owner_id = $1
+                      AND effective_to IS NULL
+                ) AS has_active_property_ownership,
+
+                EXISTS (
+                    SELECT 1
+                    FROM owner_shareholders
+                    WHERE company_owner_id = $1
+                      AND is_active = TRUE
+                      AND effective_to IS NULL
+                ) AS has_active_company_shareholders,
+
+                EXISTS (
+                    SELECT 1
+                    FROM owner_shareholders
+                    WHERE shareholder_owner_id = $1
+                      AND is_active = TRUE
+                      AND effective_to IS NULL
+                ) AS has_active_shareholding
+            `,
+            [owner.id]
+        );
+
+        const dependencies = dependencyResult.rows[0];
+
+        const deletionBlocked =
+            dependencies.has_active_property_ownership ||
+            dependencies.has_active_company_shareholders ||
+            dependencies.has_active_shareholding;
+
+        if (deletionBlocked) {
+            await client.query("ROLLBACK");
+
+            return {
+                blocked: true,
+                dependencies
+            };
+        }
+
+        const revokedLinksResult = await client.query(
+            `
+            UPDATE owner_users
+            SET
+                revoked_at = NOW(),
+                updated_at = NOW()
+            WHERE owner_id = $1
+              AND revoked_at IS NULL
+            RETURNING id
+            `,
+            [owner.id]
+        );
+
+        const deletedOwnerResult = await client.query(
+            `
+            UPDATE owners
+            SET
+                status = 'inactive',
+                deleted_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+              AND deleted_at IS NULL
+            RETURNING
+                public_id,
+                owner_type,
+                display_name,
+                status,
+                deleted_at,
+                updated_at
+            `,
+            [owner.id]
+        );
+
+        await client.query("COMMIT");
+
+        return {
+            blocked: false,
+            owner: deletedOwnerResult.rows[0],
+            revoked_user_links: revokedLinksResult.rowCount
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
 module.exports = {
     createOwner,
     getOwners,
     getOwnerByPublicId,
-    updateOwner
+    updateOwner,
+    softDeleteOwner
 };

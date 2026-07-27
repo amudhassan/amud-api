@@ -5,7 +5,8 @@ const {
     createOwner,
     getOwners,
     getOwnerByPublicId,
-    updateOwner
+    updateOwner,
+    softDeleteOwner
 } = require("../services/ownerService");
 
 const createOwnerController = asyncHandler(
@@ -176,9 +177,47 @@ const updateOwnerController = asyncHandler(
     }
 );
 
+const softDeleteOwnerController = asyncHandler(
+    async (req, res, next) => {
+        const result = await softDeleteOwner({
+            ownerPublicId: req.params.public_id,
+            authenticatedUser: req.user
+        });
+
+        if (!result) {
+            return next(
+                new AppError(
+                    "Owner not found.",
+                    404
+                )
+            );
+        }
+
+        if (result.blocked) {
+            return next(
+                new AppError(
+                    "Owner cannot be deleted while active property ownership or shareholder relationships exist. Close or transfer those relationships first.",
+                    409
+                )
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Owner deleted successfully.",
+            data: {
+                owner: result.owner,
+                revoked_user_links:
+                    result.revoked_user_links
+            }
+        });
+    }
+);
+
 module.exports = {
     createOwnerController,
     getOwnersController,
     getSingleOwnerController,
-    updateOwnerController
+    updateOwnerController,
+    softDeleteOwnerController
 };
