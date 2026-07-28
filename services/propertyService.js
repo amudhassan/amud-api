@@ -1049,8 +1049,168 @@ const getSingleProperty = async ({
         ownerships
     };
 };
+const updateProperty = async ({
+    propertyPublicId,
+    propertyData,
+    authenticatedUser
+}) => {
+    const allowedFields = [
+        "property_name",
+        "property_type",
+        "usage_category",
+        "description",
+        "address",
+        "city",
+        "region",
+        "country",
+        "latitude",
+        "longitude",
+        "year_built",
+        "is_multi_unit"
+    ];
+
+    const updateFields = [];
+    const values = [];
+
+    for (const field of allowedFields) {
+        if (
+            !Object.prototype.hasOwnProperty.call(
+                propertyData,
+                field
+            )
+        ) {
+            continue;
+        }
+
+        values.push(propertyData[field]);
+
+        updateFields.push(
+            `${field} = $${values.length}`
+        );
+    }
+
+    if (updateFields.length === 0) {
+        return {
+            noChanges: true
+        };
+    }
+
+    values.push(propertyPublicId);
+
+    const propertyIdParameter =
+        `$${values.length}`;
+
+    let accessCondition = "";
+
+    /*
+     * Regular user lazima awe na active relationship
+     * na owner wa property pamoja na management permission.
+     */
+    if (authenticatedUser.role !== "admin") {
+        values.push(authenticatedUser.id);
+
+        const userIdParameter =
+            `$${values.length}`;
+
+        accessCondition = `
+            AND EXISTS (
+                SELECT 1
+
+                FROM property_owners AS po_access
+
+                INNER JOIN owners AS owner_access
+                    ON owner_access.id =
+                        po_access.owner_id
+                   AND owner_access.deleted_at IS NULL
+
+                INNER JOIN owner_users AS user_access
+                    ON user_access.owner_id =
+                        owner_access.id
+                   AND user_access.user_id =
+                        ${userIdParameter}
+                   AND user_access.revoked_at IS NULL
+                   AND user_access
+                        .can_manage_properties = TRUE
+                   AND user_access.relationship_role IN (
+                        'owner',
+                        'representative',
+                        'manager'
+                   )
+
+                WHERE po_access.property_id = p.id
+                  AND po_access.effective_to IS NULL
+            )
+        `;
+    }
+
+    const result = await pool.query(
+        `
+        UPDATE properties AS p
+
+        SET
+            ${updateFields.join(", ")},
+            updated_at = NOW()
+
+        WHERE p.public_id =
+            ${propertyIdParameter}
+
+          AND p.deleted_at IS NULL
+
+          ${accessCondition}
+
+        RETURNING
+            p.public_id,
+            p.property_code,
+            p.property_name,
+            p.property_type,
+            p.usage_category,
+            p.description,
+            p.address,
+            p.city,
+            p.region,
+            p.country,
+            p.latitude,
+            p.longitude,
+            p.year_built,
+            p.is_multi_unit,
+            p.operational_status,
+            p.created_at,
+            p.updated_at
+        `,
+        values
+    );
+
+    /*
+     * Kwa regular user, 0 rows inaweza kumaanisha:
+     * - property haipo
+     * - property imefutwa
+     * - user hana authorization
+     */
+    if (result.rows.length === 0) {
+        return null;
+    }
+
+    const property = result.rows[0];
+
+    return {
+        property: {
+            ...property,
+
+            latitude:
+                property.latitude === null
+                    ? null
+                    : Number(property.latitude),
+
+            longitude:
+                property.longitude === null
+                    ? null
+                    : Number(property.longitude)
+        }
+    };
+};
 module.exports = {
     getProperties,
     createProperty,
-    getSingleProperty
+    getSingleProperty,
+    updateProperty
 };

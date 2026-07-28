@@ -6,7 +6,8 @@ const AppError =
 const {
     getProperties,
     createProperty,
-    getSingleProperty
+    getSingleProperty,
+    updateProperty
 } = require("../services/propertyService");
 const { createEmailVerificationToken } = require("../services/authService");
 
@@ -156,8 +157,75 @@ const createPropertyController =
             });
         }
     );
+    const updatePropertyController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await updateProperty({
+                        propertyPublicId:
+                            req.params
+                                .property_public_id,
+
+                        propertyData:
+                            req.body,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Property not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.noChanges) {
+                    return next(
+                        new AppError(
+                            "No valid property fields were supplied.",
+                            400
+                        )
+                    );
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Property updated successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23505") {
+                    return next(
+                        new AppError(
+                            "The updated property conflicts with an existing record.",
+                            409
+                        )
+                    );
+                }
+
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "The updated property violates a business rule.",
+                            422
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
 module.exports = {
     getPropertiesController,
     createPropertyController,
-    getSinglePropertyController
+    getSinglePropertyController,
+    updatePropertyController
 };
