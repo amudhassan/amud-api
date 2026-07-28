@@ -1,3 +1,4 @@
+const { nanoid } = require("nanoid");
 const pool = require("../config/db");
 
 /**
@@ -421,7 +422,374 @@ const getProperties = async ({
         }
     };
 };
+const createProperty = async ({
+    propertyData,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const ownerships = propertyData.ownerships;
+
+        const ownerPublicIds = ownerships.map(
+            ownership => ownership.owner_public_id
+        );
+
+        const totalOwnership = Number(
+            ownerships
+                .reduce(
+                    (total, ownership) =>
+                        total +
+                        Number(
+                            ownership.ownership_percentage
+                        ),
+                    0
+                )
+                .toFixed(4)
+        );
+
+        if (totalOwnership > 100) {
+            await client.query("ROLLBACK");
+
+            return {
+                ownershipLimitExceeded: true,
+                total_ownership: totalOwnership
+            };
+        }
+
+        const primaryContactCount =
+            ownerships.filter(
+                ownership =>
+                    ownership.is_primary_contact === true
+            ).length;
+
+        if (primaryContactCount > 1) {
+            await client.query("ROLLBACK");
+
+            return {
+                multiplePrimaryContacts: true
+            };
+        }
+
+        /*
+         * Owner mmoja akiwekwa peke yake, anakuwa primary
+         * automatically kama request haijaweka primary.
+         */
+        const normalizedOwnerships =
+            ownerships.map(ownership => ({
+                ...ownership,
+
+                ownership_type:
+                    ownership.ownership_type ||
+                    "legal",
+
+                is_primary_contact:
+                    ownerships.length === 1
+                        ? true
+                        : Boolean(
+                            ownership.is_primary_contact
+                        )
+            }));
+
+        const ownerValues = [ownerPublicIds];
+
+        let accessJoin = "";
+
+        if (authenticatedUser.role !== "admin") {
+            ownerValues.push(authenticatedUser.id);
+
+            accessJoin = `
+                INNER JOIN owner_users AS requester_link
+                    ON requester_link.owner_id = o.id
+                   AND requester_link.user_id = $2
+                   AND requester_link.revoked_at IS NULL
+                   AND requester_link.can_manage_properties = TRUE
+                   AND requester_link.relationship_role IN (
+                       'owner',
+                       'representative',
+                       'manager'
+                   )
+            `;
+        }
+
+        /*
+         * Lock all owners participating in this property.
+         */
+        const ownersResult = await client.query(
+            `
+            SELECT
+                o.id,
+                o.public_id,
+                o.owner_type,
+                o.display_name,
+                o.status
+            FROM owners AS o
+
+            ${accessJoin}
+
+            WHERE o.public_id = ANY($1::TEXT[])
+              AND o.deleted_at IS NULL
+              AND o.status = 'active'
+
+            ORDER BY o.id
+
+            FOR UPDATE OF o
+            `,
+            ownerValues
+        );
+
+        /*
+         * Kwa regular user, hii inaweza kumaanisha owner
+         * hayupo au user hana property-management access.
+         */
+        if (
+            ownersResult.rows.length !==
+            ownerPublicIds.length
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                ownersUnavailable: true
+            };
+        }
+
+        const ownerMap = new Map(
+            ownersResult.rows.map(owner => [
+                owner.public_id,
+                owner
+            ])
+        );
+
+        const propertyPublicId =
+            `property_${nanoid(24)}`;
+
+        const propertyCode =
+            `PRP-${nanoid(10).toUpperCase()}`;
+
+        const propertyResult = await client.query(
+            `
+            INSERT INTO properties (
+                public_id,
+                property_code,
+                property_name,
+                property_type,
+                usage_category,
+                description,
+                address,
+                city,
+                region,
+                country,
+                latitude,
+                longitude,
+                year_built,
+                is_multi_unit,
+                operational_status,
+                created_by
+            )
+            VALUES (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                $14,
+                'inactive',
+                $15
+            )
+            RETURNING
+                id,
+                public_id,
+                property_code,
+                property_name,
+                property_type,
+                usage_category,
+                description,
+                address,
+                city,
+                region,
+                country,
+                latitude,
+                longitude,
+                year_built,
+                is_multi_unit,
+                operational_status,
+                created_at,
+                updated_at
+            `,
+            [
+                propertyPublicId,
+                propertyCode,
+                propertyData.property_name,
+                propertyData.property_type,
+                propertyData.usage_category,
+                propertyData.description || null,
+                propertyData.address || null,
+                propertyData.city || null,
+                propertyData.region || null,
+                propertyData.country,
+                propertyData.latitude ?? null,
+                propertyData.longitude ?? null,
+                propertyData.year_built ?? null,
+                propertyData.is_multi_unit,
+                authenticatedUser.id
+            ]
+        );
+
+        const property = propertyResult.rows[0];
+
+        const createdOwnerships = [];
+
+        for (
+            const ownership
+            of normalizedOwnerships
+        ) {
+            const owner = ownerMap.get(
+                ownership.owner_public_id
+            );
+
+            const ownershipPublicId =
+                `property_owner_${nanoid(24)}`;
+
+            const ownershipResult =
+                await client.query(
+                    `
+                    INSERT INTO property_owners (
+                        public_id,
+                        property_id,
+                        owner_id,
+                        ownership_percentage,
+                        ownership_type,
+                        is_primary_contact,
+                        effective_from
+                    )
+                    VALUES (
+                        $1,
+                        $2,
+                        $3,
+                        $4,
+                        $5,
+                        $6,
+                        COALESCE(
+                            $7::DATE,
+                            CURRENT_DATE
+                        )
+                    )
+                    RETURNING
+                        public_id
+                            AS ownership_public_id,
+
+                        ownership_percentage,
+                        ownership_type,
+                        is_primary_contact,
+                        effective_from,
+                        effective_to,
+                        created_at,
+                        updated_at
+                    `,
+                    [
+                        ownershipPublicId,
+                        property.id,
+                        owner.id,
+                        ownership
+                            .ownership_percentage,
+                        ownership.ownership_type,
+                        ownership
+                            .is_primary_contact,
+                        ownership.effective_from ||
+                            null
+                    ]
+                );
+
+            const createdOwnership =
+                ownershipResult.rows[0];
+
+            createdOwnership
+                .ownership_percentage =
+                Number(
+                    createdOwnership
+                        .ownership_percentage
+                );
+
+            createdOwnerships.push({
+                owner: {
+                    public_id:
+                        owner.public_id,
+
+                    owner_type:
+                        owner.owner_type,
+
+                    display_name:
+                        owner.display_name,
+
+                    status:
+                        owner.status
+                },
+
+                ownership:
+                    createdOwnership
+            });
+        }
+
+        await client.query("COMMIT");
+
+        delete property.id;
+
+        return {
+            property: {
+                ...property,
+
+                latitude:
+                    property.latitude === null
+                        ? null
+                        : Number(property.latitude),
+
+                longitude:
+                    property.longitude === null
+                        ? null
+                        : Number(property.longitude)
+            },
+
+            ownership_summary: {
+                active_owner_count:
+                    createdOwnerships.length,
+
+                total_active_ownership:
+                    totalOwnership,
+
+                remaining_ownership:
+                    Number(
+                        (
+                            100 -
+                            totalOwnership
+                        ).toFixed(4)
+                    ),
+
+                ownership_complete:
+                    totalOwnership === 100
+            },
+
+            ownerships:
+                createdOwnerships
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 
 module.exports = {
-    getProperties
+    getProperties,
+    createProperty
 };

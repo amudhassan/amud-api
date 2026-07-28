@@ -13,11 +13,13 @@ const validateRequest
  = require("../middleware/validateRequest");
 
 const {
-    getPropertiesController
+    getPropertiesController,
+    createPropertyController
 } = require("../controllers/propertyController");
 
 const {
-    getPropertiesValidator
+    getPropertiesValidator,
+    createPropertyValidator
 } = require("../validators/propertyValidator");
 
 
@@ -27,6 +29,13 @@ router.get(
     getPropertiesValidator,
     validateRequest,
     getPropertiesController
+);
+router.post(
+    "/",
+    authMiddleware,
+    createPropertyValidator,
+    validateRequest,
+    createPropertyController
 );
 
 module.exports = router;
