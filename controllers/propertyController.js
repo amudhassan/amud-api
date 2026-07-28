@@ -7,7 +7,8 @@ const {
     getProperties,
     createProperty,
     getSingleProperty,
-    updateProperty
+    updateProperty,
+    softDeleteProperty
 } = require("../services/propertyService");
 const { createEmailVerificationToken } = require("../services/authService");
 
@@ -223,9 +224,55 @@ const createPropertyController =
             }
         }
     );
+    const softDeletePropertyController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await softDeleteProperty({
+                        propertyPublicId:
+                            req.params
+                                .property_public_id,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Property not found.",
+                            404
+                        )
+                    );
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Property deleted successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "Deleting this property would violate a business rule.",
+                            422
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
 module.exports = {
     getPropertiesController,
     createPropertyController,
     getSinglePropertyController,
-    updatePropertyController
+    updatePropertyController,
+    softDeletePropertyController
 };

@@ -16,14 +16,16 @@ const {
     getPropertiesController,
     createPropertyController,
     getSinglePropertyController,
-    updatePropertyController
+    updatePropertyController,
+    softDeletePropertyController
 } = require("../controllers/propertyController");
 
 const {
     getPropertiesValidator,
     createPropertyValidator,
     getSinglePropertyValidator,
-    updatePropertyValidator
+    updatePropertyValidator,
+    softDeletePropertyValidator
 } = require("../validators/propertyValidator");
 
 
@@ -54,5 +56,12 @@ router.patch(
     updatePropertyValidator,
     validateRequest,
     updatePropertyController
+);
+router.delete(
+    "/:property_public_id",
+    authMiddleware,
+    softDeletePropertyValidator,
+    validateRequest,
+    softDeletePropertyController
 );
 module.exports = router;

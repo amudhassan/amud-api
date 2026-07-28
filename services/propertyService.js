@@ -1208,9 +1208,239 @@ const updateProperty = async ({
         }
     };
 };
+const softDeleteProperty = async ({
+    propertyPublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const values = [propertyPublicId];
+
+        let accessCondition = "";
+
+        /*
+         * Destructive operation:
+         * regular user lazima awe anasimamia primary-contact
+         * owner wa property.
+         */
+        if (authenticatedUser.role !== "admin") {
+            values.push(authenticatedUser.id);
+
+            accessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM property_owners AS po_access
+
+                    INNER JOIN owners AS owner_access
+                        ON owner_access.id =
+                            po_access.owner_id
+                       AND owner_access.deleted_at IS NULL
+
+                    INNER JOIN owner_users AS user_access
+                        ON user_access.owner_id =
+                            owner_access.id
+                       AND user_access.user_id = $2
+                       AND user_access.revoked_at IS NULL
+                       AND user_access
+                            .can_manage_properties = TRUE
+                       AND user_access.relationship_role IN (
+                            'owner',
+                            'representative',
+                            'manager'
+                       )
+
+                    WHERE po_access.property_id = p.id
+                      AND po_access.effective_to IS NULL
+                      AND po_access.is_primary_contact = TRUE
+                )
+            `;
+        }
+
+        const propertyResult = await client.query(
+            `
+            SELECT
+                p.id,
+                p.public_id,
+                p.property_code,
+                p.property_name,
+                p.property_type,
+                p.usage_category,
+                p.description,
+                p.address,
+                p.city,
+                p.region,
+                p.country,
+                p.latitude,
+                p.longitude,
+                p.year_built,
+                p.is_multi_unit,
+                p.operational_status,
+                p.created_at,
+                p.updated_at
+
+            FROM properties AS p
+
+            WHERE p.public_id = $1
+              AND p.deleted_at IS NULL
+
+              ${accessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF p
+            `,
+            values
+        );
+
+        /*
+         * Kwa regular user, 0 rows inaweza kumaanisha:
+         * - property haipo
+         * - property imefutwa
+         * - hana destructive-management access
+         */
+        if (propertyResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const currentProperty =
+            propertyResult.rows[0];
+
+        const previousOperationalStatus =
+            currentProperty.operational_status;
+
+        const deletedResult = await client.query(
+            `
+            UPDATE properties
+
+            SET
+                operational_status = 'inactive',
+                deleted_at = NOW(),
+                updated_at = NOW()
+
+            WHERE id = $1
+              AND deleted_at IS NULL
+
+            RETURNING
+                public_id,
+                property_code,
+                property_name,
+                property_type,
+                usage_category,
+                description,
+                address,
+                city,
+                region,
+                country,
+                latitude,
+                longitude,
+                year_built,
+                is_multi_unit,
+                operational_status,
+                deleted_at,
+                created_at,
+                updated_at
+            `,
+            [currentProperty.id]
+        );
+
+        /*
+         * Ownerships hazifungwi.
+         * Tunatoa summary kuthibitisha kuwa historia bado ipo.
+         */
+        const ownershipSummaryResult =
+            await client.query(
+                `
+                SELECT
+                    COUNT(
+                        DISTINCT po.owner_id
+                    )::INTEGER
+                        AS active_owner_count,
+
+                    COALESCE(
+                        SUM(
+                            po.ownership_percentage
+                        ),
+                        0
+                    )::NUMERIC(12,4)
+                        AS total_active_ownership
+
+                FROM property_owners AS po
+
+                INNER JOIN owners AS owner_record
+                    ON owner_record.id = po.owner_id
+                   AND owner_record.deleted_at IS NULL
+
+                WHERE po.property_id = $1
+                  AND po.effective_to IS NULL
+                `,
+                [currentProperty.id]
+            );
+
+        await client.query("COMMIT");
+
+        const deletedProperty =
+            deletedResult.rows[0];
+
+        const totalActiveOwnership =
+            Number(
+                ownershipSummaryResult.rows[0]
+                    .total_active_ownership
+            );
+
+        return {
+            property: {
+                ...deletedProperty,
+
+                latitude:
+                    deletedProperty.latitude === null
+                        ? null
+                        : Number(
+                            deletedProperty.latitude
+                        ),
+
+                longitude:
+                    deletedProperty.longitude === null
+                        ? null
+                        : Number(
+                            deletedProperty.longitude
+                        )
+            },
+
+            deletion_summary: {
+                previous_operational_status:
+                    previousOperationalStatus,
+
+                current_operational_status:
+                    deletedProperty
+                        .operational_status,
+
+                ownership_records_preserved:
+                    true,
+
+                active_owner_count:
+                    ownershipSummaryResult.rows[0]
+                        .active_owner_count,
+
+                total_active_ownership:
+                    totalActiveOwnership
+            }
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 module.exports = {
     getProperties,
     createProperty,
     getSingleProperty,
-    updateProperty
+    updateProperty,
+    softDeleteProperty
 };
