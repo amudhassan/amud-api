@@ -8,6 +8,8 @@ const errorHandler = require("./middleware/errorHandler");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./config/swagger");
 const ownerRoutes = require("./routes/ownerRoutes");
+const propertyRoutes =
+    require("./routes/propertyRoutes");
 
 dotenv.config();
 
@@ -23,6 +25,10 @@ app.use(
     )
 );
 app.use("/api/owners", ownerRoutes);
+app.use(
+    "/api/properties",
+    propertyRoutes
+);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use(
