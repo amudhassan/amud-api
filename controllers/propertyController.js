@@ -5,7 +5,8 @@ const AppError =
 
 const {
     getProperties,
-    createProperty
+    createProperty,
+    getSingleProperty
 } = require("../services/propertyService");
 const { createEmailVerificationToken } = require("../services/authService");
 
@@ -123,7 +124,40 @@ const createPropertyController =
             }
         }
     );
+    const getSinglePropertyController =
+    asyncHandler(
+        async (req, res, next) => {
+            const result =
+                await getSingleProperty({
+                    propertyPublicId:
+                        req.params
+                            .property_public_id,
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Property not found.",
+                        404
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Property retrieved successfully.",
+
+                data: result
+            });
+        }
+    );
 module.exports = {
     getPropertiesController,
-    createPropertyController
+    createPropertyController,
+    getSinglePropertyController
 };

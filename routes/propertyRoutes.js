@@ -14,12 +14,14 @@ const validateRequest
 
 const {
     getPropertiesController,
-    createPropertyController
+    createPropertyController,
+    getSinglePropertyController
 } = require("../controllers/propertyController");
 
 const {
     getPropertiesValidator,
-    createPropertyValidator
+    createPropertyValidator,
+    getSinglePropertyValidator
 } = require("../validators/propertyValidator");
 
 
@@ -37,5 +39,11 @@ router.post(
     validateRequest,
     createPropertyController
 );
-
+router.get(
+    "/:property_public_id",
+    authMiddleware,
+    getSinglePropertyValidator,
+    validateRequest,
+    getSinglePropertyController
+);
 module.exports = router;
