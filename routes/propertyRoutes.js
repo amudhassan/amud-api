@@ -17,7 +17,8 @@ const {
     createPropertyController,
     getSinglePropertyController,
     updatePropertyController,
-    softDeletePropertyController
+    softDeletePropertyController,
+    restorePropertyController
 } = require("../controllers/propertyController");
 
 const {
@@ -25,7 +26,8 @@ const {
     createPropertyValidator,
     getSinglePropertyValidator,
     updatePropertyValidator,
-    softDeletePropertyValidator
+    softDeletePropertyValidator,
+    restorePropertyValidator
 } = require("../validators/propertyValidator");
 
 
@@ -42,6 +44,13 @@ router.post(
     createPropertyValidator,
     validateRequest,
     createPropertyController
+);
+router.patch(
+    "/:property_public_id/restore",
+    authMiddleware,
+    restorePropertyValidator,
+    validateRequest,
+    restorePropertyController
 );
 router.get(
     "/:property_public_id",

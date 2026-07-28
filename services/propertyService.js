@@ -1437,10 +1437,215 @@ const softDeleteProperty = async ({
         client.release();
     }
 };
+const restoreProperty = async ({
+    propertyPublicId,
+    authenticatedUser
+}) => {
+    /*
+     * Defense in depth:
+     * restore ni administrative operation.
+     */
+    if (authenticatedUser.role !== "admin") {
+        return {
+            forbidden: true
+        };
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const propertyResult = await client.query(
+            `
+            SELECT
+                p.id,
+                p.public_id,
+                p.property_code,
+                p.property_name,
+                p.property_type,
+                p.usage_category,
+                p.description,
+                p.address,
+                p.city,
+                p.region,
+                p.country,
+                p.latitude,
+                p.longitude,
+                p.year_built,
+                p.is_multi_unit,
+                p.operational_status,
+                p.deleted_at,
+                p.created_at,
+                p.updated_at
+
+            FROM properties AS p
+
+            WHERE p.public_id = $1
+              AND p.deleted_at IS NOT NULL
+
+            LIMIT 1
+
+            FOR UPDATE OF p
+            `,
+            [propertyPublicId]
+        );
+
+        /*
+         * 0 rows inaweza kumaanisha:
+         * - property haipo
+         * - property haijafutwa
+         */
+        if (propertyResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const currentProperty =
+            propertyResult.rows[0];
+
+        const restoredResult = await client.query(
+            `
+            UPDATE properties
+
+            SET
+                deleted_at = NULL,
+                operational_status = 'inactive',
+                updated_at = NOW()
+
+            WHERE id = $1
+              AND deleted_at IS NOT NULL
+
+            RETURNING
+                public_id,
+                property_code,
+                property_name,
+                property_type,
+                usage_category,
+                description,
+                address,
+                city,
+                region,
+                country,
+                latitude,
+                longitude,
+                year_built,
+                is_multi_unit,
+                operational_status,
+                deleted_at,
+                created_at,
+                updated_at
+            `,
+            [currentProperty.id]
+        );
+
+        /*
+         * Ownership records hazikufutwa wakati wa soft delete.
+         * Tunatoa summary baada ya restoration.
+         */
+        const ownershipSummaryResult =
+            await client.query(
+                `
+                SELECT
+                    COUNT(
+                        DISTINCT po.owner_id
+                    )::INTEGER
+                        AS active_owner_count,
+
+                    COALESCE(
+                        SUM(
+                            po.ownership_percentage
+                        ),
+                        0
+                    )::NUMERIC(12,4)
+                        AS total_active_ownership
+
+                FROM property_owners AS po
+
+                INNER JOIN owners AS owner_record
+                    ON owner_record.id = po.owner_id
+                   AND owner_record.deleted_at IS NULL
+
+                WHERE po.property_id = $1
+                  AND po.effective_to IS NULL
+                `,
+                [currentProperty.id]
+            );
+
+        await client.query("COMMIT");
+
+        const restoredProperty =
+            restoredResult.rows[0];
+
+        const totalActiveOwnership =
+            Number(
+                ownershipSummaryResult.rows[0]
+                    .total_active_ownership
+            );
+
+        return {
+            forbidden: false,
+
+            property: {
+                ...restoredProperty,
+
+                latitude:
+                    restoredProperty.latitude === null
+                        ? null
+                        : Number(
+                            restoredProperty.latitude
+                        ),
+
+                longitude:
+                    restoredProperty.longitude === null
+                        ? null
+                        : Number(
+                            restoredProperty.longitude
+                        )
+            },
+
+            restoration_summary: {
+                previous_deleted_at:
+                    currentProperty.deleted_at,
+
+                current_operational_status:
+                    restoredProperty
+                        .operational_status,
+
+                ownership_records_preserved:
+                    true,
+
+                active_owner_count:
+                    ownershipSummaryResult.rows[0]
+                        .active_owner_count,
+
+                total_active_ownership:
+                    totalActiveOwnership,
+
+                remaining_ownership:
+                    Number(
+                        (
+                            100 -
+                            totalActiveOwnership
+                        ).toFixed(4)
+                    ),
+
+                ownership_complete:
+                    totalActiveOwnership === 100
+            }
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 module.exports = {
     getProperties,
     createProperty,
     getSingleProperty,
     updateProperty,
-    softDeleteProperty
+    softDeleteProperty,
+    restoreProperty
 };

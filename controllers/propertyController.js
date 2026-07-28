@@ -8,7 +8,8 @@ const {
     createProperty,
     getSingleProperty,
     updateProperty,
-    softDeleteProperty
+    softDeleteProperty,
+    restoreProperty
 } = require("../services/propertyService");
 const { createEmailVerificationToken } = require("../services/authService");
 
@@ -269,10 +270,65 @@ const createPropertyController =
             }
         }
     );
+    const restorePropertyController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await restoreProperty({
+                        propertyPublicId:
+                            req.params
+                                .property_public_id,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Deleted property not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.forbidden) {
+                    return next(
+                        new AppError(
+                            "Only administrators can restore deleted properties.",
+                            403
+                        )
+                    );
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Property restored successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "Restoring this property would violate a business rule.",
+                            422
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
 module.exports = {
     getPropertiesController,
     createPropertyController,
     getSinglePropertyController,
     updatePropertyController,
-    softDeletePropertyController
+    softDeletePropertyController,
+    restorePropertyController
 };
