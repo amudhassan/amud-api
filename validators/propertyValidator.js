@@ -1105,6 +1105,35 @@ const replacePropertyOwnershipValidator = [
         )
         .toBoolean()
 ];
+const activatePropertyValidator = [
+    param("property_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Property public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Property public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 10,
+            max: 50
+        })
+        .withMessage(
+            "Property public ID must contain between 10 and 50 characters."
+        )
+
+        .matches(
+            /^property_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid property public ID format."
+        )
+];
 module.exports = {
     getPropertiesValidator,
     createPropertyValidator,
@@ -1113,5 +1142,6 @@ module.exports = {
     softDeletePropertyValidator,
     restorePropertyValidator,
     getPropertyOwnersValidator,
-    replacePropertyOwnershipValidator
+    replacePropertyOwnershipValidator,
+    activatePropertyValidator
 };

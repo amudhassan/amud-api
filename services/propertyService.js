@@ -2383,6 +2383,377 @@ if (
         client.release();
     }
 };
+const activateProperty = async ({
+    propertyPublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const values = [propertyPublicId];
+
+        let accessCondition = "";
+
+        /*
+         * Regular user lazima awe anasimamia current
+         * primary-contact owner wa property.
+         */
+        if (authenticatedUser.role !== "admin") {
+            values.push(authenticatedUser.id);
+
+            accessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM property_owners AS po_access
+
+                    INNER JOIN owners AS owner_access
+                        ON owner_access.id =
+                            po_access.owner_id
+                       AND owner_access.deleted_at IS NULL
+                       AND owner_access.status = 'active'
+
+                    INNER JOIN owner_users AS user_access
+                        ON user_access.owner_id =
+                            owner_access.id
+                       AND user_access.user_id = $2
+                       AND user_access.revoked_at IS NULL
+                       AND user_access
+                            .can_manage_properties = TRUE
+                       AND user_access.relationship_role IN (
+                            'owner',
+                            'representative',
+                            'manager'
+                       )
+
+                    WHERE po_access.property_id = p.id
+                      AND po_access.effective_to IS NULL
+                      AND po_access.is_primary_contact = TRUE
+                )
+            `;
+        }
+
+        /*
+         * Lock property ili activation na ownership
+         * replacement zisifanyike kwa wakati mmoja.
+         */
+        const propertyResult = await client.query(
+            `
+            SELECT
+                p.id,
+                p.public_id,
+                p.property_code,
+                p.property_name,
+                p.property_type,
+                p.usage_category,
+                p.operational_status,
+                p.is_multi_unit,
+                p.created_at,
+                p.updated_at
+
+            FROM properties AS p
+
+            WHERE p.public_id = $1
+              AND p.deleted_at IS NULL
+
+              ${accessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF p
+            `,
+            values
+        );
+
+        /*
+         * Kwa regular user, 0 rows inaweza kumaanisha:
+         * - property haipo
+         * - property imefutwa
+         * - hana access ya ku-activate
+         */
+        if (propertyResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const property = propertyResult.rows[0];
+
+        if (
+            property.operational_status === "active"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                alreadyActive: true
+            };
+        }
+
+        if (
+            property.operational_status === "sold"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                soldProperty: true
+            };
+        }
+
+        /*
+         * Lock ownership records pamoja na owners wao.
+         */
+        const ownershipResult = await client.query(
+            `
+            SELECT
+                po.id,
+                po.public_id
+                    AS ownership_public_id,
+
+                po.ownership_percentage,
+                po.ownership_type,
+                po.is_primary_contact,
+                po.effective_from,
+                po.effective_to,
+
+                (
+                    po.effective_from >
+                    CURRENT_DATE
+                ) AS is_future_dated,
+
+                owner_record.id
+                    AS owner_id,
+
+                owner_record.public_id
+                    AS owner_public_id,
+
+                owner_record.display_name
+                    AS owner_name,
+
+                owner_record.owner_type,
+                owner_record.status
+                    AS owner_status,
+
+                owner_record.deleted_at
+                    AS owner_deleted_at
+
+            FROM property_owners AS po
+
+            INNER JOIN owners AS owner_record
+                ON owner_record.id = po.owner_id
+
+            WHERE po.property_id = $1
+              AND po.effective_to IS NULL
+
+            ORDER BY po.id
+
+            FOR UPDATE OF po, owner_record
+            `,
+            [property.id]
+        );
+
+        const activeOwnerships =
+            ownershipResult.rows;
+
+        if (activeOwnerships.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                ownershipMissing: true
+            };
+        }
+
+        const hasFutureOwnership =
+            activeOwnerships.some(
+                ownership =>
+                    ownership.is_future_dated === true
+            );
+
+        if (hasFutureOwnership) {
+            await client.query("ROLLBACK");
+
+            return {
+                futureDatedOwnership: true
+            };
+        }
+
+        const unavailableOwners =
+            activeOwnerships.filter(
+                ownership =>
+                    ownership.owner_deleted_at !==
+                        null ||
+                    ownership.owner_status !==
+                        "active"
+            );
+
+        if (unavailableOwners.length > 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                ownersUnavailable: true,
+
+                unavailable_owners:
+                    unavailableOwners.map(
+                        ownership => ({
+                            public_id:
+                                ownership
+                                    .owner_public_id,
+
+                            display_name:
+                                ownership
+                                    .owner_name,
+
+                            status:
+                                ownership
+                                    .owner_status,
+
+                            deleted:
+                                ownership
+                                    .owner_deleted_at !==
+                                null
+                        })
+                    )
+            };
+        }
+
+        const totalActiveOwnership = Number(
+            activeOwnerships
+                .reduce(
+                    (total, ownership) =>
+                        total +
+                        Number(
+                            ownership
+                                .ownership_percentage
+                        ),
+                    0
+                )
+                .toFixed(4)
+        );
+
+        if (totalActiveOwnership !== 100) {
+            await client.query("ROLLBACK");
+
+            return {
+                incompleteOwnership: true,
+
+                total_active_ownership:
+                    totalActiveOwnership,
+
+                remaining_ownership:
+                    Number(
+                        (
+                            100 -
+                            totalActiveOwnership
+                        ).toFixed(4)
+                    )
+            };
+        }
+
+        const primaryOwnerships =
+            activeOwnerships.filter(
+                ownership =>
+                    ownership.is_primary_contact ===
+                    true
+            );
+
+        if (primaryOwnerships.length !== 1) {
+            await client.query("ROLLBACK");
+
+            return {
+                invalidPrimaryContact: true,
+
+                primary_contact_count:
+                    primaryOwnerships.length
+            };
+        }
+
+        const activatedResult =
+            await client.query(
+                `
+                UPDATE properties
+
+                SET
+                    operational_status = 'active',
+                    updated_at = NOW()
+
+                WHERE id = $1
+                  AND deleted_at IS NULL
+                  AND operational_status <> 'sold'
+
+                RETURNING
+                    public_id,
+                    property_code,
+                    property_name,
+                    property_type,
+                    usage_category,
+                    operational_status,
+                    is_multi_unit,
+                    created_at,
+                    updated_at
+                `,
+                [property.id]
+            );
+
+        /*
+         * Lazimisha deferred property ownership triggers
+         * kufanya validation kabla ya COMMIT.
+         */
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        const activatedProperty =
+            activatedResult.rows[0];
+
+        const primaryOwnership =
+            primaryOwnerships[0];
+
+        return {
+            property:
+                activatedProperty,
+
+            activation_summary: {
+                previous_operational_status:
+                    property.operational_status,
+
+                current_operational_status:
+                    activatedProperty
+                        .operational_status,
+
+                active_owner_count:
+                    activeOwnerships.length,
+
+                total_active_ownership:
+                    totalActiveOwnership,
+
+                remaining_ownership: 0,
+
+                ownership_complete: true,
+
+                primary_owner: {
+                    public_id:
+                        primaryOwnership
+                            .owner_public_id,
+
+                    display_name:
+                        primaryOwnership
+                            .owner_name,
+
+                    owner_type:
+                        primaryOwnership
+                            .owner_type
+                }
+            }
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 module.exports = {
     getProperties,
     createProperty,
@@ -2391,5 +2762,6 @@ module.exports = {
     softDeleteProperty,
     restoreProperty,
     getPropertyOwners,
-    replacePropertyOwnership
+    replacePropertyOwnership,
+    activateProperty
 };

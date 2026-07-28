@@ -11,7 +11,8 @@ const {
     softDeleteProperty,
     restoreProperty,
     getPropertyOwners,
-    replacePropertyOwnership
+    replacePropertyOwnership,
+    activateProperty
 } = require("../services/propertyService");
 const { createEmailVerificationToken } = require("../services/authService");
 
@@ -482,6 +483,129 @@ const createPropertyController =
             }
         }
     );
+    const activatePropertyController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await activateProperty({
+                        propertyPublicId:
+                            req.params
+                                .property_public_id,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Property not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.alreadyActive) {
+                    return next(
+                        new AppError(
+                            "Property is already active.",
+                            409
+                        )
+                    );
+                }
+
+                if (result.soldProperty) {
+                    return next(
+                        new AppError(
+                            "A sold property cannot be activated.",
+                            409
+                        )
+                    );
+                }
+
+                if (result.ownershipMissing) {
+                    return next(
+                        new AppError(
+                            "Property cannot be activated without an active owner.",
+                            422
+                        )
+                    );
+                }
+
+                if (
+                    result.futureDatedOwnership
+                ) {
+                    return next(
+                        new AppError(
+                            "Property cannot be activated while an ownership record has a future effective date.",
+                            409
+                        )
+                    );
+                }
+
+                if (result.ownersUnavailable) {
+                    return next(
+                        new AppError(
+                            "Property cannot be activated because one or more owners are inactive or deleted.",
+                            409
+                        )
+                    );
+                }
+
+                if (
+                    result.incompleteOwnership
+                ) {
+                    return next(
+                        new AppError(
+                            `Property activation requires exactly 100% active ownership. Current total: ${result.total_active_ownership}%. Remaining: ${result.remaining_ownership}%.`,
+                            422
+                        )
+                    );
+                }
+
+                if (
+                    result.invalidPrimaryContact
+                ) {
+                    return next(
+                        new AppError(
+                            `Property activation requires exactly one primary owner contact. Current count: ${result.primary_contact_count}.`,
+                            422
+                        )
+                    );
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Property activated successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "Activating this property would violate an ownership integrity rule.",
+                            422
+                        )
+                    );
+                }
+
+                if (error.code === "23503") {
+                    return next(
+                        new AppError(
+                            "A referenced property or owner record was not found.",
+                            404
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
 module.exports = {
     getPropertiesController,
     createPropertyController,
@@ -490,5 +614,6 @@ module.exports = {
     softDeletePropertyController,
     restorePropertyController,
     getPropertyOwnersController,
-    replacePropertyOwnershipController
+    replacePropertyOwnershipController,
+    activatePropertyController
 };
