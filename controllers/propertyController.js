@@ -9,7 +9,8 @@ const {
     getSingleProperty,
     updateProperty,
     softDeleteProperty,
-    restoreProperty
+    restoreProperty,
+    getPropertyOwners
 } = require("../services/propertyService");
 const { createEmailVerificationToken } = require("../services/authService");
 
@@ -324,11 +325,47 @@ const createPropertyController =
             }
         }
     );
+    const getPropertyOwnersController =
+    asyncHandler(
+        async (req, res, next) => {
+            const result =
+                await getPropertyOwners({
+                    propertyPublicId:
+                        req.params
+                            .property_public_id,
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Property not found.",
+                        404
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Property owners retrieved successfully.",
+
+                count:
+                    result.ownerships.length,
+
+                data: result
+            });
+        }
+    );
 module.exports = {
     getPropertiesController,
     createPropertyController,
     getSinglePropertyController,
     updatePropertyController,
     softDeletePropertyController,
-    restorePropertyController
+    restorePropertyController,
+    getPropertyOwnersController
 };

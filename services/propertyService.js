@@ -1641,11 +1641,264 @@ const restoreProperty = async ({
         client.release();
     }
 };
+const getPropertyOwners = async ({
+    propertyPublicId,
+    authenticatedUser
+}) => {
+    const values = [propertyPublicId];
+
+    let accessCondition = "";
+
+    /*
+     * Regular user lazima awe na active relationship
+     * na angalau owner mmoja wa property.
+     */
+    if (authenticatedUser.role !== "admin") {
+        values.push(authenticatedUser.id);
+
+        accessCondition = `
+            AND EXISTS (
+                SELECT 1
+
+                FROM property_owners AS po_access
+
+                INNER JOIN owners AS owner_access
+                    ON owner_access.id =
+                        po_access.owner_id
+                   AND owner_access.deleted_at IS NULL
+
+                INNER JOIN owner_users AS user_access
+                    ON user_access.owner_id =
+                        owner_access.id
+                   AND user_access.user_id = $2
+                   AND user_access.revoked_at IS NULL
+
+                WHERE po_access.property_id = p.id
+                  AND po_access.effective_to IS NULL
+            )
+        `;
+    }
+
+    const propertyResult = await pool.query(
+        `
+        SELECT
+            p.id,
+            p.public_id,
+            p.property_code,
+            p.property_name,
+            p.property_type,
+            p.usage_category,
+            p.operational_status,
+            p.is_multi_unit,
+            p.created_at,
+            p.updated_at
+
+        FROM properties AS p
+
+        WHERE p.public_id = $1
+          AND p.deleted_at IS NULL
+
+          ${accessCondition}
+
+        LIMIT 1
+        `,
+        values
+    );
+
+    /*
+     * Kwa regular user, null inaweza kumaanisha
+     * property haipo au user hana access.
+     */
+    if (propertyResult.rows.length === 0) {
+        return null;
+    }
+
+    const property = propertyResult.rows[0];
+
+    const ownershipResult = await pool.query(
+        `
+        SELECT
+            po.public_id
+                AS ownership_public_id,
+
+            po.ownership_percentage,
+            po.ownership_type,
+            po.is_primary_contact,
+            po.effective_from,
+            po.effective_to,
+            po.created_at,
+            po.updated_at,
+
+            owner_record.public_id
+                AS owner_public_id,
+
+            owner_record.owner_type,
+            owner_record.display_name,
+            owner_record.registration_number,
+            owner_record.tax_identification_number,
+            owner_record.email,
+            owner_record.phone_number,
+            owner_record.alternative_phone,
+            owner_record.address,
+            owner_record.city,
+            owner_record.region,
+            owner_record.country,
+            owner_record.status
+
+        FROM property_owners AS po
+
+        INNER JOIN owners AS owner_record
+            ON owner_record.id = po.owner_id
+           AND owner_record.deleted_at IS NULL
+
+        WHERE po.property_id = $1
+          AND po.effective_to IS NULL
+
+        ORDER BY
+            po.is_primary_contact DESC,
+            po.ownership_percentage DESC,
+            po.created_at ASC
+        `,
+        [property.id]
+    );
+
+    const ownerships =
+        ownershipResult.rows.map(row => ({
+            ownership_public_id:
+                row.ownership_public_id,
+
+            ownership_percentage:
+                Number(
+                    row.ownership_percentage
+                ),
+
+            ownership_type:
+                row.ownership_type,
+
+            is_primary_contact:
+                row.is_primary_contact,
+
+            effective_from:
+                row.effective_from,
+
+            effective_to:
+                row.effective_to,
+
+            owner: {
+                public_id:
+                    row.owner_public_id,
+
+                owner_type:
+                    row.owner_type,
+
+                display_name:
+                    row.display_name,
+
+                registration_number:
+                    row.registration_number,
+
+                tax_identification_number:
+                    row.tax_identification_number,
+
+                email:
+                    row.email,
+
+                phone_number:
+                    row.phone_number,
+
+                alternative_phone:
+                    row.alternative_phone,
+
+                address:
+                    row.address,
+
+                city:
+                    row.city,
+
+                region:
+                    row.region,
+
+                country:
+                    row.country,
+
+                status:
+                    row.status
+            },
+
+            created_at:
+                row.created_at,
+
+            updated_at:
+                row.updated_at
+        }));
+
+    const totalActiveOwnership = Number(
+        ownerships
+            .reduce(
+                (total, item) =>
+                    total +
+                    item.ownership_percentage,
+                0
+            )
+            .toFixed(4)
+    );
+
+    const primaryOwnership =
+        ownerships.find(
+            item =>
+                item.is_primary_contact === true
+        ) || null;
+
+    delete property.id;
+
+    return {
+        property,
+
+        summary: {
+            active_owner_count:
+                ownerships.length,
+
+            total_active_ownership:
+                totalActiveOwnership,
+
+            remaining_ownership:
+                Number(
+                    (
+                        100 -
+                        totalActiveOwnership
+                    ).toFixed(4)
+                ),
+
+            ownership_complete:
+                totalActiveOwnership === 100,
+
+            primary_owner:
+                primaryOwnership
+                    ? {
+                        public_id:
+                            primaryOwnership
+                                .owner.public_id,
+
+                        display_name:
+                            primaryOwnership
+                                .owner.display_name,
+
+                        owner_type:
+                            primaryOwnership
+                                .owner.owner_type
+                    }
+                    : null
+        },
+
+        ownerships
+    };
+};
 module.exports = {
     getProperties,
     createProperty,
     getSingleProperty,
     updateProperty,
     softDeleteProperty,
-    restoreProperty
+    restoreProperty,
+    getPropertyOwners
 };
