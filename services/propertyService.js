@@ -1893,6 +1893,496 @@ const getPropertyOwners = async ({
         ownerships
     };
 };
+const replacePropertyOwnership = async ({
+    propertyPublicId,
+    ownershipData,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const ownerships = ownershipData.ownerships;
+
+        const totalOwnership = Number(
+            ownerships
+                .reduce(
+                    (total, ownership) =>
+                        total +
+                        Number(
+                            ownership.ownership_percentage
+                        ),
+                    0
+                )
+                .toFixed(4)
+        );
+
+        if (totalOwnership > 100) {
+            await client.query("ROLLBACK");
+
+            return {
+                ownershipLimitExceeded: true,
+                total_ownership: totalOwnership
+            };
+        }
+
+        const primaryContactCount =
+            ownerships.filter(
+                ownership =>
+                    ownership.is_primary_contact === true
+            ).length;
+
+        if (primaryContactCount > 1) {
+            await client.query("ROLLBACK");
+
+            return {
+                multiplePrimaryContacts: true
+            };
+        }
+
+        /*
+         * Property yenye owner mmoja inapata primary
+         * contact automatically.
+         */
+        const normalizedOwnerships =
+            ownerships.map(ownership => ({
+                ...ownership,
+
+                ownership_type:
+                    ownership.ownership_type ||
+                    "legal",
+
+                is_primary_contact:
+                    ownerships.length === 1
+                        ? true
+                        : Boolean(
+                            ownership.is_primary_contact
+                        )
+            }));
+
+        const propertyValues = [
+            propertyPublicId
+        ];
+
+        let propertyAccessCondition = "";
+
+        /*
+         * Regular user lazima awe anasimamia current
+         * primary-contact owner wa property.
+         */
+        if (authenticatedUser.role !== "admin") {
+            propertyValues.push(
+                authenticatedUser.id
+            );
+
+            propertyAccessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM property_owners AS po_access
+
+                    INNER JOIN owners AS owner_access
+                        ON owner_access.id =
+                            po_access.owner_id
+                       AND owner_access.deleted_at IS NULL
+
+                    INNER JOIN owner_users AS user_access
+                        ON user_access.owner_id =
+                            owner_access.id
+                       AND user_access.user_id = $2
+                       AND user_access.revoked_at IS NULL
+                       AND user_access
+                            .can_manage_properties = TRUE
+                       AND user_access.relationship_role IN (
+                            'owner',
+                            'representative',
+                            'manager'
+                       )
+
+                    WHERE po_access.property_id = p.id
+                      AND po_access.effective_to IS NULL
+                      AND po_access
+                            .is_primary_contact = TRUE
+                )
+            `;
+        }
+
+        /*
+         * Property lock inazuia ownership replacement
+         * mbili kufanyika kwa property moja kwa wakati mmoja.
+         */
+        const propertyResult = await client.query(
+            `
+            SELECT
+                p.id,
+                p.public_id,
+                p.property_code,
+                p.property_name,
+                p.property_type,
+                p.usage_category,
+                p.operational_status,
+                p.is_multi_unit,
+                p.created_at,
+                p.updated_at
+
+            FROM properties AS p
+
+            WHERE p.public_id = $1
+              AND p.deleted_at IS NULL
+
+              ${propertyAccessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF p
+            `,
+            propertyValues
+        );
+
+        if (propertyResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const property =
+            propertyResult.rows[0];
+
+        /*
+         * Active property lazima ibaki na exactly 100%.
+         */
+        if (
+            property.operational_status === "active" &&
+            totalOwnership !== 100
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                activePropertyRequiresCompleteOwnership:
+                    true,
+
+                supplied_total:
+                    totalOwnership
+            };
+        }
+
+        /*
+         * Lock current ownership records.
+         */
+        const currentOwnershipResult =
+            await client.query(
+                `
+                SELECT
+                    id,
+                    public_id,
+                    owner_id,
+                    ownership_percentage,
+                    ownership_type,
+                    is_primary_contact,
+                    effective_from,
+                    effective_to
+
+                FROM property_owners
+
+                WHERE property_id = $1
+                  AND effective_to IS NULL
+
+                ORDER BY id
+
+                FOR UPDATE
+                `,
+                [property.id]
+            );
+
+        /*
+         * Kwa schema yetu ya sasa replacement ni immediate.
+         * Future-dated current ownership haiwezi kufungwa leo
+         * bila kuvunja effective date integrity.
+         */
+       const futureOwnershipResult =
+    await client.query(
+        `
+        SELECT EXISTS (
+            SELECT 1
+            FROM property_owners
+            WHERE property_id = $1
+              AND effective_to IS NULL
+              AND effective_from > CURRENT_DATE
+        ) AS has_future_ownership
+        `,
+        [property.id]
+    );
+
+if (
+    futureOwnershipResult.rows[0]
+        .has_future_ownership
+) {
+    await client.query("ROLLBACK");
+
+    return {
+        futureDatedCurrentOwnership: true
+    };
+}
+
+
+        const ownerPublicIds =
+            normalizedOwnerships.map(
+                ownership =>
+                    ownership.owner_public_id
+            );
+
+        const ownerValues = [
+            ownerPublicIds
+        ];
+
+        let ownerAccessJoin = "";
+
+        /*
+         * Regular user lazima awe na management permission
+         * kwa owners wote wanaowekwa kwenye replacement.
+         */
+        if (authenticatedUser.role !== "admin") {
+            ownerValues.push(
+                authenticatedUser.id
+            );
+
+            ownerAccessJoin = `
+                INNER JOIN owner_users AS requester_link
+                    ON requester_link.owner_id = o.id
+                   AND requester_link.user_id = $2
+                   AND requester_link.revoked_at IS NULL
+                   AND requester_link
+                        .can_manage_properties = TRUE
+                   AND requester_link.relationship_role IN (
+                        'owner',
+                        'representative',
+                        'manager'
+                   )
+            `;
+        }
+
+        const ownersResult = await client.query(
+            `
+            SELECT
+                o.id,
+                o.public_id,
+                o.owner_type,
+                o.display_name,
+                o.status
+
+            FROM owners AS o
+
+            ${ownerAccessJoin}
+
+            WHERE o.public_id =
+                ANY($1::TEXT[])
+
+              AND o.deleted_at IS NULL
+              AND o.status = 'active'
+
+            ORDER BY o.id
+
+            FOR UPDATE OF o
+            `,
+            ownerValues
+        );
+
+        if (
+            ownersResult.rows.length !==
+            ownerPublicIds.length
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                ownersUnavailable: true
+            };
+        }
+
+        const ownerMap = new Map(
+            ownersResult.rows.map(owner => [
+                owner.public_id,
+                owner
+            ])
+        );
+
+        /*
+         * Close all current active ownership records.
+         * History remains available.
+         */
+        const closedOwnershipResult =
+            await client.query(
+                `
+                UPDATE property_owners
+
+                SET
+                    effective_to = CURRENT_DATE,
+                    updated_at = NOW()
+
+                WHERE property_id = $1
+                  AND effective_to IS NULL
+
+                RETURNING
+                    public_id AS ownership_public_id,
+                    ownership_percentage,
+                    ownership_type,
+                    is_primary_contact,
+                    effective_from,
+                    effective_to,
+                    updated_at
+                `,
+                [property.id]
+            );
+
+        const createdOwnerships = [];
+
+        for (
+            const ownership
+            of normalizedOwnerships
+        ) {
+            const owner = ownerMap.get(
+                ownership.owner_public_id
+            );
+
+            const ownershipPublicId =
+                `property_owner_${nanoid(24)}`;
+
+            const ownershipResult =
+                await client.query(
+                    `
+                    INSERT INTO property_owners (
+                        public_id,
+                        property_id,
+                        owner_id,
+                        ownership_percentage,
+                        ownership_type,
+                        is_primary_contact,
+                        effective_from
+                    )
+                    VALUES (
+                        $1,
+                        $2,
+                        $3,
+                        $4,
+                        $5,
+                        $6,
+                        CURRENT_DATE
+                    )
+                    RETURNING
+                        public_id
+                            AS ownership_public_id,
+
+                        ownership_percentage,
+                        ownership_type,
+                        is_primary_contact,
+                        effective_from,
+                        effective_to,
+                        created_at,
+                        updated_at
+                    `,
+                    [
+                        ownershipPublicId,
+                        property.id,
+                        owner.id,
+                        ownership
+                            .ownership_percentage,
+                        ownership
+                            .ownership_type,
+                        ownership
+                            .is_primary_contact
+                    ]
+                );
+
+            const createdOwnership =
+                ownershipResult.rows[0];
+
+            createdOwnership
+                .ownership_percentage =
+                Number(
+                    createdOwnership
+                        .ownership_percentage
+                );
+
+            createdOwnerships.push({
+                owner: {
+                    public_id:
+                        owner.public_id,
+
+                    owner_type:
+                        owner.owner_type,
+
+                    display_name:
+                        owner.display_name,
+
+                    status:
+                        owner.status
+                },
+
+                ownership:
+                    createdOwnership
+            });
+        }
+
+        await client.query(
+            `
+            UPDATE properties
+            SET updated_at = NOW()
+            WHERE id = $1
+            `,
+            [property.id]
+        );
+
+        /*
+         * Run deferred property ownership triggers now,
+         * before committing the transaction.
+         */
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        delete property.id;
+
+        return {
+            property,
+
+            replacement_summary: {
+                closed_ownership_count:
+                    closedOwnershipResult.rowCount,
+
+                new_owner_count:
+                    createdOwnerships.length,
+
+                total_active_ownership:
+                    totalOwnership,
+
+                remaining_ownership:
+                    Number(
+                        (
+                            100 -
+                            totalOwnership
+                        ).toFixed(4)
+                    ),
+
+                ownership_complete:
+                    totalOwnership === 100,
+
+                effective_from:
+                    new Date()
+                        .toISOString()
+                        .slice(0, 10)
+            },
+
+            ownerships:
+                createdOwnerships
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 module.exports = {
     getProperties,
     createProperty,
@@ -1900,5 +2390,6 @@ module.exports = {
     updateProperty,
     softDeleteProperty,
     restoreProperty,
-    getPropertyOwners
+    getPropertyOwners,
+    replacePropertyOwnership
 };

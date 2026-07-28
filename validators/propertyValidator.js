@@ -898,6 +898,213 @@ const getPropertyOwnersValidator = [
             "Invalid property public ID format."
         )
 ];
+const replacePropertyOwnershipValidator = [
+    param("property_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Property public ID is required."
+        )
+        .isString()
+        .trim()
+        .isLength({
+            min: 10,
+            max: 50
+        })
+        .withMessage(
+            "Property public ID must contain between 10 and 50 characters."
+        )
+        .matches(
+            /^property_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid property public ID format."
+        ),
+
+    body()
+        .custom(value => {
+            const allowedFields = [
+                "ownerships"
+            ];
+
+            const suppliedFields =
+                Object.keys(value || {});
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported fields: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            const ownerships =
+                value.ownerships || [];
+
+            const ownerPublicIds =
+                ownerships.map(
+                    ownership =>
+                        ownership.owner_public_id
+                );
+
+            if (
+                new Set(ownerPublicIds).size !==
+                ownerPublicIds.length
+            ) {
+                throw new Error(
+                    "The same owner cannot appear more than once in replacement ownerships."
+                );
+            }
+
+            const allowedOwnershipFields = [
+                "owner_public_id",
+                "ownership_percentage",
+                "ownership_type",
+                "is_primary_contact"
+            ];
+
+            for (const ownership of ownerships) {
+                const unsupportedOwnershipFields =
+                    Object.keys(
+                        ownership || {}
+                    ).filter(
+                        field =>
+                            !allowedOwnershipFields
+                                .includes(field)
+                    );
+
+                if (
+                    unsupportedOwnershipFields
+                        .length > 0
+                ) {
+                    throw new Error(
+                        `Unsupported ownership fields: ${unsupportedOwnershipFields.join(", ")}.`
+                    );
+                }
+            }
+
+            const totalOwnership =
+                Number(
+                    ownerships
+                        .reduce(
+                            (total, ownership) =>
+                                total +
+                                Number(
+                                    ownership
+                                        .ownership_percentage ||
+                                    0
+                                ),
+                            0
+                        )
+                        .toFixed(4)
+                );
+
+            if (totalOwnership > 100) {
+                throw new Error(
+                    "Total property ownership cannot exceed 100%."
+                );
+            }
+
+            const primaryCount =
+                ownerships.filter(
+                    ownership =>
+                        ownership
+                            .is_primary_contact ===
+                        true
+                ).length;
+
+            if (primaryCount > 1) {
+                throw new Error(
+                    "Only one property owner can be the primary contact."
+                );
+            }
+
+            return true;
+        }),
+
+    body("ownerships")
+        .isArray({
+            min: 1,
+            max: 100
+        })
+        .withMessage(
+            "At least one replacement property owner is required."
+        ),
+
+    body("ownerships.*.owner_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Owner public ID is required for every ownership."
+        )
+        .isString()
+        .trim()
+        .matches(
+            /^owner_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid owner public ID format."
+        ),
+
+    body(
+        "ownerships.*.ownership_percentage"
+    )
+        .exists({
+            checkNull: true,
+            checkFalsy: false
+        })
+        .withMessage(
+            "Ownership percentage is required."
+        )
+        .isFloat({
+            gt: 0,
+            max: 100
+        })
+        .withMessage(
+            "Ownership percentage must be greater than 0 and cannot exceed 100."
+        )
+        .custom(value => {
+            if (
+                !/^\d+(\.\d{1,4})?$/.test(
+                    String(value)
+                )
+            ) {
+                throw new Error(
+                    "Ownership percentage cannot contain more than four decimal places."
+                );
+            }
+
+            return true;
+        })
+        .toFloat(),
+
+    body("ownerships.*.ownership_type")
+        .optional()
+        .isIn([
+            "legal",
+            "beneficial",
+            "trustee",
+            "nominee",
+            "customary",
+            "government",
+            "other"
+        ])
+        .withMessage(
+            "Invalid property ownership type."
+        ),
+
+    body(
+        "ownerships.*.is_primary_contact"
+    )
+        .optional()
+        .isBoolean()
+        .withMessage(
+            "is_primary_contact must be true or false."
+        )
+        .toBoolean()
+];
 module.exports = {
     getPropertiesValidator,
     createPropertyValidator,
@@ -905,5 +1112,6 @@ module.exports = {
     updatePropertyValidator,
     softDeletePropertyValidator,
     restorePropertyValidator,
-    getPropertyOwnersValidator
+    getPropertyOwnersValidator,
+    replacePropertyOwnershipValidator
 };

@@ -10,7 +10,8 @@ const {
     updateProperty,
     softDeleteProperty,
     restoreProperty,
-    getPropertyOwners
+    getPropertyOwners,
+    replacePropertyOwnership
 } = require("../services/propertyService");
 const { createEmailVerificationToken } = require("../services/authService");
 
@@ -360,6 +361,127 @@ const createPropertyController =
             });
         }
     );
+    const replacePropertyOwnershipController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await replacePropertyOwnership({
+                        propertyPublicId:
+                            req.params
+                                .property_public_id,
+
+                        ownershipData:
+                            req.body,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Property not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (
+                    result.ownershipLimitExceeded
+                ) {
+                    return next(
+                        new AppError(
+                            `Total property ownership cannot exceed 100%. Supplied total: ${result.total_ownership}%.`,
+                            422
+                        )
+                    );
+                }
+
+                if (
+                    result.multiplePrimaryContacts
+                ) {
+                    return next(
+                        new AppError(
+                            "A property cannot have more than one primary owner contact.",
+                            422
+                        )
+                    );
+                }
+
+                if (
+                    result
+                        .activePropertyRequiresCompleteOwnership
+                ) {
+                    return next(
+                        new AppError(
+                            `An active property must retain exactly 100% ownership. Supplied total: ${result.supplied_total}%.`,
+                            422
+                        )
+                    );
+                }
+
+                if (
+                    result
+                        .futureDatedCurrentOwnership
+                ) {
+                    return next(
+                        new AppError(
+                            "Property ownership cannot be replaced while a current ownership record has a future effective date.",
+                            409
+                        )
+                    );
+                }
+
+                if (result.ownersUnavailable) {
+                    return next(
+                        new AppError(
+                            "One or more active owners were not found or cannot be managed by this user.",
+                            404
+                        )
+                    );
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Property ownership replaced successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23505") {
+                    return next(
+                        new AppError(
+                            "The replacement ownership conflicts with an existing active ownership record.",
+                            409
+                        )
+                    );
+                }
+
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "The replacement ownership violates a property ownership business rule.",
+                            422
+                        )
+                    );
+                }
+
+                if (error.code === "23503") {
+                    return next(
+                        new AppError(
+                            "A referenced property or owner record was not found.",
+                            404
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
 module.exports = {
     getPropertiesController,
     createPropertyController,
@@ -367,5 +489,6 @@ module.exports = {
     updatePropertyController,
     softDeletePropertyController,
     restorePropertyController,
-    getPropertyOwnersController
+    getPropertyOwnersController,
+    replacePropertyOwnershipController
 };

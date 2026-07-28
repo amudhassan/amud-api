@@ -19,7 +19,8 @@ const {
     updatePropertyController,
     softDeletePropertyController,
     restorePropertyController,
-    getPropertyOwnersController
+    getPropertyOwnersController,
+    replacePropertyOwnershipController
 } = require("../controllers/propertyController");
 
 const {
@@ -29,7 +30,8 @@ const {
     updatePropertyValidator,
     softDeletePropertyValidator,
     restorePropertyValidator,
-    getPropertyOwnersValidator
+    getPropertyOwnersValidator,
+    replacePropertyOwnershipValidator
 } = require("../validators/propertyValidator");
 
 
@@ -60,6 +62,13 @@ router.get(
     getPropertyOwnersValidator,
     validateRequest,
     getPropertyOwnersController
+);
+router.put(
+    "/:property_public_id/owners",
+    authMiddleware,
+    replacePropertyOwnershipValidator,
+    validateRequest,
+    replacePropertyOwnershipController
 );
 router.get(
     "/:property_public_id",
