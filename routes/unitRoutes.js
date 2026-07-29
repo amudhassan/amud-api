@@ -17,14 +17,16 @@ const validateRequest = require(
 
 const {
     getSingleUnitController,
-    updateUnitController
+    updateUnitController,
+    activateUnitController
 } = require(
     "../controllers/unitController"
 );
 
 const {
     getSingleUnitValidator,
-    updateUnitValidator
+    updateUnitValidator,
+    activateUnitValidator
 } = require(
     "../validators/unitValidator"
 );
@@ -35,6 +37,13 @@ router.get(
     getSingleUnitValidator,
     validateRequest,
     getSingleUnitController
+);
+router.patch(
+    "/:unit_public_id/activate",
+    authMiddleware,
+    activateUnitValidator,
+    validateRequest,
+    activateUnitController
 );
 router.patch(
     "/:unit_public_id",

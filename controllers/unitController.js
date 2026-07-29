@@ -10,7 +10,8 @@ const {
     getPropertyUnits,
     createUnit,
     getSingleUnit,
-    updateUnit
+    updateUnit,
+    activateUnit
 } = require("../services/unitService");
 
 const getPropertyUnitsController =
@@ -276,9 +277,104 @@ const createUnitController =
             }
         }
     );
+    const activateUnitController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await activateUnit({
+                        unitPublicId:
+                            req.params
+                                .unit_public_id,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Unit not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.soldProperty) {
+                    return next(
+                        new AppError(
+                            "A unit belonging to a sold property cannot be activated.",
+                            409
+                        )
+                    );
+                }
+
+                if (result.inactiveProperty) {
+                    return next(
+                        new AppError(
+                            "The parent property must be active before this unit can be activated.",
+                            409
+                        )
+                    );
+                }
+
+                if (
+                    result.invalidCurrentStatus
+                ) {
+                    return next(
+                        new AppError(
+                            `A unit with status '${result.current_status}' cannot be activated directly.`,
+                            409
+                        )
+                    );
+                }
+
+                if (result.alreadyAvailable) {
+                    return res.status(200).json({
+                        success: true,
+
+                        message:
+                            "Unit is already available.",
+
+                        data: result
+                    });
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Unit activated successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "The unit cannot be activated because it violates a property or unit integrity rule.",
+                            422
+                        )
+                    );
+                }
+
+                if (error.code === "23503") {
+                    return next(
+                        new AppError(
+                            "A referenced unit, property or user record was not found.",
+                            404
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
 module.exports = {
     getPropertyUnitsController,
     createUnitController,
     getSingleUnitController,
-    updateUnitController
+    updateUnitController,
+    activateUnitController
 };
