@@ -353,7 +353,37 @@ const createUnitValidator = [
             "Description cannot exceed 5000 characters."
         )
 ];
+const getSingleUnitValidator = [
+    param("unit_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Unit public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Unit public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 10,
+            max: 50
+        })
+        .withMessage(
+            "Unit public ID must contain between 10 and 50 characters."
+        )
+
+        .matches(
+            /^unit_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid unit public ID format."
+        )
+];
 module.exports = {
     getPropertyUnitsValidator,
-    createUnitValidator
+    createUnitValidator,
+    getSingleUnitValidator
 };

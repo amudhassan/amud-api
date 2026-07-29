@@ -8,7 +8,8 @@ const AppError = require(
 
 const {
     getPropertyUnits,
-    createUnit
+    createUnit,
+    getSingleUnit
 } = require("../services/unitService");
 
 const getPropertyUnitsController =
@@ -159,7 +160,39 @@ const createUnitController =
             }
         }
     );
+    const getSingleUnitController =
+    asyncHandler(
+        async (req, res, next) => {
+            const result =
+                await getSingleUnit({
+                    unitPublicId:
+                        req.params.unit_public_id,
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Unit not found.",
+                        404
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Unit retrieved successfully.",
+
+                data: result
+            });
+        }
+    );
 module.exports = {
     getPropertyUnitsController,
-    createUnitController
+    createUnitController,
+    getSingleUnitController
 };

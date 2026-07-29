@@ -10,6 +10,9 @@ const swaggerSpec = require("./config/swagger");
 const ownerRoutes = require("./routes/ownerRoutes");
 const propertyRoutes =
     require("./routes/propertyRoutes");
+const unitRoutes = require(
+    "./routes/unitRoutes"
+);
 
 dotenv.config();
 
@@ -31,6 +34,7 @@ app.use(
 );
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/units", unitRoutes);
 app.use(
     "/api-docs",
     swaggerUi.serve,
