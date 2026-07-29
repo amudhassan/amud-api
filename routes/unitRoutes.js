@@ -20,7 +20,8 @@ const {
     updateUnitController,
     activateUnitController,
     markUnitMaintenanceController,
-    softDeleteUnitController
+    softDeleteUnitController,
+    restoreUnitController
 } = require(
     "../controllers/unitController"
 );
@@ -30,7 +31,8 @@ const {
     updateUnitValidator,
     activateUnitValidator,
     markUnitMaintenanceValidator,
-    softDeleteUnitValidator
+    softDeleteUnitValidator,
+    restoreUnitValidator
 } = require(
     "../validators/unitValidator"
 );
@@ -41,6 +43,13 @@ router.get(
     getSingleUnitValidator,
     validateRequest,
     getSingleUnitController
+);
+router.patch(
+    "/:unit_public_id/restore",
+    authMiddleware,
+    restoreUnitValidator,
+    validateRequest,
+    restoreUnitController
 );
 router.patch(
     "/:unit_public_id/activate",

@@ -13,7 +13,8 @@ const {
     updateUnit,
     activateUnit,
     markUnitMaintenance,
-    softDeleteUnit
+    softDeleteUnit,
+    restoreUnit
 } = require("../services/unitService");
 
 const getPropertyUnitsController =
@@ -532,6 +533,103 @@ const createUnitController =
             }
         }
     );
+    const restoreUnitController = asyncHandler(
+    async (req, res, next) => {
+        try {
+            const result = await restoreUnit({
+                unitPublicId:
+                    req.params.unit_public_id,
+
+                authenticatedUser:
+                    req.user
+            });
+
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Unit not found.",
+                        404
+                    )
+                );
+            }
+
+            if (result.propertyDeleted) {
+                return next(
+                    new AppError(
+                        "This unit cannot be restored because its parent property has been deleted.",
+                        409
+                    )
+                );
+            }
+
+            if (result.propertySold) {
+                return next(
+                    new AppError(
+                        "A unit cannot be restored under a sold property.",
+                        409
+                    )
+                );
+            }
+
+            if (result.singleUnitConflict) {
+                return next(
+                    new AppError(
+                        "This single-unit property already has a current unit. Remove the existing unit before restoring this one.",
+                        409
+                    )
+                );
+            }
+
+            if (result.duplicateUnitCode) {
+                return next(
+                    new AppError(
+                        "This unit cannot be restored because its unit code is already being used by another current unit in the property.",
+                        409
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message: result.alreadyRestored
+                    ? "Unit is already restored."
+                    : "Unit restored successfully.",
+
+                data: {
+                    already_restored:
+                        result.alreadyRestored,
+
+                    property:
+                        result.property,
+
+                    unit:
+                        result.unit
+                }
+            });
+        } catch (error) {
+            if (error.code === "23505") {
+                return next(
+                    new AppError(
+                        "The unit could not be restored because its identifying information conflicts with another current unit.",
+                        409
+                    )
+                );
+            }
+
+            if (error.code === "23514") {
+                return next(
+                    new AppError(
+                        "Restoring this unit would violate a unit business rule.",
+                        422
+                    )
+                );
+            }
+
+            return next(error);
+        }
+    }
+);
 module.exports = {
     getPropertyUnitsController,
     createUnitController,
@@ -539,5 +637,6 @@ module.exports = {
     updateUnitController,
     activateUnitController,
     markUnitMaintenanceController,
-    softDeleteUnitController
+    softDeleteUnitController,
+    restoreUnitController
 };

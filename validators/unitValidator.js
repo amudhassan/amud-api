@@ -742,6 +742,53 @@ const softDeleteUnitValidator = [
             return true;
         })
 ];
+const restoreUnitValidator = [
+    param("unit_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Unit public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Unit public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 6,
+            max: 40
+        })
+        .withMessage(
+            "Unit public ID must contain between 6 and 40 characters."
+        )
+
+        .matches(
+            /^unit_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid unit public ID format."
+        ),
+
+    /*
+     * Restore request haitakiwi kuwa na body.
+     */
+    body().custom(value => {
+        const suppliedFields =
+            Object.keys(value || {});
+
+        if (suppliedFields.length > 0) {
+            throw new Error(
+                "Restore Unit request must not contain a request body."
+            );
+        }
+
+        return true;
+    })
+];
 module.exports = {
     getPropertyUnitsValidator,
     createUnitValidator,
@@ -749,5 +796,6 @@ module.exports = {
     updateUnitValidator,
     activateUnitValidator,
     markUnitMaintenanceValidator,
-    softDeleteUnitValidator
+    softDeleteUnitValidator,
+    restoreUnitValidator
 };

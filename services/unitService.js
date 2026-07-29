@@ -1983,6 +1983,347 @@ const softDeleteUnit = async ({
         client.release();
     }
 };
+const restoreUnit = async ({
+    unitPublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const queryValues = [unitPublicId];
+
+        let accessCondition = "";
+
+        /*
+         * Regular user lazima awe linked na angalau owner mmoja
+         * mwenye active ownership kwenye parent property.
+         *
+         * Pia lazima awe na can_manage_properties = true
+         * na relationship role inayoruhusiwa.
+         */
+        if (authenticatedUser.role !== "admin") {
+            queryValues.push(authenticatedUser.id);
+
+            accessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM property_owners AS po
+
+                    INNER JOIN owner_users AS ou
+                        ON ou.owner_id = po.owner_id
+                       AND ou.user_id = $2
+                       AND ou.revoked_at IS NULL
+                       AND ou.can_manage_properties = TRUE
+                       AND ou.relationship_role IN (
+                           'owner',
+                           'representative',
+                           'manager'
+                       )
+
+                    WHERE po.property_id = property.id
+                      AND po.effective_to IS NULL
+                )
+            `;
+        }
+
+        /*
+         * Tunatafuta unit hata ikiwa deleted ili iweze kurestore.
+         * Unit na parent property zinawekwa row lock.
+         */
+        const unitResult = await client.query(
+            `
+            SELECT
+                unit.id,
+                unit.public_id,
+                unit.property_id,
+                unit.unit_code,
+                unit.unit_name,
+                unit.unit_type,
+                unit.operational_status,
+                unit.deleted_at,
+                unit.created_at,
+                unit.updated_at,
+
+                property.public_id
+                    AS property_public_id,
+
+                property.property_code,
+                property.property_name,
+                property.property_type,
+                property.is_multi_unit,
+
+                property.operational_status
+                    AS property_operational_status,
+
+                property.deleted_at
+                    AS property_deleted_at
+
+            FROM units AS unit
+
+            INNER JOIN properties AS property
+                ON property.id = unit.property_id
+
+            WHERE unit.public_id = $1
+
+            ${accessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF unit, property
+            `,
+            queryValues
+        );
+
+        /*
+         * Kwa regular user, 404 inaweza kumaanisha:
+         * - unit haipo
+         * - user hana access
+         *
+         * Hii inalinda information leakage.
+         */
+        if (unitResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return null;
+        }
+
+        const currentUnit = unitResult.rows[0];
+
+        /*
+         * Idempotent behaviour:
+         * ikiwa unit tayari imerudishwa, hatufanyi update nyingine.
+         */
+        if (currentUnit.deleted_at === null) {
+            await client.query("COMMIT");
+
+            return {
+                alreadyRestored: true,
+
+                property: {
+                    public_id:
+                        currentUnit.property_public_id,
+
+                    property_code:
+                        currentUnit.property_code,
+
+                    property_name:
+                        currentUnit.property_name,
+
+                    property_type:
+                        currentUnit.property_type,
+
+                    is_multi_unit:
+                        currentUnit.is_multi_unit,
+
+                    operational_status:
+                        currentUnit
+                            .property_operational_status
+                },
+
+                unit: {
+                    public_id:
+                        currentUnit.public_id,
+
+                    unit_code:
+                        currentUnit.unit_code,
+
+                    unit_name:
+                        currentUnit.unit_name,
+
+                    unit_type:
+                        currentUnit.unit_type,
+
+                    operational_status:
+                        currentUnit.operational_status,
+
+                    deleted_at:
+                        currentUnit.deleted_at,
+
+                    created_at:
+                        currentUnit.created_at,
+
+                    updated_at:
+                        currentUnit.updated_at
+                }
+            };
+        }
+
+        /*
+         * Unit haiwezi kurestore ikiwa parent property
+         * yenyewe ime-soft-delete.
+         */
+        if (currentUnit.property_deleted_at !== null) {
+            await client.query("ROLLBACK");
+
+            return {
+                propertyDeleted: true
+            };
+        }
+
+        /*
+         * Property iliyouzwa haitakiwi kupokea restored units.
+         */
+        if (
+            currentUnit.property_operational_status ===
+            "sold"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                propertySold: true
+            };
+        }
+
+        /*
+         * Kwa single-unit property, current unit nyingine
+         * haiwezi kuwepo.
+         */
+        if (currentUnit.is_multi_unit === false) {
+            const currentUnitConflictResult =
+                await client.query(
+                    `
+                    SELECT
+                        public_id,
+                        unit_code,
+                        unit_name,
+                        operational_status
+
+                    FROM units
+
+                    WHERE property_id = $1
+                      AND id <> $2
+                      AND deleted_at IS NULL
+
+                    LIMIT 1
+
+                    FOR UPDATE
+                    `,
+                    [
+                        currentUnit.property_id,
+                        currentUnit.id
+                    ]
+                );
+
+            if (
+                currentUnitConflictResult.rows.length >
+                0
+            ) {
+                await client.query("ROLLBACK");
+
+                return {
+                    singleUnitConflict: true,
+
+                    existing_unit:
+                        currentUnitConflictResult.rows[0]
+                };
+            }
+        }
+
+        /*
+         * Zuia kurestore unit_code ambayo tayari inatumiwa
+         * na current unit nyingine ndani ya property hiyo.
+         */
+        const duplicateCodeResult =
+            await client.query(
+                `
+                SELECT
+                    public_id,
+                    unit_code,
+                    unit_name,
+                    operational_status
+
+                FROM units
+
+                WHERE property_id = $1
+                  AND id <> $2
+                  AND deleted_at IS NULL
+                  AND LOWER(TRIM(unit_code)) =
+                      LOWER(TRIM($3))
+
+                LIMIT 1
+
+                FOR UPDATE
+                `,
+                [
+                    currentUnit.property_id,
+                    currentUnit.id,
+                    currentUnit.unit_code
+                ]
+            );
+
+        if (duplicateCodeResult.rows.length > 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                duplicateUnitCode: true,
+
+                conflicting_unit:
+                    duplicateCodeResult.rows[0]
+            };
+        }
+
+        const restoredResult = await client.query(
+            `
+            UPDATE units
+
+            SET
+                deleted_at = NULL,
+                operational_status = 'inactive',
+                updated_at = NOW()
+
+            WHERE id = $1
+              AND deleted_at IS NOT NULL
+
+            RETURNING
+                public_id,
+                unit_code,
+                unit_name,
+                unit_type,
+                operational_status,
+                deleted_at,
+                created_at,
+                updated_at
+            `,
+            [currentUnit.id]
+        );
+
+        await client.query("COMMIT");
+        return {
+            alreadyRestored: false,
+
+            property: {
+                public_id:
+                    currentUnit.property_public_id,
+
+                property_code:
+                    currentUnit.property_code,
+
+                property_name:
+                    currentUnit.property_name,
+
+                property_type:
+                    currentUnit.property_type,
+
+                is_multi_unit:
+                    currentUnit.is_multi_unit,
+
+                operational_status:
+                    currentUnit
+                        .property_operational_status
+            },
+
+            unit: restoredResult.rows[0]
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 module.exports = {
     getPropertyUnits,
     createUnit,
@@ -1990,5 +2331,6 @@ module.exports = {
     updateUnit,
     activateUnit,
     markUnitMaintenance,
-    softDeleteUnit
+    softDeleteUnit,
+    restoreUnit
 };
