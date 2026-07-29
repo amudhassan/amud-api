@@ -703,11 +703,51 @@ const markUnitMaintenanceValidator = [
             return true;
         })
 ];
+const softDeleteUnitValidator = [
+    param("unit_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Unit public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Unit public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 10,
+            max: 50
+        })
+        .withMessage(
+            "Unit public ID must contain between 10 and 50 characters."
+        )
+        .matches(
+            /^unit_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid unit public ID format."
+        ),
+
+    body()
+        .custom(value => {
+            const suppliedFields =
+                Object.keys(value || {});
+
+            if (suppliedFields.length > 0) {
+                throw new Error(
+                    "Delete unit request does not accept body fields."
+                );
+            }
+
+            return true;
+        })
+];
 module.exports = {
     getPropertyUnitsValidator,
     createUnitValidator,
     getSingleUnitValidator,
     updateUnitValidator,
     activateUnitValidator,
-    markUnitMaintenanceValidator
+    markUnitMaintenanceValidator,
+    softDeleteUnitValidator
 };

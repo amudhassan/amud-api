@@ -19,7 +19,8 @@ const {
     getSingleUnitController,
     updateUnitController,
     activateUnitController,
-    markUnitMaintenanceController
+    markUnitMaintenanceController,
+    softDeleteUnitController
 } = require(
     "../controllers/unitController"
 );
@@ -28,7 +29,8 @@ const {
     getSingleUnitValidator,
     updateUnitValidator,
     activateUnitValidator,
-    markUnitMaintenanceValidator
+    markUnitMaintenanceValidator,
+    softDeleteUnitValidator
 } = require(
     "../validators/unitValidator"
 );
@@ -60,5 +62,12 @@ router.patch(
     updateUnitValidator,
     validateRequest,
     updateUnitController
+);
+router.delete(
+    "/:unit_public_id",
+    authMiddleware,
+    softDeleteUnitValidator,
+    validateRequest,
+    softDeleteUnitController
 );
 module.exports = router;
