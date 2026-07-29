@@ -18,7 +18,8 @@ const validateRequest = require(
 const {
     getSingleUnitController,
     updateUnitController,
-    activateUnitController
+    activateUnitController,
+    markUnitMaintenanceController
 } = require(
     "../controllers/unitController"
 );
@@ -26,7 +27,8 @@ const {
 const {
     getSingleUnitValidator,
     updateUnitValidator,
-    activateUnitValidator
+    activateUnitValidator,
+    markUnitMaintenanceValidator
 } = require(
     "../validators/unitValidator"
 );
@@ -44,6 +46,13 @@ router.patch(
     activateUnitValidator,
     validateRequest,
     activateUnitController
+);
+router.patch(
+    "/:unit_public_id/maintenance",
+    authMiddleware,
+    markUnitMaintenanceValidator,
+    validateRequest,
+    markUnitMaintenanceController
 );
 router.patch(
     "/:unit_public_id",

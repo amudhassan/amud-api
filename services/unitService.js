@@ -1453,10 +1453,307 @@ const activateUnit = async ({
         client.release();
     }
 };
+const markUnitMaintenance = async ({
+    unitPublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const values = [unitPublicId];
+
+        let accessCondition = "";
+
+        if (authenticatedUser.role !== "admin") {
+            values.push(authenticatedUser.id);
+
+            accessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM property_owners AS po_access
+
+                    INNER JOIN owners AS owner_access
+                        ON owner_access.id =
+                            po_access.owner_id
+                       AND owner_access.deleted_at IS NULL
+                       AND owner_access.status = 'active'
+
+                    INNER JOIN owner_users AS user_access
+                        ON user_access.owner_id =
+                            owner_access.id
+                       AND user_access.user_id = $2
+                       AND user_access.revoked_at IS NULL
+                       AND user_access
+                            .can_manage_properties = TRUE
+                       AND user_access.relationship_role IN (
+                            'owner',
+                            'representative',
+                            'manager'
+                       )
+
+                    WHERE po_access.property_id =
+                            property_record.id
+
+                      AND po_access.effective_to IS NULL
+                )
+            `;
+        }
+
+        const currentResult = await client.query(
+            `
+            SELECT
+                unit_record.id,
+                unit_record.public_id,
+                unit_record.unit_code,
+                unit_record.unit_name,
+                unit_record.unit_type,
+
+                unit_record.operational_status
+                    AS unit_operational_status,
+
+                unit_record.created_at,
+                unit_record.updated_at,
+
+                property_record.public_id
+                    AS property_public_id,
+
+                property_record.property_code,
+                property_record.property_name,
+
+                property_record.operational_status
+                    AS property_operational_status,
+
+                property_record.is_multi_unit
+
+            FROM units AS unit_record
+
+            INNER JOIN properties AS property_record
+                ON property_record.id =
+                    unit_record.property_id
+
+            WHERE unit_record.public_id = $1
+              AND unit_record.deleted_at IS NULL
+              AND property_record.deleted_at IS NULL
+
+              ${accessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF
+                unit_record,
+                property_record
+            `,
+            values
+        );
+
+        if (currentResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const currentUnit =
+            currentResult.rows[0];
+
+        if (
+            currentUnit
+                .property_operational_status ===
+            "sold"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                soldProperty: true
+            };
+        }
+
+        if (
+            currentUnit
+                .unit_operational_status ===
+            "maintenance"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                alreadyMaintenance: true,
+
+                unit: {
+                    public_id:
+                        currentUnit.public_id,
+
+                    unit_code:
+                        currentUnit.unit_code,
+
+                    unit_name:
+                        currentUnit.unit_name,
+
+                    unit_type:
+                        currentUnit.unit_type,
+
+                    operational_status:
+                        currentUnit
+                            .unit_operational_status,
+
+                    created_at:
+                        currentUnit.created_at,
+
+                    updated_at:
+                        currentUnit.updated_at
+                },
+
+                property: {
+                    public_id:
+                        currentUnit
+                            .property_public_id,
+
+                    property_code:
+                        currentUnit
+                            .property_code,
+
+                    property_name:
+                        currentUnit
+                            .property_name,
+
+                    operational_status:
+                        currentUnit
+                            .property_operational_status,
+
+                    is_multi_unit:
+                        currentUnit.is_multi_unit
+                },
+
+                status_transition: {
+                    previous_status:
+                        "maintenance",
+
+                    current_status:
+                        "maintenance",
+
+                    status_changed:
+                        false
+                }
+            };
+        }
+
+        if (
+            [
+                "reserved",
+                "occupied"
+            ].includes(
+                currentUnit
+                    .unit_operational_status
+            )
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                invalidCurrentStatus: true,
+
+                current_status:
+                    currentUnit
+                        .unit_operational_status
+            };
+        }
+
+        const updatedResult =
+            await client.query(
+                `
+                UPDATE units
+
+                SET
+                    operational_status =
+                        'maintenance',
+
+                    updated_at = NOW()
+
+                WHERE id = $1
+                  AND deleted_at IS NULL
+
+                RETURNING
+                    public_id,
+                    unit_code,
+                    unit_name,
+                    unit_type,
+                    floor_number,
+                    bedrooms,
+                    bathrooms,
+                    area_size,
+                    area_unit,
+                    description,
+                    operational_status,
+                    created_at,
+                    updated_at
+                `,
+                [currentUnit.id]
+            );
+
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        const maintenanceUnit =
+            updatedResult.rows[0];
+
+        maintenanceUnit.bathrooms =
+            Number(maintenanceUnit.bathrooms);
+
+        maintenanceUnit.area_size =
+            maintenanceUnit.area_size === null
+                ? null
+                : Number(
+                    maintenanceUnit.area_size
+                );
+
+        return {
+            unit: maintenanceUnit,
+
+            property: {
+                public_id:
+                    currentUnit
+                        .property_public_id,
+
+                property_code:
+                    currentUnit.property_code,
+
+                property_name:
+                    currentUnit.property_name,
+
+                operational_status:
+                    currentUnit
+                        .property_operational_status,
+
+                is_multi_unit:
+                    currentUnit.is_multi_unit
+            },
+
+            status_transition: {
+                previous_status:
+                    currentUnit
+                        .unit_operational_status,
+
+                current_status:
+                    maintenanceUnit
+                        .operational_status,
+
+                status_changed: true
+            }
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 module.exports = {
     getPropertyUnits,
     createUnit,
     getSingleUnit,
     updateUnit,
-    activateUnit
+    activateUnit,
+    markUnitMaintenance
 };
