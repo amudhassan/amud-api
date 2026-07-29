@@ -37,13 +37,15 @@ const {
 } = require("../validators/propertyValidator");
 
 const {
-    getPropertyUnitsController
+    getPropertyUnitsController,
+    createUnitController
 } = require(
     "../controllers/unitController"
 );
 
 const {
-    getPropertyUnitsValidator
+    getPropertyUnitsValidator,
+    createUnitValidator
 } = require(
     "../validators/unitValidator"
 );
@@ -82,6 +84,13 @@ router.get(
     getPropertyUnitsValidator,
     validateRequest,
     getPropertyUnitsController
+);
+router.post(
+    "/:property_public_id/units",
+    authMiddleware,
+    createUnitValidator,
+    validateRequest,
+    createUnitController
 );
 router.get(
     "/:property_public_id/owners",

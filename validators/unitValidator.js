@@ -1,4 +1,5 @@
 const {
+    body,
     param,
     query
 } = require("express-validator");
@@ -133,7 +134,226 @@ const getPropertyUnitsValidator = [
         )
         .toInt()
 ];
+const createUnitValidator = [
+    param("property_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Property public ID is required."
+        )
+        .isString()
+        .trim()
+        .isLength({
+            min: 10,
+            max: 50
+        })
+        .withMessage(
+            "Property public ID must contain between 10 and 50 characters."
+        )
+        .matches(
+            /^property_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid property public ID format."
+        ),
 
+    body()
+        .custom(value => {
+            const allowedFields = [
+                "unit_code",
+                "unit_name",
+                "unit_type",
+                "floor_number",
+                "bedrooms",
+                "bathrooms",
+                "area_size",
+                "area_unit",
+                "description"
+            ];
+
+            const suppliedFields =
+                Object.keys(value || {});
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported fields: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            const hasAreaSize =
+                value.area_size !== undefined &&
+                value.area_size !== null;
+
+            const hasAreaUnit =
+                value.area_unit !== undefined &&
+                value.area_unit !== null;
+
+            if (hasAreaSize !== hasAreaUnit) {
+                throw new Error(
+                    "area_size and area_unit must be supplied together."
+                );
+            }
+
+            return true;
+        }),
+
+    body("unit_code")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Unit code is required."
+        )
+        .isString()
+        .withMessage(
+            "Unit code must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 1,
+            max: 50
+        })
+        .withMessage(
+            "Unit code must contain between 1 and 50 characters."
+        ),
+
+    body("unit_name")
+        .optional({
+            nullable: true
+        })
+        .isString()
+        .withMessage(
+            "Unit name must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 1,
+            max: 150
+        })
+        .withMessage(
+            "Unit name must contain between 1 and 150 characters."
+        ),
+
+    body("unit_type")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Unit type is required."
+        )
+        .isIn(allowedUnitTypes)
+        .withMessage(
+            "Invalid unit type."
+        ),
+
+    body("floor_number")
+        .optional({
+            nullable: true
+        })
+        .isInt({
+            min: -20,
+            max: 300
+        })
+        .withMessage(
+            "Floor number must be between -20 and 300."
+        )
+        .toInt(),
+
+    body("bedrooms")
+        .optional()
+        .isInt({
+            min: 0,
+            max: 100
+        })
+        .withMessage(
+            "Bedrooms must be between 0 and 100."
+        )
+        .toInt(),
+
+    body("bathrooms")
+        .optional()
+        .isFloat({
+            min: 0,
+            max: 100
+        })
+        .withMessage(
+            "Bathrooms must be between 0 and 100."
+        )
+        .custom(value => {
+            if (
+                !/^\d+(\.\d{1,2})?$/.test(
+                    String(value)
+                )
+            ) {
+                throw new Error(
+                    "Bathrooms cannot contain more than two decimal places."
+                );
+            }
+
+            return true;
+        })
+        .toFloat(),
+
+    body("area_size")
+        .optional({
+            nullable: true
+        })
+        .isFloat({
+            gt: 0,
+            max: 999999999999.99
+        })
+        .withMessage(
+            "Area size must be greater than 0."
+        )
+        .custom(value => {
+            if (
+                !/^\d+(\.\d{1,2})?$/.test(
+                    String(value)
+                )
+            ) {
+                throw new Error(
+                    "Area size cannot contain more than two decimal places."
+                );
+            }
+
+            return true;
+        })
+        .toFloat(),
+
+    body("area_unit")
+        .optional({
+            nullable: true
+        })
+        .isIn([
+            "square_meter",
+            "square_foot",
+            "acre",
+            "hectare",
+            "other"
+        ])
+        .withMessage(
+            "Invalid area unit."
+        ),
+
+    body("description")
+        .optional({
+            nullable: true
+        })
+        .isString()
+        .withMessage(
+            "Description must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 1,
+            max: 5000
+        })
+        .withMessage(
+            "Description cannot exceed 5000 characters."
+        )
+];
 module.exports = {
-    getPropertyUnitsValidator
+    getPropertyUnitsValidator,
+    createUnitValidator
 };

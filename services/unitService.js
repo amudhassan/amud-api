@@ -1,3 +1,4 @@
+const { nanoid } = require("nanoid");
 const pool = require("../config/db");
 
 const getPropertyUnits = async ({
@@ -378,7 +379,264 @@ const getPropertyUnits = async ({
         }
     };
 };
+const createUnit = async ({
+    propertyPublicId,
+    unitData,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const propertyValues = [
+            propertyPublicId
+        ];
+
+        let accessCondition = "";
+
+        /*
+         * Regular user lazima awe na active management
+         * permission kupitia angalau owner mmoja wa property.
+         */
+        if (authenticatedUser.role !== "admin") {
+            propertyValues.push(
+                authenticatedUser.id
+            );
+
+            accessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM property_owners AS po_access
+
+                    INNER JOIN owners AS owner_access
+                        ON owner_access.id =
+                            po_access.owner_id
+                       AND owner_access.deleted_at IS NULL
+                       AND owner_access.status = 'active'
+
+                    INNER JOIN owner_users AS user_access
+                        ON user_access.owner_id =
+                            owner_access.id
+                       AND user_access.user_id = $2
+                       AND user_access.revoked_at IS NULL
+                       AND user_access
+                            .can_manage_properties = TRUE
+                       AND user_access.relationship_role IN (
+                            'owner',
+                            'representative',
+                            'manager'
+                       )
+
+                    WHERE po_access.property_id = p.id
+                      AND po_access.effective_to IS NULL
+                )
+            `;
+        }
+
+        /*
+         * Property lock inazuia concurrent creation
+         * kuvunja single-unit property rule.
+         */
+        const propertyResult = await client.query(
+            `
+            SELECT
+                p.id,
+                p.public_id,
+                p.property_code,
+                p.property_name,
+                p.property_type,
+                p.usage_category,
+                p.operational_status,
+                p.is_multi_unit,
+                p.created_at,
+                p.updated_at
+
+            FROM properties AS p
+
+            WHERE p.public_id = $1
+              AND p.deleted_at IS NULL
+
+              ${accessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF p
+            `,
+            propertyValues
+        );
+
+        if (propertyResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const property =
+            propertyResult.rows[0];
+
+        if (
+            property.operational_status === "sold"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                soldProperty: true
+            };
+        }
+
+        /*
+         * Helpful pre-check.
+         * Database trigger bado ndiyo final protection.
+         */
+        if (property.is_multi_unit === false) {
+            const existingUnitResult =
+                await client.query(
+                    `
+                    SELECT
+                        public_id,
+                        unit_code,
+                        unit_name,
+                        operational_status
+
+                    FROM units
+
+                    WHERE property_id = $1
+                      AND deleted_at IS NULL
+
+                    LIMIT 1
+                    `,
+                    [property.id]
+                );
+
+            if (
+                existingUnitResult.rows.length > 0
+            ) {
+                await client.query("ROLLBACK");
+
+                return {
+                    singleUnitLimitReached: true,
+                    existing_unit:
+                        existingUnitResult.rows[0]
+                };
+            }
+        }
+
+        const unitPublicId =
+            `unit_${nanoid(24)}`;
+
+        const createdUnitResult =
+            await client.query(
+                `
+                INSERT INTO units (
+                    public_id,
+                    property_id,
+                    unit_code,
+                    unit_name,
+                    unit_type,
+                    floor_number,
+                    bedrooms,
+                    bathrooms,
+                    area_size,
+                    area_unit,
+                    description,
+                    operational_status,
+                    created_by
+                )
+                VALUES (
+                    $1,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    $9,
+                    $10,
+                    $11,
+                    'inactive',
+                    $12
+                )
+                RETURNING
+                    public_id,
+                    unit_code,
+                    unit_name,
+                    unit_type,
+                    floor_number,
+                    bedrooms,
+                    bathrooms,
+                    area_size,
+                    area_unit,
+                    description,
+                    operational_status,
+                    created_at,
+                    updated_at,
+                    deleted_at
+                `,
+                [
+                    unitPublicId,
+                    property.id,
+                    unitData.unit_code,
+                    unitData.unit_name ?? null,
+                    unitData.unit_type,
+                    unitData.floor_number ?? null,
+                    unitData.bedrooms ?? 0,
+                    unitData.bathrooms ?? 0,
+                    unitData.area_size ?? null,
+                    unitData.area_unit ?? null,
+                    unitData.description ?? null,
+                    authenticatedUser.id
+                ]
+            );
+
+        /*
+         * Lazimisha deferred integrity triggers
+         * kabla ya transaction ku-commit.
+         */
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        const unit =
+            createdUnitResult.rows[0];
+
+        unit.bathrooms =
+            Number(unit.bathrooms);
+
+        unit.area_size =
+            unit.area_size === null
+                ? null
+                : Number(unit.area_size);
+
+        delete property.id;
+
+        return {
+            property,
+
+            unit,
+
+            creation_summary: {
+                property_is_multi_unit:
+                    property.is_multi_unit,
+
+                initial_operational_status:
+                    unit.operational_status,
+
+                rentable_immediately: false
+            }
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 
 module.exports = {
-    getPropertyUnits
+    getPropertyUnits,
+    createUnit
 };
