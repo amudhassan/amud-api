@@ -829,9 +829,322 @@ const getSingleUnit = async ({
                 : null
     };
 };
+const updateUnit = async ({
+    unitPublicId,
+    unitData,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
 
+    try {
+        await client.query("BEGIN");
+
+        const values = [unitPublicId];
+
+        let accessCondition = "";
+
+        /*
+         * Regular user lazima awe na management permission
+         * kupitia angalau owner mmoja wa parent property.
+         */
+        if (authenticatedUser.role !== "admin") {
+            values.push(authenticatedUser.id);
+
+            accessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM property_owners AS po_access
+
+                    INNER JOIN owners AS owner_access
+                        ON owner_access.id =
+                            po_access.owner_id
+                       AND owner_access.deleted_at IS NULL
+                       AND owner_access.status = 'active'
+
+                    INNER JOIN owner_users AS user_access
+                        ON user_access.owner_id =
+                            owner_access.id
+                       AND user_access.user_id = $2
+                       AND user_access.revoked_at IS NULL
+                       AND user_access
+                            .can_manage_properties = TRUE
+                       AND user_access.relationship_role IN (
+                            'owner',
+                            'representative',
+                            'manager'
+                       )
+
+                    WHERE po_access.property_id =
+                            property_record.id
+
+                      AND po_access.effective_to IS NULL
+                )
+            `;
+        }
+
+        /*
+         * Lock unit pamoja na parent property.
+         */
+        const currentResult = await client.query(
+            `
+            SELECT
+                unit_record.id,
+                unit_record.public_id,
+                unit_record.property_id,
+                unit_record.unit_code,
+                unit_record.unit_name,
+                unit_record.unit_type,
+                unit_record.floor_number,
+                unit_record.bedrooms,
+                unit_record.bathrooms,
+                unit_record.area_size,
+                unit_record.area_unit,
+                unit_record.description,
+                unit_record.operational_status,
+                unit_record.created_at,
+                unit_record.updated_at,
+
+                property_record.public_id
+                    AS property_public_id,
+
+                property_record.property_code,
+                property_record.property_name,
+                property_record.property_type,
+                property_record.usage_category,
+
+                property_record.operational_status
+                    AS property_operational_status,
+
+                property_record.is_multi_unit
+
+            FROM units AS unit_record
+
+            INNER JOIN properties AS property_record
+                ON property_record.id =
+                    unit_record.property_id
+
+            WHERE unit_record.public_id = $1
+              AND unit_record.deleted_at IS NULL
+              AND property_record.deleted_at IS NULL
+
+              ${accessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF unit_record, property_record
+            `,
+            values
+        );
+
+        if (currentResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+            return null;
+        }
+
+        const currentUnit =
+            currentResult.rows[0];
+
+        if (
+            currentUnit
+                .property_operational_status ===
+            "sold"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                soldProperty: true
+            };
+        }
+
+        /*
+         * Merge area fields na existing values.
+         * Hii inaruhusu kubadilisha area_size pekee
+         * kama area_unit tayari ipo, na kinyume chake.
+         */
+        const finalAreaSize =
+            Object.prototype.hasOwnProperty.call(
+                unitData,
+                "area_size"
+            )
+                ? unitData.area_size
+                : currentUnit.area_size;
+
+        const finalAreaUnit =
+            Object.prototype.hasOwnProperty.call(
+                unitData,
+                "area_unit"
+            )
+                ? unitData.area_unit
+                : currentUnit.area_unit;
+
+        const areaSizeMissing =
+            finalAreaSize === null ||
+            finalAreaSize === undefined;
+
+        const areaUnitMissing =
+            finalAreaUnit === null ||
+            finalAreaUnit === undefined;
+
+        if (areaSizeMissing !== areaUnitMissing) {
+            await client.query("ROLLBACK");
+
+            return {
+                areaPairMismatch: true
+            };
+        }
+
+        const allowedFields = [
+            "unit_code",
+            "unit_name",
+            "unit_type",
+            "floor_number",
+            "bedrooms",
+            "bathrooms",
+            "area_size",
+            "area_unit",
+            "description"
+        ];
+
+        const fieldColumnMap = {
+            unit_code: "unit_code",
+            unit_name: "unit_name",
+            unit_type: "unit_type",
+            floor_number: "floor_number",
+            bedrooms: "bedrooms",
+            bathrooms: "bathrooms",
+            area_size: "area_size",
+            area_unit: "area_unit",
+            description: "description"
+        };
+
+        const suppliedFields =
+            allowedFields.filter(field =>
+                Object.prototype.hasOwnProperty.call(
+                    unitData,
+                    field
+                )
+            );
+
+        const updateValues = [];
+        const setClauses = [];
+
+        for (const field of suppliedFields) {
+            updateValues.push(unitData[field]);
+
+            setClauses.push(
+                `${fieldColumnMap[field]} = $${updateValues.length}`
+            );
+        }
+
+        updateValues.push(currentUnit.id);
+
+        const unitIdPlaceholder =
+            `$${updateValues.length}`;
+
+        const updatedResult =
+            await client.query(
+                `
+                UPDATE units
+
+                SET
+                    ${setClauses.join(", ")},
+                    updated_at = NOW()
+
+                WHERE id = ${unitIdPlaceholder}
+                  AND deleted_at IS NULL
+
+                RETURNING
+                    public_id,
+                    unit_code,
+                    unit_name,
+                    unit_type,
+                    floor_number,
+                    bedrooms,
+                    bathrooms,
+                    area_size,
+                    area_unit,
+                    description,
+                    operational_status,
+                    created_at,
+                    updated_at,
+                    deleted_at
+                `,
+                updateValues
+            );
+
+        /*
+         * Run deferred unit/property integrity triggers
+         * before commit.
+         */
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        const updatedUnit =
+            updatedResult.rows[0];
+
+        updatedUnit.bathrooms =
+            Number(updatedUnit.bathrooms);
+
+        updatedUnit.area_size =
+            updatedUnit.area_size === null
+                ? null
+                : Number(updatedUnit.area_size);
+
+        return {
+            unit: updatedUnit,
+
+            property: {
+                public_id:
+                    currentUnit.property_public_id,
+
+                property_code:
+                    currentUnit.property_code,
+
+                property_name:
+                    currentUnit.property_name,
+
+                property_type:
+                    currentUnit.property_type,
+
+                usage_category:
+                    currentUnit.usage_category,
+
+                operational_status:
+                    currentUnit
+                        .property_operational_status,
+
+                is_multi_unit:
+                    currentUnit.is_multi_unit
+            },
+
+            update_summary: {
+                changed_fields:
+                    suppliedFields,
+
+                changed_field_count:
+                    suppliedFields.length,
+
+                operational_status_preserved:
+                    true,
+
+                property_relationship_preserved:
+                    true
+            }
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 module.exports = {
     getPropertyUnits,
     createUnit,
-    getSingleUnit
+    getSingleUnit,
+    updateUnit
 };

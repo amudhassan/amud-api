@@ -16,13 +16,15 @@ const validateRequest = require(
 );
 
 const {
-    getSingleUnitController
+    getSingleUnitController,
+    updateUnitController
 } = require(
     "../controllers/unitController"
 );
 
 const {
-    getSingleUnitValidator
+    getSingleUnitValidator,
+    updateUnitValidator
 } = require(
     "../validators/unitValidator"
 );
@@ -34,5 +36,11 @@ router.get(
     validateRequest,
     getSingleUnitController
 );
-
+router.patch(
+    "/:unit_public_id",
+    authMiddleware,
+    updateUnitValidator,
+    validateRequest,
+    updateUnitController
+);
 module.exports = router;

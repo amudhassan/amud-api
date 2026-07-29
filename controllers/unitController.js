@@ -9,7 +9,8 @@ const AppError = require(
 const {
     getPropertyUnits,
     createUnit,
-    getSingleUnit
+    getSingleUnit,
+    updateUnit
 } = require("../services/unitService");
 
 const getPropertyUnitsController =
@@ -191,8 +192,93 @@ const createUnitController =
             });
         }
     );
+    const updateUnitController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await updateUnit({
+                        unitPublicId:
+                            req.params
+                                .unit_public_id,
+
+                        unitData:
+                            req.body,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Unit not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.soldProperty) {
+                    return next(
+                        new AppError(
+                            "A unit belonging to a sold property cannot be updated.",
+                            409
+                        )
+                    );
+                }
+
+                if (result.areaPairMismatch) {
+                    return next(
+                        new AppError(
+                            "area_size and area_unit must either both have values or both be null.",
+                            422
+                        )
+                    );
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Unit updated successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23505") {
+                    return next(
+                        new AppError(
+                            "A unit with this code already exists in the property.",
+                            409
+                        )
+                    );
+                }
+
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "The unit update violates a property or unit integrity rule.",
+                            422
+                        )
+                    );
+                }
+
+                if (error.code === "23503") {
+                    return next(
+                        new AppError(
+                            "A referenced property or user record was not found.",
+                            404
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
 module.exports = {
     getPropertyUnitsController,
     createUnitController,
-    getSingleUnitController
+    getSingleUnitController,
+    updateUnitController
 };
