@@ -36,6 +36,17 @@ const {
     activatePropertyValidator
 } = require("../validators/propertyValidator");
 
+const {
+    getPropertyUnitsController
+} = require(
+    "../controllers/unitController"
+);
+
+const {
+    getPropertyUnitsValidator
+} = require(
+    "../validators/unitValidator"
+);
 
 router.get(
     "/",
@@ -64,6 +75,13 @@ router.patch(
     activatePropertyValidator,
     validateRequest,
     activatePropertyController
+);
+router.get(
+    "/:property_public_id/units",
+    authMiddleware,
+    getPropertyUnitsValidator,
+    validateRequest,
+    getPropertyUnitsController
 );
 router.get(
     "/:property_public_id/owners",
