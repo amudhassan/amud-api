@@ -10,6 +10,8 @@ const {
     getTenants,
     getSingleTenant,
     updateTenant,
+    softDeleteTenant,
+    restoreTenant,
     createTenant
 } = require(
     "../services/tenantService"
@@ -250,6 +252,189 @@ const updateTenantController =
             });
         }
     );
+    /*
+ * DELETE /api/tenants/:tenant_public_id
+ */
+const softDeleteTenantController =
+    asyncHandler(
+        async (req, res, next) => {
+            const {
+                tenant_public_id
+            } = req.params;
+
+            const {
+                owner_public_id
+            } = req.query;
+
+            const result =
+                await softDeleteTenant({
+                    ownerPublicId:
+                        owner_public_id,
+
+                    tenantPublicId:
+                        tenant_public_id,
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            /*
+             * Owner hayupo, si active,
+             * amefutwa au regular user hana
+             * management permission.
+             */
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Owner not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Tenant hayupo, tayari amefutwa
+             * au selected owner hajawahi kuwa
+             * na relationship naye.
+             */
+            if (result.tenantNotFound) {
+                return next(
+                    new AppError(
+                        "Tenant not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Integrity rule:
+             * tenant hawezi kufutwa akiwa bado
+             * na current owner relationship.
+             */
+            if (
+                result.currentRelationshipExists
+            ) {
+                return next(
+                    new AppError(
+                        "Tenant cannot be deleted while a current owner relationship exists.",
+                        409,
+                        {
+                            current_relationship_count:
+                                result
+                                    .currentRelationshipCount
+                        }
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Tenant deleted successfully.",
+
+                data: result
+            });
+        }
+    );
+    /*
+ * PATCH /api/tenants/:tenant_public_id/restore
+ */
+const restoreTenantController =
+    asyncHandler(
+        async (req, res, next) => {
+            const {
+                tenant_public_id
+            } = req.params;
+
+            const {
+                owner_public_id
+            } = req.query;
+
+            const result =
+                await restoreTenant({
+                    ownerPublicId:
+                        owner_public_id,
+
+                    tenantPublicId:
+                        tenant_public_id,
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            /*
+             * Owner hayupo, si active,
+             * amefutwa au regular user hana
+             * management permission.
+             */
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Owner not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Tenant hayupo, hajafutwa,
+             * au selected owner hajawahi kuwa
+             * na relationship naye.
+             */
+            if (result.tenantNotFound) {
+                return next(
+                    new AppError(
+                        "Tenant not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Identifier ya soft-deleted tenant
+             * inaweza kuwa imetumiwa na current
+             * tenant mwingine.
+             */
+            if (result.duplicateIdentifier) {
+                const duplicateMessages = {
+                    national_id:
+                        "Tenant cannot be restored because a current tenant with this national ID already exists.",
+
+                    passport_number:
+                        "Tenant cannot be restored because a current tenant with this passport number already exists.",
+
+                    registration_number:
+                        "Tenant cannot be restored because a current tenant with this registration number already exists.",
+
+                    tax_identification_number:
+                        "Tenant cannot be restored because a current tenant with this tax identification number already exists."
+                };
+
+                const message =
+                    duplicateMessages[
+                        result.duplicateField
+                    ] ||
+                    "Tenant cannot be restored because one of its identifiers is already in use.";
+
+                return next(
+                    new AppError(
+                        message,
+                        409
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Tenant restored successfully.",
+
+                data: result
+            });
+        }
+    );
 /*
  * POST /api/tenants
  */
@@ -323,5 +508,7 @@ module.exports = {
     getTenantsController,
     getSingleTenantController,
     updateTenantController,
+    softDeleteTenantController,
+    restoreTenantController,
     createTenantController
 };

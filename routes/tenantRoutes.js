@@ -16,6 +16,8 @@ const {
     getTenantsController,
     getSingleTenantController,
     updateTenantController,
+    softDeleteTenantController,
+    restoreTenantController,
     createTenantController
 } = require(
     "../controllers/tenantController"
@@ -25,6 +27,8 @@ const {
     getTenantsValidator,
     getSingleTenantValidator,
     updateTenantValidator,
+    softDeleteTenantValidator,
+    restoreTenantValidator,
     createTenantValidator
 } = require(
     "../validators/tenantValidator"
@@ -32,9 +36,6 @@ const {
 
 /*
  * GET /api/tenants
- *
- * Returns current tenants connected to
- * the selected owner.
  */
 router.get(
     "/",
@@ -46,9 +47,6 @@ router.get(
 
 /*
  * GET /api/tenants/:tenant_public_id
- *
- * Returns one current tenant within
- * the selected owner context.
  */
 router.get(
     "/:tenant_public_id",
@@ -59,10 +57,20 @@ router.get(
 );
 
 /*
- * PATCH /api/tenants/:tenant_public_id
+ * PATCH /api/tenants/:tenant_public_id/restore
  *
- * Updates the tenant legal/business profile.
- * Owner context is supplied through query parameters.
+ * Must remain before the general PATCH route.
+ */
+router.patch(
+    "/:tenant_public_id/restore",
+    authMiddleware,
+    restoreTenantValidator,
+    validateRequest,
+    restoreTenantController
+);
+
+/*
+ * PATCH /api/tenants/:tenant_public_id
  */
 router.patch(
     "/:tenant_public_id",
@@ -73,11 +81,18 @@ router.patch(
 );
 
 /*
+ * DELETE /api/tenants/:tenant_public_id
+ */
+router.delete(
+    "/:tenant_public_id",
+    authMiddleware,
+    softDeleteTenantValidator,
+    validateRequest,
+    softDeleteTenantController
+);
+
+/*
  * POST /api/tenants
- *
- * Creates:
- * 1. Tenant legal/business profile.
- * 2. First active primary owner relationship.
  */
 router.post(
     "/",
