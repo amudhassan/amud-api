@@ -1,0 +1,450 @@
+const {
+    body
+} = require("express-validator");
+
+/*
+ * POST /api/tenants
+ *
+ * owner_public_id hutumika kuunda owner_tenants
+ * relationship. Haihifadhiwi kwenye tenants table.
+ */
+const createTenantValidator = [
+
+    /*
+     * Reject fields ambazo haziruhusiwi.
+     *
+     * Hii pia inazuia client kujipatia control ya:
+     * - status
+     * - created_by
+     * - deleted_at
+     * - relationship_status
+     * - is_primary_owner_relationship
+     * - ended_at
+     */
+    body()
+        .custom(value => {
+            const allowedFields = [
+                "owner_public_id",
+                "tenant_type",
+                "display_name",
+                "national_id",
+                "passport_number",
+                "registration_number",
+                "tax_identification_number",
+                "email",
+                "phone_number",
+                "alternative_phone",
+                "address",
+                "city",
+                "region",
+                "country",
+                "notes"
+            ];
+
+            const suppliedFields =
+                Object.keys(value || {});
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported fields: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    /*
+     * Owner ambaye tenant ataunganishwa naye.
+     */
+    body("owner_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Owner public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Owner public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Owner public ID must contain between 7 and 40 characters."
+        )
+
+        .matches(
+            /^owner_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid owner public ID format."
+        ),
+
+    /*
+     * Tenant legal/business profile type.
+     */
+    body("tenant_type")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Tenant type is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Tenant type must be a string."
+        )
+
+        .trim()
+        .toLowerCase()
+
+        .isIn([
+            "individual",
+            "company",
+            "government",
+            "organization",
+            "partnership"
+        ])
+        .withMessage(
+            "Tenant type must be individual, company, government, organization or partnership."
+        ),
+
+    body("display_name")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Tenant display name is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Tenant display name must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 2,
+            max: 200
+        })
+        .withMessage(
+            "Tenant display name must contain between 2 and 200 characters."
+        ),
+
+    /*
+     * Individual identifiers.
+     */
+    body("national_id")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "National ID must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "National ID cannot be empty."
+        )
+
+        .isLength({
+            max: 100
+        })
+        .withMessage(
+            "National ID cannot exceed 100 characters."
+        ),
+
+    body("passport_number")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "Passport number must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Passport number cannot be empty."
+        )
+
+        .isLength({
+            max: 100
+        })
+        .withMessage(
+            "Passport number cannot exceed 100 characters."
+        ),
+
+    /*
+     * Business or organization identifiers.
+     */
+    body("registration_number")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "Registration number must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Registration number cannot be empty."
+        )
+
+        .isLength({
+            max: 150
+        })
+        .withMessage(
+            "Registration number cannot exceed 150 characters."
+        ),
+
+    body("tax_identification_number")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "Tax identification number must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Tax identification number cannot be empty."
+        )
+
+        .isLength({
+            max: 150
+        })
+        .withMessage(
+            "Tax identification number cannot exceed 150 characters."
+        ),
+
+    /*
+     * Contact information.
+     */
+    body("email")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "Email must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Email cannot be empty."
+        )
+
+        .isEmail()
+        .withMessage(
+            "Please provide a valid email address."
+        )
+
+        .isLength({
+            max: 255
+        })
+        .withMessage(
+            "Email cannot exceed 255 characters."
+        )
+
+        .normalizeEmail(),
+
+    body("phone_number")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "Phone number must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Phone number cannot be empty."
+        )
+
+        .isLength({
+            min: 5,
+            max: 50
+        })
+        .withMessage(
+            "Phone number must contain between 5 and 50 characters."
+        ),
+
+    body("alternative_phone")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "Alternative phone number must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Alternative phone number cannot be empty."
+        )
+
+        .isLength({
+            min: 5,
+            max: 50
+        })
+        .withMessage(
+            "Alternative phone number must contain between 5 and 50 characters."
+        ),
+
+    /*
+     * Location information.
+     */
+    body("address")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "Address must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Address cannot be empty."
+        ),
+
+    body("city")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "City must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "City cannot be empty."
+        )
+
+        .isLength({
+            max: 100
+        })
+        .withMessage(
+            "City cannot exceed 100 characters."
+        ),
+
+    body("region")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "Region must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Region cannot be empty."
+        )
+
+        .isLength({
+            max: 100
+        })
+        .withMessage(
+            "Region cannot exceed 100 characters."
+        ),
+
+    body("country")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "Country must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Country cannot be empty."
+        )
+
+        .isLength({
+            max: 100
+        })
+        .withMessage(
+            "Country cannot exceed 100 characters."
+        ),
+
+    /*
+     * Notes zinahifadhiwa kwenye owner_tenants,
+     * si kwenye tenants table.
+     */
+    body("notes")
+        .optional({
+            nullable: true
+        })
+
+        .isString()
+        .withMessage(
+            "Notes must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Notes cannot be empty."
+        )
+];
+
+module.exports = {
+    createTenantValidator
+};
