@@ -478,7 +478,268 @@ const getTenants = async ({
         }
     };
 };
+/*
+ * GET /api/tenants/:tenant_public_id
+ */
+const getSingleTenant = async ({
+    ownerPublicId,
+    tenantPublicId,
+    authenticatedUser
+}) => {
+    const ownerValues = [
+        ownerPublicId
+    ];
 
+    let accessCondition = "";
+
+    /*
+     * Regular user lazima awe na current
+     * owner_users relationship na selected owner.
+     *
+     * Read operation hairuhitaji
+     * can_manage_properties.
+     */
+    if (authenticatedUser.role !== "admin") {
+        ownerValues.push(
+            authenticatedUser.id
+        );
+
+        accessCondition = `
+            AND EXISTS (
+                SELECT 1
+
+                FROM owner_users AS user_access
+
+                WHERE user_access.owner_id = o.id
+                  AND user_access.user_id = $2
+                  AND user_access.revoked_at IS NULL
+                  AND user_access.relationship_role IN (
+                      'owner',
+                      'representative',
+                      'manager',
+                      'accountant',
+                      'viewer'
+                  )
+            )
+        `;
+    }
+
+    /*
+     * Owner validation inafanyika kwanza ili
+     * kutofautisha inaccessible owner na
+     * tenant ambaye hayupo kwa owner huyo.
+     */
+    const ownerResult = await pool.query(
+        `
+        SELECT
+            o.id,
+            o.public_id,
+            o.owner_type,
+            o.display_name,
+            o.status,
+            o.created_at,
+            o.updated_at
+
+        FROM owners AS o
+
+        WHERE o.public_id = $1
+          AND o.deleted_at IS NULL
+
+          ${accessCondition}
+
+        LIMIT 1
+        `,
+        ownerValues
+    );
+
+    if (ownerResult.rows.length === 0) {
+        return null;
+    }
+
+    const owner = ownerResult.rows[0];
+
+    /*
+     * Tenant lazima awe:
+     * - current,
+     * - hajafutwa,
+     * - ameunganishwa na selected owner,
+     * - relationship yake haijaisha.
+     */
+    const tenantResult = await pool.query(
+        `
+        SELECT
+            t.public_id,
+            t.tenant_type,
+            t.display_name,
+            t.national_id,
+            t.passport_number,
+            t.registration_number,
+            t.tax_identification_number,
+            t.email,
+            t.phone_number,
+            t.alternative_phone,
+            t.address,
+            t.city,
+            t.region,
+            t.country,
+            t.status,
+            t.created_at,
+            t.updated_at,
+
+            ot.public_id
+                AS relationship_public_id,
+
+            ot.relationship_status,
+            ot.is_primary_owner_relationship,
+            ot.notes
+                AS relationship_notes,
+
+            ot.created_at
+                AS relationship_created_at,
+
+            ot.updated_at
+                AS relationship_updated_at,
+
+            ot.ended_at,
+
+            creator.public_id
+                AS created_by_public_id,
+
+            creator.full_name
+                AS created_by_name,
+
+            creator.email
+                AS created_by_email
+
+        FROM tenants AS t
+
+        INNER JOIN owner_tenants AS ot
+            ON ot.tenant_id = t.id
+
+        LEFT JOIN users AS creator
+            ON creator.id = t.created_by
+
+        WHERE t.public_id = $1
+          AND t.deleted_at IS NULL
+          AND ot.owner_id = $2
+          AND ot.ended_at IS NULL
+          AND ot.relationship_status IN (
+              'active',
+              'blocked'
+          )
+
+        LIMIT 1
+        `,
+        [
+            tenantPublicId,
+            owner.id
+        ]
+    );
+
+    if (tenantResult.rows.length === 0) {
+        return {
+            tenantNotFound: true
+        };
+    }
+
+    const row = tenantResult.rows[0];
+
+    delete owner.id;
+
+    return {
+        owner,
+
+        tenant: {
+            public_id:
+                row.public_id,
+
+            tenant_type:
+                row.tenant_type,
+
+            display_name:
+                row.display_name,
+
+            national_id:
+                row.national_id,
+
+            passport_number:
+                row.passport_number,
+
+            registration_number:
+                row.registration_number,
+
+            tax_identification_number:
+                row.tax_identification_number,
+
+            email:
+                row.email,
+
+            phone_number:
+                row.phone_number,
+
+            alternative_phone:
+                row.alternative_phone,
+
+            address:
+                row.address,
+
+            city:
+                row.city,
+
+            region:
+                row.region,
+
+            country:
+                row.country,
+
+            status:
+                row.status,
+
+            owner_relationship: {
+                public_id:
+                    row.relationship_public_id,
+
+                relationship_status:
+                    row.relationship_status,
+
+                is_primary_owner_relationship:
+                    row
+                        .is_primary_owner_relationship,
+
+                notes:
+                    row.relationship_notes,
+
+                created_at:
+                    row
+                        .relationship_created_at,
+
+                updated_at:
+                    row
+                        .relationship_updated_at,
+
+                ended_at:
+                    row.ended_at
+            },
+
+            created_by: {
+                public_id:
+                    row.created_by_public_id,
+
+                full_name:
+                    row.created_by_name,
+
+                email:
+                    row.created_by_email
+            },
+
+            created_at:
+                row.created_at,
+
+            updated_at:
+                row.updated_at
+        }
+    };
+};
 /*
  * POST /api/tenants
  */
@@ -758,5 +1019,6 @@ const createTenant = async ({
 
 module.exports = {
     getTenants,
+    getSingleTenant,
     createTenant
 };

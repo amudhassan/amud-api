@@ -8,6 +8,7 @@ const AppError = require(
 
 const {
     getTenants,
+    getSingleTenant,
     createTenant
 } = require(
     "../services/tenantService"
@@ -73,7 +74,69 @@ const getTenantsController = asyncHandler(
         });
     }
 );
+/*
+ * GET /api/tenants/:tenant_public_id
+ */
+const getSingleTenantController =
+    asyncHandler(
+        async (req, res, next) => {
+            const {
+                tenant_public_id
+            } = req.params;
 
+            const {
+                owner_public_id
+            } = req.query;
+
+            const result =
+                await getSingleTenant({
+                    ownerPublicId:
+                        owner_public_id,
+
+                    tenantPublicId:
+                        tenant_public_id,
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            /*
+             * Owner hayupo, amefutwa au regular
+             * user hana access kwake.
+             */
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Owner not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Tenant hayupo, amefutwa,
+             * hana current relationship na owner,
+             * au relationship yake imeisha.
+             */
+            if (result.tenantNotFound) {
+                return next(
+                    new AppError(
+                        "Tenant not found.",
+                        404
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Tenant retrieved successfully.",
+
+                data: result
+            });
+        }
+    );
 /*
  * POST /api/tenants
  */
@@ -145,5 +208,6 @@ const createTenantController = asyncHandler(
 
 module.exports = {
     getTenantsController,
+    getSingleTenantController,
     createTenantController
 };

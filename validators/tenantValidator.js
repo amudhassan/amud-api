@@ -1,6 +1,7 @@
 const {
     body,
-    query
+    query,
+    param
 } = require("express-validator");
 
 const createTenantValidator = [
@@ -511,8 +512,106 @@ const getTenantsValidator = [
         )
         .toInt()
 ];
+/*
+ * GET /api/tenants/:tenant_public_id
+ */
+const getSingleTenantValidator = [
 
+    /*
+     * Query parameters zinazokubalika.
+     */
+    query()
+        .custom(value => {
+            const allowedFields = [
+                "owner_public_id"
+            ];
+
+            const suppliedFields =
+                Object.keys(value || {});
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported query parameters: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    /*
+     * Tenant public identifier kutoka URL parameter.
+     */
+    param("tenant_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Tenant public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Tenant public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 8,
+            max: 50
+        })
+        .withMessage(
+            "Tenant public ID must contain between 8 and 50 characters."
+        )
+
+        .matches(
+            /^tenant_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid tenant public ID format."
+        ),
+
+    /*
+     * Owner context ni lazima kwa data isolation.
+     */
+    query("owner_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Owner public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Owner public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Owner public ID must contain between 7 and 40 characters."
+        )
+
+        .matches(
+            /^owner_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid owner public ID format."
+        )
+];
 module.exports = {
     createTenantValidator,
-    getTenantsValidator
+    getTenantsValidator,
+    getSingleTenantValidator
 };

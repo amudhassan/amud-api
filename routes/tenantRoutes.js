@@ -14,6 +14,7 @@ const validateRequest = require(
 
 const {
     getTenantsController,
+    getSingleTenantController,
     createTenantController
 } = require(
     "../controllers/tenantController"
@@ -21,6 +22,7 @@ const {
 
 const {
     getTenantsValidator,
+    getSingleTenantValidator,
     createTenantValidator
 } = require(
     "../validators/tenantValidator"
@@ -38,6 +40,20 @@ router.get(
     getTenantsValidator,
     validateRequest,
     getTenantsController
+);
+
+/*
+ * GET /api/tenants/:tenant_public_id
+ *
+ * Returns one current tenant within
+ * the selected owner context.
+ */
+router.get(
+    "/:tenant_public_id",
+    authMiddleware,
+    getSingleTenantValidator,
+    validateRequest,
+    getSingleTenantController
 );
 
 /*
