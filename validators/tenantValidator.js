@@ -930,21 +930,23 @@ const updateTenantValidator = [
             "Region cannot exceed 100 characters."
         ),
 
-    body("country")
-        .optional({ nullable: true })
-        .isString()
-        .withMessage(
-            "Country must be a string or null."
-        )
-        .trim()
-        .notEmpty()
-        .withMessage(
-            "Country cannot be empty."
-        )
-        .isLength({ max: 100 })
-        .withMessage(
-            "Country cannot exceed 100 characters."
-        )
+   body("country")
+    .optional()
+    .isString()
+    .withMessage(
+        "Country must be a string."
+    )
+    .trim()
+    .notEmpty()
+    .withMessage(
+        "Country cannot be empty."
+    )
+    .isLength({
+        max: 100
+    })
+    .withMessage(
+        "Country cannot exceed 100 characters."
+    )
 ];
 /*
  * DELETE /api/tenants/:tenant_public_id
