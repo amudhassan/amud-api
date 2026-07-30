@@ -13,15 +13,31 @@ const validateRequest = require(
 );
 
 const {
+    getTenantsController,
     createTenantController
 } = require(
     "../controllers/tenantController"
 );
 
 const {
+    getTenantsValidator,
     createTenantValidator
 } = require(
     "../validators/tenantValidator"
+);
+
+/*
+ * GET /api/tenants
+ *
+ * Returns current tenants connected to
+ * the selected owner.
+ */
+router.get(
+    "/",
+    authMiddleware,
+    getTenantsValidator,
+    validateRequest,
+    getTenantsController
 );
 
 /*

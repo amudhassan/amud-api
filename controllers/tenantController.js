@@ -7,11 +7,76 @@ const AppError = require(
 );
 
 const {
+    getTenants,
     createTenant
 } = require(
     "../services/tenantService"
 );
 
+/*
+ * GET /api/tenants
+ */
+const getTenantsController = asyncHandler(
+    async (req, res, next) => {
+        const {
+            owner_public_id,
+            search,
+            tenant_type,
+            status,
+            relationship_status,
+            page,
+            limit
+        } = req.query;
+
+        const result = await getTenants({
+            ownerPublicId:
+                owner_public_id,
+
+            filters: {
+                search,
+                tenant_type,
+                status,
+                relationship_status,
+                page,
+                limit
+            },
+
+            authenticatedUser:
+                req.user
+        });
+
+        /*
+         * Owner anaweza kuwa:
+         * - hayupo,
+         * - soft-deleted,
+         * - inaccessible kwa regular user.
+         *
+         * Response moja inalinda owner-based
+         * data isolation.
+         */
+        if (!result) {
+            return next(
+                new AppError(
+                    "Owner not found.",
+                    404
+                )
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+
+            message:
+                "Tenants retrieved successfully.",
+
+            data: result
+        });
+    }
+);
+
+/*
+ * POST /api/tenants
+ */
 const createTenantController = asyncHandler(
     async (req, res, next) => {
         const {
@@ -29,17 +94,6 @@ const createTenantController = asyncHandler(
                 req.user
         });
 
-        /*
-         * Owner anaweza kuwa:
-         * - hayupo,
-         * - inactive,
-         * - soft-deleted,
-         * - inaccessible kwa regular user,
-         * - user hana management permission.
-         *
-         * Tunatumia message moja ili kulinda
-         * owner-based data isolation.
-         */
         if (!result) {
             return next(
                 new AppError(
@@ -49,9 +103,6 @@ const createTenantController = asyncHandler(
             );
         }
 
-        /*
-         * Duplicate tenant legal identifiers.
-         */
         if (result.duplicateIdentifier) {
             const duplicateMessages = {
                 national_id:
@@ -93,5 +144,6 @@ const createTenantController = asyncHandler(
 );
 
 module.exports = {
+    getTenantsController,
     createTenantController
 };

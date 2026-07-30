@@ -1,26 +1,10 @@
 const {
-    body
+    body,
+    query
 } = require("express-validator");
 
-/*
- * POST /api/tenants
- *
- * owner_public_id hutumika kuunda owner_tenants
- * relationship. Haihifadhiwi kwenye tenants table.
- */
 const createTenantValidator = [
 
-    /*
-     * Reject fields ambazo haziruhusiwi.
-     *
-     * Hii pia inazuia client kujipatia control ya:
-     * - status
-     * - created_by
-     * - deleted_at
-     * - relationship_status
-     * - is_primary_owner_relationship
-     * - ended_at
-     */
     body()
         .custom(value => {
             const allowedFields = [
@@ -59,9 +43,6 @@ const createTenantValidator = [
             return true;
         }),
 
-    /*
-     * Owner ambaye tenant ataunganishwa naye.
-     */
     body("owner_public_id")
         .exists({
             checkFalsy: true
@@ -69,14 +50,11 @@ const createTenantValidator = [
         .withMessage(
             "Owner public ID is required."
         )
-
         .isString()
         .withMessage(
             "Owner public ID must be a string."
         )
-
         .trim()
-
         .isLength({
             min: 7,
             max: 40
@@ -84,7 +62,6 @@ const createTenantValidator = [
         .withMessage(
             "Owner public ID must contain between 7 and 40 characters."
         )
-
         .matches(
             /^owner_[A-Za-z0-9_-]+$/
         )
@@ -92,9 +69,6 @@ const createTenantValidator = [
             "Invalid owner public ID format."
         ),
 
-    /*
-     * Tenant legal/business profile type.
-     */
     body("tenant_type")
         .exists({
             checkFalsy: true
@@ -102,15 +76,12 @@ const createTenantValidator = [
         .withMessage(
             "Tenant type is required."
         )
-
         .isString()
         .withMessage(
             "Tenant type must be a string."
         )
-
         .trim()
         .toLowerCase()
-
         .isIn([
             "individual",
             "company",
@@ -129,14 +100,11 @@ const createTenantValidator = [
         .withMessage(
             "Tenant display name is required."
         )
-
         .isString()
         .withMessage(
             "Tenant display name must be a string."
         )
-
         .trim()
-
         .isLength({
             min: 2,
             max: 200
@@ -145,26 +113,19 @@ const createTenantValidator = [
             "Tenant display name must contain between 2 and 200 characters."
         ),
 
-    /*
-     * Individual identifiers.
-     */
     body("national_id")
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "National ID must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "National ID cannot be empty."
         )
-
         .isLength({
             max: 100
         })
@@ -176,19 +137,15 @@ const createTenantValidator = [
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "Passport number must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "Passport number cannot be empty."
         )
-
         .isLength({
             max: 100
         })
@@ -196,26 +153,19 @@ const createTenantValidator = [
             "Passport number cannot exceed 100 characters."
         ),
 
-    /*
-     * Business or organization identifiers.
-     */
     body("registration_number")
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "Registration number must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "Registration number cannot be empty."
         )
-
         .isLength({
             max: 150
         })
@@ -227,19 +177,15 @@ const createTenantValidator = [
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "Tax identification number must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "Tax identification number cannot be empty."
         )
-
         .isLength({
             max: 150
         })
@@ -247,57 +193,44 @@ const createTenantValidator = [
             "Tax identification number cannot exceed 150 characters."
         ),
 
-    /*
-     * Contact information.
-     */
     body("email")
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "Email must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "Email cannot be empty."
         )
-
         .isEmail()
         .withMessage(
             "Please provide a valid email address."
         )
-
         .isLength({
             max: 255
         })
         .withMessage(
             "Email cannot exceed 255 characters."
         )
-
         .normalizeEmail(),
 
     body("phone_number")
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "Phone number must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "Phone number cannot be empty."
         )
-
         .isLength({
             min: 5,
             max: 50
@@ -310,19 +243,15 @@ const createTenantValidator = [
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "Alternative phone number must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "Alternative phone number cannot be empty."
         )
-
         .isLength({
             min: 5,
             max: 50
@@ -331,21 +260,15 @@ const createTenantValidator = [
             "Alternative phone number must contain between 5 and 50 characters."
         ),
 
-    /*
-     * Location information.
-     */
     body("address")
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "Address must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "Address cannot be empty."
@@ -355,19 +278,15 @@ const createTenantValidator = [
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "City must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "City cannot be empty."
         )
-
         .isLength({
             max: 100
         })
@@ -379,19 +298,15 @@ const createTenantValidator = [
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "Region must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "Region cannot be empty."
         )
-
         .isLength({
             max: 100
         })
@@ -403,19 +318,15 @@ const createTenantValidator = [
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "Country must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "Country cannot be empty."
         )
-
         .isLength({
             max: 100
         })
@@ -423,28 +334,185 @@ const createTenantValidator = [
             "Country cannot exceed 100 characters."
         ),
 
-    /*
-     * Notes zinahifadhiwa kwenye owner_tenants,
-     * si kwenye tenants table.
-     */
     body("notes")
         .optional({
             nullable: true
         })
-
         .isString()
         .withMessage(
             "Notes must be a string."
         )
-
         .trim()
-
         .notEmpty()
         .withMessage(
             "Notes cannot be empty."
         )
 ];
 
+/*
+ * GET /api/tenants
+ */
+const getTenantsValidator = [
+
+    query()
+        .custom(value => {
+            const allowedFields = [
+                "owner_public_id",
+                "search",
+                "tenant_type",
+                "status",
+                "relationship_status",
+                "page",
+                "limit"
+            ];
+
+            const suppliedFields =
+                Object.keys(value || {});
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported query parameters: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    query("owner_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Owner public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Owner public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Owner public ID must contain between 7 and 40 characters."
+        )
+        .matches(
+            /^owner_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid owner public ID format."
+        ),
+
+    query("search")
+        .optional({
+            checkFalsy: true
+        })
+        .isString()
+        .withMessage(
+            "Search value must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 1,
+            max: 200
+        })
+        .withMessage(
+            "Search value must contain between 1 and 200 characters."
+        ),
+
+    query("tenant_type")
+        .optional({
+            checkFalsy: true
+        })
+        .isString()
+        .withMessage(
+            "Tenant type must be a string."
+        )
+        .trim()
+        .toLowerCase()
+        .isIn([
+            "individual",
+            "company",
+            "government",
+            "organization",
+            "partnership"
+        ])
+        .withMessage(
+            "Invalid tenant type."
+        ),
+
+    query("status")
+        .optional({
+            checkFalsy: true
+        })
+        .isString()
+        .withMessage(
+            "Tenant status must be a string."
+        )
+        .trim()
+        .toLowerCase()
+        .isIn([
+            "prospective",
+            "active",
+            "inactive",
+            "blocked"
+        ])
+        .withMessage(
+            "Invalid tenant status."
+        ),
+
+    query("relationship_status")
+        .optional({
+            checkFalsy: true
+        })
+        .isString()
+        .withMessage(
+            "Relationship status must be a string."
+        )
+        .trim()
+        .toLowerCase()
+        .isIn([
+            "active",
+            "blocked"
+        ])
+        .withMessage(
+            "Relationship status must be active or blocked."
+        ),
+
+    query("page")
+        .optional({
+            checkFalsy: true
+        })
+        .isInt({
+            min: 1
+        })
+        .withMessage(
+            "Page must be an integer greater than or equal to 1."
+        )
+        .toInt(),
+
+    query("limit")
+        .optional({
+            checkFalsy: true
+        })
+        .isInt({
+            min: 1,
+            max: 100
+        })
+        .withMessage(
+            "Limit must be an integer between 1 and 100."
+        )
+        .toInt()
+];
+
 module.exports = {
-    createTenantValidator
+    createTenantValidator,
+    getTenantsValidator
 };
