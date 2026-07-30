@@ -741,6 +741,357 @@ const getSingleTenant = async ({
     };
 };
 /*
+ * PATCH /api/tenants/:tenant_public_id
+ */
+const updateTenant = async ({
+    ownerPublicId,
+    tenantPublicId,
+    tenantData,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const ownerValues = [
+            ownerPublicId
+        ];
+
+        let ownerAccessCondition = "";
+
+        /*
+         * Regular user lazima awe na management
+         * permission kupitia selected owner.
+         */
+        if (authenticatedUser.role !== "admin") {
+            ownerValues.push(
+                authenticatedUser.id
+            );
+
+            ownerAccessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM owner_users AS user_access
+
+                    WHERE user_access.owner_id = o.id
+                      AND user_access.user_id = $2
+                      AND user_access.revoked_at IS NULL
+                      AND user_access.can_manage_properties = TRUE
+                      AND user_access.relationship_role IN (
+                          'owner',
+                          'representative',
+                          'manager'
+                      )
+                )
+            `;
+        }
+
+        /*
+         * Validate na lock active owner.
+         */
+        const ownerResult = await client.query(
+            `
+            SELECT
+                o.id,
+                o.public_id,
+                o.owner_type,
+                o.display_name,
+                o.status,
+                o.created_at,
+                o.updated_at
+
+            FROM owners AS o
+
+            WHERE o.public_id = $1
+              AND o.status = 'active'
+              AND o.deleted_at IS NULL
+
+              ${ownerAccessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF o
+            `,
+            ownerValues
+        );
+
+        if (ownerResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return null;
+        }
+
+        const owner = ownerResult.rows[0];
+
+        /*
+         * Admin anaweza kutumia active relationship
+         * yoyote.
+         *
+         * Regular user lazima selected owner awe
+         * primary owner relationship ya tenant.
+         */
+        let primaryRelationshipCondition = "";
+
+        if (authenticatedUser.role !== "admin") {
+            primaryRelationshipCondition = `
+                AND ot.is_primary_owner_relationship =
+                    TRUE
+            `;
+        }
+
+        /*
+         * Validate na lock tenant pamoja na
+         * owner_tenants relationship.
+         */
+        const tenantAccessResult =
+            await client.query(
+                `
+                SELECT
+                    t.id AS tenant_id,
+
+                    ot.public_id
+                        AS relationship_public_id,
+
+                    ot.relationship_status,
+                    ot.is_primary_owner_relationship,
+                    ot.notes
+                        AS relationship_notes,
+
+                    ot.created_at
+                        AS relationship_created_at,
+
+                    ot.updated_at
+                        AS relationship_updated_at,
+
+                    ot.ended_at
+
+                FROM tenants AS t
+
+                INNER JOIN owner_tenants AS ot
+                    ON ot.tenant_id = t.id
+
+                WHERE t.public_id = $1
+                  AND t.deleted_at IS NULL
+                  AND ot.owner_id = $2
+                  AND ot.relationship_status =
+                      'active'
+                  AND ot.ended_at IS NULL
+
+                  ${primaryRelationshipCondition}
+
+                LIMIT 1
+
+                FOR UPDATE OF t, ot
+                `,
+                [
+                    tenantPublicId,
+                    owner.id
+                ]
+            );
+
+        if (
+            tenantAccessResult.rows.length === 0
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                tenantNotFound: true
+            };
+        }
+
+        const tenantAccess =
+            tenantAccessResult.rows[0];
+
+        /*
+         * Defense-in-depth:
+         * Service layer pia inatumia whitelist
+         * hata baada ya request validation.
+         */
+        const allowedFields = [
+            "tenant_type",
+            "display_name",
+            "national_id",
+            "passport_number",
+            "registration_number",
+            "tax_identification_number",
+            "email",
+            "phone_number",
+            "alternative_phone",
+            "address",
+            "city",
+            "region",
+            "country"
+        ];
+
+        const updatedFields =
+            Object.keys(tenantData)
+                .filter(
+                    field =>
+                        allowedFields.includes(field)
+                );
+
+        if (updatedFields.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                noFieldsSupplied: true
+            };
+        }
+
+        const updateValues = [];
+
+        const setClauses =
+            updatedFields.map(field => {
+                updateValues.push(
+                    tenantData[field]
+                );
+
+                return `
+                    ${field} =
+                    $${updateValues.length}
+                `;
+            });
+
+        updateValues.push(
+            tenantAccess.tenant_id
+        );
+
+        const tenantIdPlaceholder =
+            `$${updateValues.length}`;
+
+        /*
+         * Only supplied fields are updated.
+         * Omitted fields retain their current values.
+         */
+        const updatedTenantResult =
+            await client.query(
+                `
+                UPDATE tenants
+
+                SET
+                    ${setClauses.join(", ")},
+                    updated_at =
+                        CURRENT_TIMESTAMP
+
+                WHERE id = ${tenantIdPlaceholder}
+                  AND deleted_at IS NULL
+
+                RETURNING
+                    public_id,
+                    tenant_type,
+                    display_name,
+                    national_id,
+                    passport_number,
+                    registration_number,
+                    tax_identification_number,
+                    email,
+                    phone_number,
+                    alternative_phone,
+                    address,
+                    city,
+                    region,
+                    country,
+                    status,
+                    created_at,
+                    updated_at,
+                    deleted_at
+                `,
+                updateValues
+            );
+
+        /*
+         * Lazimisha deferred integrity checks
+         * kabla transaction haija-commit.
+         */
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        delete owner.id;
+
+        return {
+            owner,
+
+            tenant:
+                updatedTenantResult.rows[0],
+
+            owner_relationship: {
+                public_id:
+                    tenantAccess
+                        .relationship_public_id,
+
+                relationship_status:
+                    tenantAccess
+                        .relationship_status,
+
+                is_primary_owner_relationship:
+                    tenantAccess
+                        .is_primary_owner_relationship,
+
+                notes:
+                    tenantAccess
+                        .relationship_notes,
+
+                created_at:
+                    tenantAccess
+                        .relationship_created_at,
+
+                updated_at:
+                    tenantAccess
+                        .relationship_updated_at,
+
+                ended_at:
+                    tenantAccess.ended_at
+            },
+
+            updated_fields:
+                updatedFields
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+
+        /*
+         * Map current tenant identifier
+         * uniqueness violations.
+         */
+        if (error.code === "23505") {
+            const duplicateFields = {
+                uq_tenants_current_national_id:
+                    "national_id",
+
+                uq_tenants_current_passport_number:
+                    "passport_number",
+
+                uq_tenants_current_registration_number:
+                    "registration_number",
+
+                uq_tenants_current_tax_identification_number:
+                    "tax_identification_number"
+            };
+
+            const duplicateField =
+                duplicateFields[
+                    error.constraint
+                ];
+
+            if (duplicateField) {
+                return {
+                    duplicateIdentifier: true,
+                    duplicateField
+                };
+            }
+        }
+
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+/*
  * POST /api/tenants
  */
 const createTenant = async ({
@@ -1020,5 +1371,6 @@ const createTenant = async ({
 module.exports = {
     getTenants,
     getSingleTenant,
+    updateTenant,
     createTenant
 };

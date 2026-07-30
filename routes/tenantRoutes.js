@@ -15,6 +15,7 @@ const validateRequest = require(
 const {
     getTenantsController,
     getSingleTenantController,
+    updateTenantController,
     createTenantController
 } = require(
     "../controllers/tenantController"
@@ -23,6 +24,7 @@ const {
 const {
     getTenantsValidator,
     getSingleTenantValidator,
+    updateTenantValidator,
     createTenantValidator
 } = require(
     "../validators/tenantValidator"
@@ -54,6 +56,20 @@ router.get(
     getSingleTenantValidator,
     validateRequest,
     getSingleTenantController
+);
+
+/*
+ * PATCH /api/tenants/:tenant_public_id
+ *
+ * Updates the tenant legal/business profile.
+ * Owner context is supplied through query parameters.
+ */
+router.patch(
+    "/:tenant_public_id",
+    authMiddleware,
+    updateTenantValidator,
+    validateRequest,
+    updateTenantController
 );
 
 /*

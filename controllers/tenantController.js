@@ -9,6 +9,7 @@ const AppError = require(
 const {
     getTenants,
     getSingleTenant,
+    updateTenant,
     createTenant
 } = require(
     "../services/tenantService"
@@ -137,6 +138,118 @@ const getSingleTenantController =
             });
         }
     );
+    /*
+ * PATCH /api/tenants/:tenant_public_id
+ */
+const updateTenantController =
+    asyncHandler(
+        async (req, res, next) => {
+            const {
+                tenant_public_id
+            } = req.params;
+
+            const {
+                owner_public_id
+            } = req.query;
+
+            const result =
+                await updateTenant({
+                    ownerPublicId:
+                        owner_public_id,
+
+                    tenantPublicId:
+                        tenant_public_id,
+
+                    tenantData:
+                        req.body,
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            /*
+             * Owner hayupo, si active,
+             * amefutwa au regular user
+             * hana management permission.
+             */
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Owner not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Tenant hayupo, amefutwa,
+             * relationship si active au regular
+             * user hatumii primary owner.
+             */
+            if (result.tenantNotFound) {
+                return next(
+                    new AppError(
+                        "Tenant not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Defense-in-depth.
+             * Validator pia inalinda condition hii.
+             */
+            if (result.noFieldsSupplied) {
+                return next(
+                    new AppError(
+                        "At least one tenant field must be supplied.",
+                        400
+                    )
+                );
+            }
+
+            /*
+             * Duplicate legal identifiers.
+             */
+            if (result.duplicateIdentifier) {
+                const duplicateMessages = {
+                    national_id:
+                        "A current tenant with this national ID already exists.",
+
+                    passport_number:
+                        "A current tenant with this passport number already exists.",
+
+                    registration_number:
+                        "A current tenant with this registration number already exists.",
+
+                    tax_identification_number:
+                        "A current tenant with this tax identification number already exists."
+                };
+
+                const message =
+                    duplicateMessages[
+                        result.duplicateField
+                    ] ||
+                    "A tenant with the supplied identifier already exists.";
+
+                return next(
+                    new AppError(
+                        message,
+                        409
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Tenant updated successfully.",
+
+                data: result
+            });
+        }
+    );
 /*
  * POST /api/tenants
  */
@@ -209,5 +322,6 @@ const createTenantController = asyncHandler(
 module.exports = {
     getTenantsController,
     getSingleTenantController,
+    updateTenantController,
     createTenantController
 };
