@@ -8,7 +8,8 @@ const AppError = require(
 
 const {
     addTenantUser,
-    getTenantUsers
+    getTenantUsers,
+    updateTenantUser
 } = require(
     "../services/tenantUserService"
 );
@@ -273,7 +274,171 @@ const getTenantUsersController = asyncHandler(
         });
     }
 );
+/*
+ * PATCH /api/tenants/:tenant_public_id/users/:link_public_id
+ */
+const updateTenantUserController = asyncHandler(
+    async (req, res, next) => {
+        try {
+            const result = await updateTenantUser({
+                tenantPublicId:
+                    req.params.tenant_public_id,
+
+                linkPublicId:
+                    req.params.link_public_id,
+
+                linkData: req.body,
+
+                authenticatedUser: req.user
+            });
+
+            /*
+             * Active tenant not found.
+             */
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Tenant not found",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Link is missing, revoked or belongs
+             * to another tenant.
+             */
+            if (result.linkNotFound) {
+                return next(
+                    new AppError(
+                        "Active tenant-user relationship not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Requester is not permitted to
+             * perform this update.
+             */
+            if (result.forbidden) {
+                return next(
+                    new AppError(
+                        result.reason ||
+                            "You do not have permission to update users for this tenant.",
+                        403
+                    )
+                );
+            }
+
+            /*
+             * Current primary cannot be removed
+             * or assigned another role directly.
+             */
+            if (
+                result.primaryRemovalBlocked
+            ) {
+                return next(
+                    new AppError(
+                        "The current primary contact cannot be removed directly. Promote another active tenant user to primary instead.",
+                        409
+                    )
+                );
+            }
+
+            if (
+                result.primaryRoleMustBePrimary
+            ) {
+                return next(
+                    new AppError(
+                        "Primary contact role must be marked as primary.",
+                        422
+                    )
+                );
+            }
+
+            if (
+                result.primaryRequiresPrimaryRole
+            ) {
+                return next(
+                    new AppError(
+                        "Only a primary contact can be marked as primary.",
+                        422
+                    )
+                );
+            }
+
+            if (
+                result
+                    .primaryRequiresManagementPermission
+            ) {
+                return next(
+                    new AppError(
+                        "The primary contact must have permission to manage tenant users.",
+                        422
+                    )
+                );
+            }
+
+            if (
+                result.invalidPaymentPermission
+            ) {
+                return next(
+                    new AppError(
+                        "Payment permission requires financial-viewing permission.",
+                        422
+                    )
+                );
+            }
+
+            if (result.noChanges) {
+                return next(
+                    new AppError(
+                        "No tenant-user changes were detected.",
+                        400
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+                message:
+                    "Tenant user updated successfully.",
+                data: result
+            });
+        } catch (error) {
+            /*
+             * Partial unique-index conflict,
+             * especially concurrent primary transfer.
+             */
+            if (error.code === "23505") {
+                return next(
+                    new AppError(
+                        "The updated tenant-user relationship conflicts with an existing active relationship.",
+                        409
+                    )
+                );
+            }
+
+            /*
+             * CHECK constraints and deferred
+             * tenant-user integrity triggers.
+             */
+            if (error.code === "23514") {
+                return next(
+                    new AppError(
+                        "The updated tenant-user relationship violates a business rule.",
+                        422
+                    )
+                );
+            }
+
+            return next(error);
+        }
+    }
+);
 module.exports = {
     addTenantUserController,
-    getTenantUsersController
+    getTenantUsersController,
+    updateTenantUserController
 };

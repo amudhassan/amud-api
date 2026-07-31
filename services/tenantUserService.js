@@ -778,7 +778,579 @@ const getTenantUsers = async ({
         }
     };
 };
+const updateTenantUser = async ({
+    tenantPublicId,
+    linkPublicId,
+    linkData,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        /*
+         * 1. Find and lock the active tenant.
+         */
+        const tenantResult = await client.query(
+            `
+            SELECT
+                id,
+                public_id
+            FROM tenants
+            WHERE public_id = $1
+              AND deleted_at IS NULL
+            LIMIT 1
+            FOR UPDATE
+            `,
+            [tenantPublicId]
+        );
+
+        if (tenantResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return null;
+        }
+
+        const tenant = tenantResult.rows[0];
+
+        /*
+         * 2. Find and lock the active tenant-user link.
+         */
+        const targetResult = await client.query(
+            `
+            SELECT
+                tu.id,
+                tu.public_id,
+                tu.user_id,
+                tu.relationship_role,
+                tu.is_primary,
+                tu.can_view_leases,
+                tu.can_view_finances,
+                tu.can_make_payments,
+                tu.can_submit_maintenance,
+                tu.can_manage_tenant_users,
+                tu.created_at,
+                tu.updated_at,
+
+                u.public_id AS user_public_id,
+                u.full_name,
+                u.email,
+                u.role AS user_role,
+                u.is_verified,
+                u.profile_image_url
+
+            FROM tenant_users AS tu
+
+            INNER JOIN users AS u
+                ON u.id = tu.user_id
+
+            WHERE tu.tenant_id = $1
+              AND tu.public_id = $2
+              AND tu.revoked_at IS NULL
+              AND u.deleted_at IS NULL
+
+            LIMIT 1
+            FOR UPDATE OF tu, u
+            `,
+            [
+                tenant.id,
+                linkPublicId
+            ]
+        );
+
+        if (targetResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                linkNotFound: true
+            };
+        }
+
+        const currentLink =
+            targetResult.rows[0];
+
+        /*
+         * 3. Authorize the requester.
+         */
+        let requesterLink = null;
+
+        if (authenticatedUser.role !== "admin") {
+            /*
+             * Regular user cannot update their own
+             * tenant relationship.
+             */
+            if (
+                currentLink.user_id ===
+                authenticatedUser.id
+            ) {
+                await client.query("ROLLBACK");
+
+                return {
+                    forbidden: true,
+                    reason:
+                        "You cannot update your own tenant relationship."
+                };
+            }
+
+            const requesterResult =
+                await client.query(
+                    `
+                    SELECT
+                        id,
+                        relationship_role,
+                        is_primary,
+                        can_view_leases,
+                        can_view_finances,
+                        can_make_payments,
+                        can_submit_maintenance,
+                        can_manage_tenant_users
+                    FROM tenant_users
+                    WHERE tenant_id = $1
+                      AND user_id = $2
+                      AND revoked_at IS NULL
+                    LIMIT 1
+                    FOR UPDATE
+                    `,
+                    [
+                        tenant.id,
+                        authenticatedUser.id
+                    ]
+                );
+
+            if (
+                requesterResult.rows.length === 0 ||
+                requesterResult.rows[0]
+                    .can_manage_tenant_users !== true
+            ) {
+                await client.query("ROLLBACK");
+
+                return {
+                    forbidden: true,
+                    reason:
+                        "You do not have permission to update users for this tenant."
+                };
+            }
+
+            requesterLink =
+                requesterResult.rows[0];
+        }
+
+        /*
+         * 4. Merge supplied fields with current values.
+         */
+        const finalRelationshipRole =
+            linkData.relationship_role !==
+            undefined
+                ? linkData.relationship_role
+                : currentLink.relationship_role;
+
+        const finalIsPrimary =
+            typeof linkData.is_primary ===
+            "boolean"
+                ? linkData.is_primary
+                : currentLink.is_primary;
+
+        const finalCanViewLeases =
+            typeof linkData.can_view_leases ===
+            "boolean"
+                ? linkData.can_view_leases
+                : currentLink.can_view_leases;
+
+        const finalCanViewFinances =
+            typeof linkData.can_view_finances ===
+            "boolean"
+                ? linkData.can_view_finances
+                : currentLink.can_view_finances;
+
+        const finalCanMakePayments =
+            typeof linkData.can_make_payments ===
+            "boolean"
+                ? linkData.can_make_payments
+                : currentLink.can_make_payments;
+
+        const finalCanSubmitMaintenance =
+            typeof linkData
+                .can_submit_maintenance ===
+            "boolean"
+                ? linkData
+                    .can_submit_maintenance
+                : currentLink
+                    .can_submit_maintenance;
+
+        const finalCanManageTenantUsers =
+            typeof linkData
+                .can_manage_tenant_users ===
+            "boolean"
+                ? linkData
+                    .can_manage_tenant_users
+                : currentLink
+                    .can_manage_tenant_users;
+
+        /*
+         * 5. Current primary cannot be removed
+         * directly.
+         */
+        if (
+            currentLink.is_primary === true &&
+            (
+                finalIsPrimary !== true ||
+                finalRelationshipRole !==
+                    "primary_contact"
+            )
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                primaryRemovalBlocked: true
+            };
+        }
+
+        /*
+         * 6. Validate final primary-contact state.
+         */
+        if (
+            finalRelationshipRole ===
+                "primary_contact" &&
+            finalIsPrimary !== true
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                primaryRoleMustBePrimary: true
+            };
+        }
+
+        if (
+            finalIsPrimary === true &&
+            finalRelationshipRole !==
+                "primary_contact"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                primaryRequiresPrimaryRole: true
+            };
+        }
+
+        if (
+            finalIsPrimary === true &&
+            finalCanManageTenantUsers !== true
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                primaryRequiresManagementPermission:
+                    true
+            };
+        }
+
+        /*
+         * 7. Payment permission requires
+         * financial-viewing permission.
+         */
+        if (
+            finalCanMakePayments === true &&
+            finalCanViewFinances !== true
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                invalidPaymentPermission: true
+            };
+        }
+
+        const primaryTransferRequested =
+            currentLink.is_primary !== true &&
+            finalIsPrimary === true;
+
+        /*
+         * 8. Only admin or current primary contact
+         * can transfer primary status.
+         */
+        if (
+            primaryTransferRequested &&
+            authenticatedUser.role !== "admin"
+        ) {
+            const requesterIsCurrentPrimary =
+                requesterLink &&
+                requesterLink.is_primary === true &&
+                requesterLink
+                    .relationship_role ===
+                    "primary_contact";
+
+            if (!requesterIsCurrentPrimary) {
+                await client.query("ROLLBACK");
+
+                return {
+                    forbidden: true,
+                    reason:
+                        "Only an administrator or the current primary contact can transfer primary-contact status."
+                };
+            }
+        }
+
+        /*
+         * 9. Prevent regular-user permission
+         * escalation.
+         */
+        if (authenticatedUser.role !== "admin") {
+            const permissionTransitions = [
+                {
+                    current:
+                        currentLink.can_view_leases,
+                    final:
+                        finalCanViewLeases,
+                    requester:
+                        requesterLink.can_view_leases,
+                    reason:
+                        "You cannot grant lease-viewing permission that you do not have."
+                },
+                {
+                    current:
+                        currentLink.can_view_finances,
+                    final:
+                        finalCanViewFinances,
+                    requester:
+                        requesterLink.can_view_finances,
+                    reason:
+                        "You cannot grant financial-viewing permission that you do not have."
+                },
+                {
+                    current:
+                        currentLink.can_make_payments,
+                    final:
+                        finalCanMakePayments,
+                    requester:
+                        requesterLink.can_make_payments,
+                    reason:
+                        "You cannot grant payment permission that you do not have."
+                },
+                {
+                    current:
+                        currentLink
+                            .can_submit_maintenance,
+                    final:
+                        finalCanSubmitMaintenance,
+                    requester:
+                        requesterLink
+                            .can_submit_maintenance,
+                    reason:
+                        "You cannot grant maintenance permission that you do not have."
+                },
+                {
+                    current:
+                        currentLink
+                            .can_manage_tenant_users,
+                    final:
+                        finalCanManageTenantUsers,
+                    requester:
+                        requesterLink
+                            .can_manage_tenant_users,
+                    reason:
+                        "You cannot grant tenant-user management permission that you do not have."
+                }
+            ];
+
+            const unauthorizedGrant =
+                permissionTransitions.find(
+                    permission =>
+                        permission.current !== true &&
+                        permission.final === true &&
+                        permission.requester !== true
+                );
+
+            if (unauthorizedGrant) {
+                await client.query("ROLLBACK");
+
+                return {
+                    forbidden: true,
+                    reason:
+                        unauthorizedGrant.reason
+                };
+            }
+        }
+
+        /*
+         * 10. Detect a no-change request.
+         */
+        const hasChanges =
+            finalRelationshipRole !==
+                currentLink.relationship_role ||
+            finalIsPrimary !==
+                currentLink.is_primary ||
+            finalCanViewLeases !==
+                currentLink.can_view_leases ||
+            finalCanViewFinances !==
+                currentLink.can_view_finances ||
+            finalCanMakePayments !==
+                currentLink.can_make_payments ||
+            finalCanSubmitMaintenance !==
+                currentLink
+                    .can_submit_maintenance ||
+            finalCanManageTenantUsers !==
+                currentLink
+                    .can_manage_tenant_users;
+
+        if (!hasChanges) {
+            await client.query("ROLLBACK");
+
+            return {
+                noChanges: true
+            };
+        }
+
+        /*
+         * 11. If another user is being promoted,
+         * demote the existing primary first.
+         */
+        let previousPrimary = null;
+
+        if (primaryTransferRequested) {
+            const primaryResult =
+                await client.query(
+                    `
+                    SELECT
+                        id,
+                        public_id,
+                        user_id,
+                        relationship_role,
+                        is_primary
+                    FROM tenant_users
+                    WHERE tenant_id = $1
+                      AND is_primary = TRUE
+                      AND revoked_at IS NULL
+                      AND id <> $2
+                    LIMIT 1
+                    FOR UPDATE
+                    `,
+                    [
+                        tenant.id,
+                        currentLink.id
+                    ]
+                );
+
+            if (primaryResult.rows.length > 0) {
+                previousPrimary =
+                    primaryResult.rows[0];
+
+                await client.query(
+                    `
+                    UPDATE tenant_users
+                    SET
+                        relationship_role =
+                            'authorized_representative',
+                        is_primary = FALSE,
+                        updated_at =
+                            CURRENT_TIMESTAMP
+                    WHERE id = $1
+                      AND revoked_at IS NULL
+                    `,
+                    [previousPrimary.id]
+                );
+            }
+        }
+
+        /*
+         * 12. Update the target link.
+         */
+        const updatedResult =
+            await client.query(
+                `
+                UPDATE tenant_users
+                SET
+                    relationship_role = $1,
+                    is_primary = $2,
+                    can_view_leases = $3,
+                    can_view_finances = $4,
+                    can_make_payments = $5,
+                    can_submit_maintenance = $6,
+                    can_manage_tenant_users = $7,
+                    updated_at =
+                        CURRENT_TIMESTAMP
+                WHERE id = $8
+                  AND revoked_at IS NULL
+                RETURNING
+                    public_id AS link_public_id,
+                    relationship_role,
+                    is_primary,
+                    can_view_leases,
+                    can_view_finances,
+                    can_make_payments,
+                    can_submit_maintenance,
+                    can_manage_tenant_users,
+                    created_at,
+                    updated_at
+                `,
+                [
+                    finalRelationshipRole,
+                    finalIsPrimary,
+                    finalCanViewLeases,
+                    finalCanViewFinances,
+                    finalCanMakePayments,
+                    finalCanSubmitMaintenance,
+                    finalCanManageTenantUsers,
+                    currentLink.id
+                ]
+            );
+
+        if (updatedResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                linkNotFound: true
+            };
+        }
+
+        /*
+         * 13. Execute deferred integrity checks.
+         */
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        delete tenant.id;
+
+        const user = {
+            public_id:
+                currentLink.user_public_id,
+            full_name:
+                currentLink.full_name,
+            email:
+                currentLink.email,
+            user_role:
+                currentLink.user_role,
+            is_verified:
+                currentLink.is_verified,
+            profile_image_url:
+                currentLink.profile_image_url
+        };
+
+        return {
+            forbidden: false,
+            tenant,
+            user,
+            link: updatedResult.rows[0],
+
+            primary_transfer:
+                previousPrimary
+                    ? {
+                        previous_primary_link_public_id:
+                            previousPrimary.public_id
+                    }
+                    : null
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 module.exports = {
     addTenantUser,
-    getTenantUsers
+    getTenantUsers,
+    updateTenantUser
 };

@@ -470,7 +470,245 @@ const getTenantUsersValidator = [
 
         .toInt()
 ];
+/*
+ * PATCH /api/tenants/:tenant_public_id/users/:link_public_id
+ */
+const updateTenantUserValidator = [
+
+    /*
+     * Tenant public identifier.
+     */
+    param("tenant_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Tenant public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Tenant public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 8,
+            max: 50
+        })
+        .withMessage(
+            "Tenant public ID must contain between 8 and 50 characters."
+        )
+
+        .matches(
+            /^tenant_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid tenant public ID format."
+        ),
+
+    /*
+     * Tenant-user relationship public identifier.
+     */
+    param("link_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Tenant-user link public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Tenant-user link public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 13,
+            max: 50
+        })
+        .withMessage(
+            "Tenant-user link public ID must contain between 13 and 50 characters."
+        )
+
+        .matches(
+            /^tenant_user_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid tenant-user link public ID format."
+        ),
+
+    /*
+     * Request body must be a plain JSON object.
+     */
+    body()
+        .custom(value => {
+            if (
+                value === null ||
+                typeof value !== "object" ||
+                Array.isArray(value)
+            ) {
+                throw new Error(
+                    "Request body must be a JSON object."
+                );
+            }
+
+            return true;
+        }),
+
+    /*
+     * Require at least one supported update field
+     * and reject immutable/audit fields.
+     */
+    body()
+        .custom(value => {
+            const allowedFields = [
+                "relationship_role",
+                "is_primary",
+                "can_view_leases",
+                "can_view_finances",
+                "can_make_payments",
+                "can_submit_maintenance",
+                "can_manage_tenant_users"
+            ];
+
+            const suppliedFields =
+                Object.keys(value || {});
+
+            if (suppliedFields.length === 0) {
+                throw new Error(
+                    "At least one tenant-user field must be supplied."
+                );
+            }
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported fields: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    /*
+     * Optional relationship-role update.
+     */
+    body("relationship_role")
+        .optional()
+
+        .isString()
+        .withMessage(
+            "Relationship role must be a string."
+        )
+
+        .isIn([
+            "primary_contact",
+            "authorized_representative",
+            "accountant",
+            "occupant",
+            "viewer"
+        ])
+        .withMessage(
+            "Invalid tenant-user relationship role."
+        ),
+
+    /*
+     * Boolean values must be actual JSON Booleans.
+     * Strings and numbers are not converted.
+     */
+    body("is_primary")
+        .optional()
+
+        .custom(value => {
+            if (typeof value !== "boolean") {
+                throw new Error(
+                    "is_primary must be a boolean."
+                );
+            }
+
+            return true;
+        }),
+
+    body("can_view_leases")
+        .optional()
+
+        .custom(value => {
+            if (typeof value !== "boolean") {
+                throw new Error(
+                    "can_view_leases must be a boolean."
+                );
+            }
+
+            return true;
+        }),
+
+    body("can_view_finances")
+        .optional()
+
+        .custom(value => {
+            if (typeof value !== "boolean") {
+                throw new Error(
+                    "can_view_finances must be a boolean."
+                );
+            }
+
+            return true;
+        }),
+
+    body("can_make_payments")
+        .optional()
+
+        .custom(value => {
+            if (typeof value !== "boolean") {
+                throw new Error(
+                    "can_make_payments must be a boolean."
+                );
+            }
+
+            return true;
+        }),
+
+    body("can_submit_maintenance")
+        .optional()
+
+        .custom(value => {
+            if (
+                typeof value !== "boolean"
+            ) {
+                throw new Error(
+                    "can_submit_maintenance must be a boolean."
+                );
+            }
+
+            return true;
+        }),
+
+    body("can_manage_tenant_users")
+        .optional()
+
+        .custom(value => {
+            if (
+                typeof value !== "boolean"
+            ) {
+                throw new Error(
+                    "can_manage_tenant_users must be a boolean."
+                );
+            }
+
+            return true;
+        })
+];
 module.exports = {
     addTenantUserValidator,
-    getTenantUsersValidator
+    getTenantUsersValidator,
+    updateTenantUserValidator
 };

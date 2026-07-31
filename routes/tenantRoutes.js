@@ -25,7 +25,8 @@ const {
 
 const {
     addTenantUserController,
-    getTenantUsersController
+    getTenantUsersController,
+    updateTenantUserController
 } = require(
     "../controllers/tenantUserController"
 );
@@ -43,7 +44,8 @@ const {
 
 const {
     addTenantUserValidator,
-    getTenantUsersValidator
+    getTenantUsersValidator,
+    updateTenantUserValidator
 } = require(
     "../validators/tenantUserValidator"
 );
@@ -78,6 +80,16 @@ router.post(
     addTenantUserValidator,
     validateRequest,
     addTenantUserController
+);
+/*
+ * PATCH /api/tenants/:tenant_public_id/users/:link_public_id
+ */
+router.patch(
+    "/:tenant_public_id/users/:link_public_id",
+    authMiddleware,
+    updateTenantUserValidator,
+    validateRequest,
+    updateTenantUserController
 );
 
 /*
