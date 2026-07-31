@@ -707,8 +707,113 @@ const updateTenantUserValidator = [
             return true;
         })
 ];
+/*
+ * DELETE /api/tenants/:tenant_public_id/users/:link_public_id
+ */
+const revokeTenantUserValidator = [
+
+    /*
+     * Tenant public identifier.
+     */
+    param("tenant_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Tenant public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Tenant public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 8,
+            max: 50
+        })
+        .withMessage(
+            "Tenant public ID must contain between 8 and 50 characters."
+        )
+
+        .matches(
+            /^tenant_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid tenant public ID format."
+        ),
+
+    /*
+     * Tenant-user relationship public identifier.
+     */
+    param("link_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Tenant-user link public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Tenant-user link public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 13,
+            max: 50
+        })
+        .withMessage(
+            "Tenant-user link public ID must contain between 13 and 50 characters."
+        )
+
+        .matches(
+            /^tenant_user_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid tenant-user link public ID format."
+        ),
+
+    /*
+     * DELETE operation does not accept body fields.
+     */
+    body()
+        .custom(value => {
+            if (
+                value === undefined ||
+                value === null
+            ) {
+                return true;
+            }
+
+            if (
+                typeof value !== "object" ||
+                Array.isArray(value)
+            ) {
+                throw new Error(
+                    "Request body is not allowed for this operation."
+                );
+            }
+
+            const suppliedFields =
+                Object.keys(value);
+
+            if (suppliedFields.length > 0) {
+                throw new Error(
+                    "Request body is not allowed for this operation."
+                );
+            }
+
+            return true;
+        })
+];
 module.exports = {
     addTenantUserValidator,
     getTenantUsersValidator,
-    updateTenantUserValidator
+    updateTenantUserValidator,
+    revokeTenantUserValidator
 };

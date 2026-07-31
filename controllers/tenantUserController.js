@@ -9,7 +9,8 @@ const AppError = require(
 const {
     addTenantUser,
     getTenantUsers,
-    updateTenantUser
+    updateTenantUser,
+    revokeTenantUser
 } = require(
     "../services/tenantUserService"
 );
@@ -437,8 +438,103 @@ const updateTenantUserController = asyncHandler(
         }
     }
 );
+/*
+ * DELETE /api/tenants/:tenant_public_id/users/:link_public_id
+ */
+const revokeTenantUserController = asyncHandler(
+    async (req, res, next) => {
+        try {
+            const result = await revokeTenantUser({
+                tenantPublicId:
+                    req.params.tenant_public_id,
+
+                linkPublicId:
+                    req.params.link_public_id,
+
+                authenticatedUser: req.user
+            });
+
+            /*
+             * Active tenant not found.
+             */
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Tenant not found",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Link is missing, already revoked
+             * or belongs to another tenant.
+             */
+            if (result.linkNotFound) {
+                return next(
+                    new AppError(
+                        "Active tenant-user relationship not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Requester is not authorized to
+             * revoke this relationship.
+             */
+            if (result.forbidden) {
+                return next(
+                    new AppError(
+                        result.reason ||
+                            "You do not have permission to revoke users for this tenant.",
+                        403
+                    )
+                );
+            }
+
+            /*
+             * Current primary must first transfer
+             * primary status to another active user.
+             */
+            if (
+                result.primaryRevocationBlocked
+            ) {
+                return next(
+                    new AppError(
+                        "The current primary contact cannot be revoked directly. Promote another active tenant user to primary first.",
+                        409
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+                message:
+                    "Tenant user revoked successfully.",
+                data: result
+            });
+        } catch (error) {
+            /*
+             * CHECK constraints and deferred
+             * tenant-user integrity triggers.
+             */
+            if (error.code === "23514") {
+                return next(
+                    new AppError(
+                        "The tenant-user relationship could not be revoked because it violates a business rule.",
+                        422
+                    )
+                );
+            }
+
+            return next(error);
+        }
+    }
+);
 module.exports = {
     addTenantUserController,
     getTenantUsersController,
-    updateTenantUserController
+    updateTenantUserController,
+    revokeTenantUserController
 };

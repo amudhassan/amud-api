@@ -26,7 +26,8 @@ const {
 const {
     addTenantUserController,
     getTenantUsersController,
-    updateTenantUserController
+    updateTenantUserController,
+    revokeTenantUserController
 } = require(
     "../controllers/tenantUserController"
 );
@@ -45,7 +46,8 @@ const {
 const {
     addTenantUserValidator,
     getTenantUsersValidator,
-    updateTenantUserValidator
+    updateTenantUserValidator,
+    revokeTenantUserValidator
 } = require(
     "../validators/tenantUserValidator"
 );
@@ -91,7 +93,16 @@ router.patch(
     validateRequest,
     updateTenantUserController
 );
-
+/*
+ * DELETE /api/tenants/:tenant_public_id/users/:link_public_id
+ */
+router.delete(
+    "/:tenant_public_id/users/:link_public_id",
+    authMiddleware,
+    revokeTenantUserValidator,
+    validateRequest,
+    revokeTenantUserController
+);
 /*
  * GET /api/tenants/:tenant_public_id
  */

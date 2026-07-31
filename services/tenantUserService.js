@@ -1349,8 +1349,302 @@ const updateTenantUser = async ({
         client.release();
     }
 };
+/**
+ * Revoke an active tenant-user relationship.
+ *
+ * This is a soft revocation. The audit record
+ * remains permanently inside tenant_users.
+ */
+const revokeTenantUser = async ({
+    tenantPublicId,
+    linkPublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        /*
+         * 1. Find and lock the active tenant.
+         */
+        const tenantResult = await client.query(
+            `
+            SELECT
+                id,
+                public_id
+            FROM tenants
+            WHERE public_id = $1
+              AND deleted_at IS NULL
+            LIMIT 1
+            FOR UPDATE
+            `,
+            [tenantPublicId]
+        );
+
+        if (tenantResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return null;
+        }
+
+        const tenant = tenantResult.rows[0];
+
+        /*
+         * 2. Find and lock the active target link
+         * and its linked active user.
+         */
+        const targetResult = await client.query(
+            `
+            SELECT
+                tu.id,
+                tu.public_id,
+                tu.user_id,
+                tu.relationship_role,
+                tu.is_primary,
+                tu.can_view_leases,
+                tu.can_view_finances,
+                tu.can_make_payments,
+                tu.can_submit_maintenance,
+                tu.can_manage_tenant_users,
+                tu.created_at,
+                tu.updated_at,
+
+                u.public_id AS user_public_id,
+                u.full_name,
+                u.email,
+                u.role AS user_role,
+                u.is_verified,
+                u.profile_image_url
+
+            FROM tenant_users AS tu
+
+            INNER JOIN users AS u
+                ON u.id = tu.user_id
+
+            WHERE tu.tenant_id = $1
+              AND tu.public_id = $2
+              AND tu.revoked_at IS NULL
+              AND u.deleted_at IS NULL
+
+            LIMIT 1
+            FOR UPDATE OF tu, u
+            `,
+            [
+                tenant.id,
+                linkPublicId
+            ]
+        );
+
+        if (targetResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                linkNotFound: true
+            };
+        }
+
+        const targetLink =
+            targetResult.rows[0];
+
+        /*
+         * 3. Authorize regular tenant users.
+         */
+        let requesterLink = null;
+
+        if (authenticatedUser.role !== "admin") {
+            /*
+             * Regular tenant user cannot revoke
+             * their own relationship.
+             */
+            if (
+                targetLink.user_id ===
+                authenticatedUser.id
+            ) {
+                await client.query("ROLLBACK");
+
+                return {
+                    forbidden: true,
+                    reason:
+                        "You cannot revoke your own tenant relationship."
+                };
+            }
+
+            const requesterResult =
+                await client.query(
+                    `
+                    SELECT
+                        id,
+                        relationship_role,
+                        is_primary,
+                        can_manage_tenant_users
+                    FROM tenant_users
+                    WHERE tenant_id = $1
+                      AND user_id = $2
+                      AND revoked_at IS NULL
+                    LIMIT 1
+                    FOR UPDATE
+                    `,
+                    [
+                        tenant.id,
+                        authenticatedUser.id
+                    ]
+                );
+
+            if (
+                requesterResult.rows.length === 0 ||
+                requesterResult.rows[0]
+                    .can_manage_tenant_users !== true
+            ) {
+                await client.query("ROLLBACK");
+
+                return {
+                    forbidden: true,
+                    reason:
+                        "You do not have permission to revoke users for this tenant."
+                };
+            }
+
+            requesterLink =
+                requesterResult.rows[0];
+        }
+
+        /*
+         * 4. Current primary contact cannot be
+         * revoked directly.
+         */
+        if (targetLink.is_primary === true) {
+            await client.query("ROLLBACK");
+
+            return {
+                primaryRevocationBlocked: true
+            };
+        }
+
+        /*
+         * 5. A regular limited manager cannot revoke
+         * another tenant manager.
+         *
+         * Only administrator or current primary
+         * contact may revoke a manager relationship.
+         */
+        if (
+            authenticatedUser.role !== "admin" &&
+            targetLink
+                .can_manage_tenant_users === true
+        ) {
+            const requesterIsCurrentPrimary =
+                requesterLink &&
+                requesterLink.is_primary === true &&
+                requesterLink
+                    .relationship_role ===
+                    "primary_contact";
+
+            if (!requesterIsCurrentPrimary) {
+                await client.query("ROLLBACK");
+
+                return {
+                    forbidden: true,
+                    reason:
+                        "Only an administrator or the current primary contact can revoke a tenant manager."
+                };
+            }
+        }
+
+        /*
+         * 6. Revoke the link while preserving
+         * relationship identity and audit history.
+         */
+        const revokedResult =
+            await client.query(
+                `
+                UPDATE tenant_users
+                SET
+                    is_primary = FALSE,
+                    revoked_at =
+                        CURRENT_TIMESTAMP,
+                    revoked_by = $1,
+                    updated_at =
+                        CURRENT_TIMESTAMP
+                WHERE id = $2
+                  AND revoked_at IS NULL
+                RETURNING
+                    public_id AS link_public_id,
+                    relationship_role,
+                    is_primary,
+                    can_view_leases,
+                    can_view_finances,
+                    can_make_payments,
+                    can_submit_maintenance,
+                    can_manage_tenant_users,
+                    created_at,
+                    updated_at,
+                    revoked_at
+                `,
+                [
+                    authenticatedUser.id,
+                    targetLink.id
+                ]
+            );
+
+        if (revokedResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                linkNotFound: true
+            };
+        }
+
+        /*
+         * 7. Execute deferred database-integrity
+         * checks before commit.
+         */
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        delete tenant.id;
+
+        const user = {
+            public_id:
+                targetLink.user_public_id,
+            full_name:
+                targetLink.full_name,
+            email:
+                targetLink.email,
+            user_role:
+                targetLink.user_role,
+            is_verified:
+                targetLink.is_verified,
+            profile_image_url:
+                targetLink.profile_image_url
+        };
+
+        const link = {
+            ...revokedResult.rows[0],
+
+            revoked_by:
+                authenticatedUser.public_id
+        };
+
+        return {
+            forbidden: false,
+            tenant,
+            user,
+            link
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 module.exports = {
     addTenantUser,
     getTenantUsers,
-    updateTenantUser
+    updateTenantUser,
+    revokeTenantUser
 };
