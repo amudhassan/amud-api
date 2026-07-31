@@ -522,7 +522,263 @@ const addTenantUser = async ({
         client.release();
     }
 };
+/**
+ * Retrieve active users linked to an active tenant.
+ *
+ * Administrator:
+ * - Can retrieve users of any active tenant.
+ *
+ * Regular user:
+ * - Must have an active tenant-user relationship.
+ * - Must have can_manage_tenant_users = TRUE.
+ */
+const getTenantUsers = async ({
+    tenantPublicId,
+    filters,
+    authenticatedUser
+}) => {
+    /*
+     * 1. Confirm that the active tenant exists.
+     */
+    const tenantResult = await pool.query(
+        `
+        SELECT
+            id,
+            public_id
+        FROM tenants
+        WHERE public_id = $1
+          AND deleted_at IS NULL
+        LIMIT 1
+        `,
+        [tenantPublicId]
+    );
 
+    if (tenantResult.rows.length === 0) {
+        return null;
+    }
+
+    const tenant = tenantResult.rows[0];
+
+    /*
+     * 2. Regular users must have active permission
+     * to manage users for this tenant.
+     */
+    if (authenticatedUser.role !== "admin") {
+        const requesterResult = await pool.query(
+            `
+            SELECT id
+            FROM tenant_users
+            WHERE tenant_id = $1
+              AND user_id = $2
+              AND revoked_at IS NULL
+              AND can_manage_tenant_users = TRUE
+            LIMIT 1
+            `,
+            [
+                tenant.id,
+                authenticatedUser.id
+            ]
+        );
+
+        if (requesterResult.rows.length === 0) {
+            return {
+                forbidden: true
+            };
+        }
+    }
+
+    /*
+     * 3. Prepare pagination.
+     */
+    const page =
+        Number.isInteger(filters.page)
+            ? filters.page
+            : 1;
+
+    const limit =
+        Number.isInteger(filters.limit)
+            ? filters.limit
+            : 20;
+
+    const offset =
+        (page - 1) * limit;
+
+    /*
+     * 4. Build parameterized search and filters.
+     */
+    const queryValues = [
+        tenant.id
+    ];
+
+    const conditions = [
+        "tu.tenant_id = $1",
+        "tu.revoked_at IS NULL",
+        "u.deleted_at IS NULL"
+    ];
+
+    const addQueryValue = value => {
+        queryValues.push(value);
+
+        return `$${queryValues.length}`;
+    };
+
+    if (filters.search !== undefined) {
+        const placeholder = addQueryValue(
+            `%${filters.search}%`
+        );
+
+        conditions.push(
+            `(
+                u.full_name ILIKE ${placeholder}
+                OR u.email ILIKE ${placeholder}
+            )`
+        );
+    }
+
+    if (
+        filters.relationship_role !==
+        undefined
+    ) {
+        const placeholder = addQueryValue(
+            filters.relationship_role
+        );
+
+        conditions.push(
+            `tu.relationship_role = ${placeholder}`
+        );
+    }
+
+    const booleanFilters = [
+        "is_primary",
+        "can_view_leases",
+        "can_view_finances",
+        "can_make_payments",
+        "can_submit_maintenance",
+        "can_manage_tenant_users"
+    ];
+
+    for (const field of booleanFilters) {
+        if (typeof filters[field] === "boolean") {
+            const placeholder = addQueryValue(
+                filters[field]
+            );
+
+            conditions.push(
+                `tu.${field} = ${placeholder}`
+            );
+        }
+    }
+
+    const whereClause =
+        conditions.join("\nAND ");
+
+    /*
+     * 5. Count matching active relationships.
+     */
+    const countResult = await pool.query(
+        `
+        SELECT
+            COUNT(*)::INTEGER AS total
+        FROM tenant_users AS tu
+
+        INNER JOIN users AS u
+            ON u.id = tu.user_id
+
+        WHERE ${whereClause}
+        `,
+        queryValues
+    );
+
+    const total =
+        countResult.rows[0].total;
+
+    const totalPages =
+        total === 0
+            ? 0
+            : Math.ceil(total / limit);
+
+    /*
+     * 6. Retrieve the requested page.
+     *
+     * Add limit and offset only after the filter
+     * parameters have been prepared.
+     */
+    const dataValues = [
+        ...queryValues,
+        limit,
+        offset
+    ];
+
+    const limitPlaceholder =
+        `$${queryValues.length + 1}`;
+
+    const offsetPlaceholder =
+        `$${queryValues.length + 2}`;
+
+    const usersResult = await pool.query(
+        `
+        SELECT
+            tu.public_id AS link_public_id,
+
+            u.public_id AS user_public_id,
+            u.full_name,
+            u.email,
+            u.role AS user_role,
+            u.is_verified,
+            u.profile_image_url,
+
+            tu.relationship_role,
+            tu.is_primary,
+            tu.can_view_leases,
+            tu.can_view_finances,
+            tu.can_make_payments,
+            tu.can_submit_maintenance,
+            tu.can_manage_tenant_users,
+
+            tu.created_at,
+            tu.updated_at
+
+        FROM tenant_users AS tu
+
+        INNER JOIN users AS u
+            ON u.id = tu.user_id
+
+        WHERE ${whereClause}
+
+        ORDER BY
+            tu.is_primary DESC,
+            tu.relationship_role ASC,
+            tu.created_at ASC,
+            tu.id ASC
+
+        LIMIT ${limitPlaceholder}
+        OFFSET ${offsetPlaceholder}
+        `,
+        dataValues
+    );
+
+    /*
+     * Do not expose the internal tenant database ID.
+     */
+    delete tenant.id;
+
+    return {
+        forbidden: false,
+        tenant,
+        users: usersResult.rows,
+        pagination: {
+            total,
+            page,
+            limit,
+            total_pages: totalPages,
+            has_next_page:
+                page < totalPages,
+            has_previous_page:
+                page > 1
+        }
+    };
+};
 module.exports = {
-    addTenantUser
+    addTenantUser,
+    getTenantUsers
 };

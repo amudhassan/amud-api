@@ -1,6 +1,7 @@
 const {
     param,
-    body
+    body,
+    query
 } = require("express-validator");
 
 /*
@@ -237,7 +238,239 @@ const addTenantUserValidator = [
             return true;
         })
 ];
+/*
+ * GET /api/tenants/:tenant_public_id/users
+ */
+const getTenantUsersValidator = [
 
+    /*
+     * Tenant public identifier.
+     */
+    param("tenant_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Tenant public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Tenant public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 8,
+            max: 50
+        })
+        .withMessage(
+            "Tenant public ID must contain between 8 and 50 characters."
+        )
+
+        .matches(
+            /^tenant_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid tenant public ID format."
+        ),
+
+    /*
+     * Only documented query parameters
+     * are permitted.
+     */
+    query()
+        .custom(value => {
+            const allowedFields = [
+                "search",
+                "relationship_role",
+                "is_primary",
+                "can_view_leases",
+                "can_view_finances",
+                "can_make_payments",
+                "can_submit_maintenance",
+                "can_manage_tenant_users",
+                "page",
+                "limit"
+            ];
+
+            const suppliedFields =
+                Object.keys(value || {});
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported query parameters: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    /*
+     * Search by full name or email.
+     */
+    query("search")
+        .optional()
+
+        .isString()
+        .withMessage(
+            "Search must be a string."
+        )
+
+        .trim()
+
+        .notEmpty()
+        .withMessage(
+            "Search cannot be empty."
+        )
+
+        .isLength({
+            max: 100
+        })
+        .withMessage(
+            "Search cannot exceed 100 characters."
+        ),
+
+    /*
+     * Relationship-role filter.
+     */
+    query("relationship_role")
+        .optional()
+
+        .isString()
+        .withMessage(
+            "Relationship role must be a string."
+        )
+
+        .isIn([
+            "primary_contact",
+            "authorized_representative",
+            "accountant",
+            "occupant",
+            "viewer"
+        ])
+        .withMessage(
+            "Invalid tenant-user relationship role."
+        ),
+
+    /*
+     * Query parameters arrive as strings.
+     * Only literal true and false are accepted.
+     */
+    query("is_primary")
+        .optional()
+
+        .isIn([
+            "true",
+            "false"
+        ])
+        .withMessage(
+            "is_primary must be true or false."
+        )
+
+        .toBoolean(),
+
+    query("can_view_leases")
+        .optional()
+
+        .isIn([
+            "true",
+            "false"
+        ])
+        .withMessage(
+            "can_view_leases must be true or false."
+        )
+
+        .toBoolean(),
+
+    query("can_view_finances")
+        .optional()
+
+        .isIn([
+            "true",
+            "false"
+        ])
+        .withMessage(
+            "can_view_finances must be true or false."
+        )
+
+        .toBoolean(),
+
+    query("can_make_payments")
+        .optional()
+
+        .isIn([
+            "true",
+            "false"
+        ])
+        .withMessage(
+            "can_make_payments must be true or false."
+        )
+
+        .toBoolean(),
+
+    query("can_submit_maintenance")
+        .optional()
+
+        .isIn([
+            "true",
+            "false"
+        ])
+        .withMessage(
+            "can_submit_maintenance must be true or false."
+        )
+
+        .toBoolean(),
+
+    query("can_manage_tenant_users")
+        .optional()
+
+        .isIn([
+            "true",
+            "false"
+        ])
+        .withMessage(
+            "can_manage_tenant_users must be true or false."
+        )
+
+        .toBoolean(),
+
+    /*
+     * Pagination.
+     */
+    query("page")
+        .optional()
+
+        .isInt({
+            min: 1
+        })
+        .withMessage(
+            "Page must be a positive integer."
+        )
+
+        .toInt(),
+
+    query("limit")
+        .optional()
+
+        .isInt({
+            min: 1,
+            max: 100
+        })
+        .withMessage(
+            "Limit must be an integer between 1 and 100."
+        )
+
+        .toInt()
+];
 module.exports = {
-    addTenantUserValidator
+    addTenantUserValidator,
+    getTenantUsersValidator
 };

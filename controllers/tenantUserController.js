@@ -7,7 +7,8 @@ const AppError = require(
 );
 
 const {
-    addTenantUser
+    addTenantUser,
+    getTenantUsers
 } = require(
     "../services/tenantUserService"
 );
@@ -219,7 +220,60 @@ const addTenantUserController = asyncHandler(
         }
     }
 );
+/*
+ * GET /api/tenants/:tenant_public_id/users
+ */
+const getTenantUsersController = asyncHandler(
+    async (req, res, next) => {
+        const result = await getTenantUsers({
+            tenantPublicId:
+                req.params.tenant_public_id,
 
+            filters: req.query,
+
+            authenticatedUser: req.user
+        });
+
+        /*
+         * Active tenant does not exist.
+         */
+        if (!result) {
+            return next(
+                new AppError(
+                    "Tenant not found",
+                    404
+                )
+            );
+        }
+
+        /*
+         * Regular requester does not have
+         * tenant-user management permission.
+         */
+        if (result.forbidden) {
+            return next(
+                new AppError(
+                    "You do not have permission to view users for this tenant.",
+                    403
+                )
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "Tenant users retrieved successfully.",
+            count: result.users.length,
+            data: {
+                tenant: result.tenant,
+                users: result.users,
+                pagination:
+                    result.pagination
+            }
+        });
+    }
+);
 module.exports = {
-    addTenantUserController
+    addTenantUserController,
+    getTenantUsersController
 };
