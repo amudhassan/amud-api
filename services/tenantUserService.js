@@ -265,128 +265,146 @@ const addTenantUser = async ({
         let requesterPermissions = null;
 
         if (authenticatedUser.role !== "admin") {
-            /*
-             * Regular user haruhusiwi kujiongeza mwenyewe.
-             */
-            if (
-                targetUser.id ===
+    /*
+     * Only administrators may assign initial
+     * primary-contact status through Add API.
+     *
+     * Existing primary contacts must add the user
+     * as non-primary, then use Update API to perform
+     * an atomic primary transfer.
+     */
+    if (isPrimary === true) {
+        await client.query("ROLLBACK");
+
+        return {
+            forbidden: true,
+            reason:
+                "Only an administrator can assign initial primary-contact status."
+        };
+    }
+
+    /*
+     * Regular user haruhusiwi kujiongeza mwenyewe.
+     */
+    if (
+        targetUser.id ===
+        authenticatedUser.id
+    ) {
+        await client.query("ROLLBACK");
+
+        return {
+            forbidden: true,
+            reason:
+                "You cannot assign tenant access to yourself."
+        };
+    }
+
+    const requesterResult =
+        await client.query(
+            `
+            SELECT
+                id,
+                can_view_leases,
+                can_view_finances,
+                can_make_payments,
+                can_submit_maintenance,
+                can_manage_tenant_users
+            FROM tenant_users
+            WHERE tenant_id = $1
+              AND user_id = $2
+              AND revoked_at IS NULL
+            LIMIT 1
+            FOR UPDATE
+            `,
+            [
+                tenant.id,
                 authenticatedUser.id
-            ) {
-                await client.query("ROLLBACK");
+            ]
+        );
 
-                return {
-                    forbidden: true,
-                    reason:
-                        "You cannot assign tenant access to yourself."
-                };
-            }
+    if (
+        requesterResult.rows.length === 0 ||
+        requesterResult.rows[0]
+            .can_manage_tenant_users !== true
+    ) {
+        await client.query("ROLLBACK");
 
-            const requesterResult =
-                await client.query(
-                    `
-                    SELECT
-                        id,
-                        can_view_leases,
-                        can_view_finances,
-                        can_make_payments,
-                        can_submit_maintenance,
-                        can_manage_tenant_users
-                    FROM tenant_users
-                    WHERE tenant_id = $1
-                      AND user_id = $2
-                      AND revoked_at IS NULL
-                    LIMIT 1
-                    FOR UPDATE
-                    `,
-                    [
-                        tenant.id,
-                        authenticatedUser.id
-                    ]
-                );
+        return {
+            forbidden: true,
+            reason:
+                "You do not have permission to manage users for this tenant."
+        };
+    }
 
-            if (
-                requesterResult.rows.length === 0 ||
-                requesterResult.rows[0]
-                    .can_manage_tenant_users !== true
-            ) {
-                await client.query("ROLLBACK");
+    requesterPermissions =
+        requesterResult.rows[0];
 
-                return {
-                    forbidden: true,
-                    reason:
-                        "You do not have permission to manage users for this tenant."
-                };
-            }
-
-            requesterPermissions =
-                requesterResult.rows[0];
-
-            /*
-             * Regular user hawezi kutoa permission
-             * ambayo yeye mwenyewe hana.
-             */
-            const delegatedPermissions = [
-                {
-                    requested: canViewLeases,
-                    owned:
-                        requesterPermissions
-                            .can_view_leases,
-                    reason:
-                        "You cannot grant lease-viewing permission that you do not have."
-                },
-                {
-                    requested: canViewFinances,
-                    owned:
-                        requesterPermissions
-                            .can_view_finances,
-                    reason:
-                        "You cannot grant financial-viewing permission that you do not have."
-                },
-                {
-                    requested: canMakePayments,
-                    owned:
-                        requesterPermissions
-                            .can_make_payments,
-                    reason:
-                        "You cannot grant payment permission that you do not have."
-                },
-                {
-                    requested:
-                        canSubmitMaintenance,
-                    owned:
-                        requesterPermissions
-                            .can_submit_maintenance,
-                    reason:
-                        "You cannot grant maintenance permission that you do not have."
-                },
-                {
-                    requested:
-                        canManageTenantUsers,
-                    owned:
-                        requesterPermissions
-                            .can_manage_tenant_users,
-                    reason:
-                        "You cannot grant tenant-user management permission that you do not have."
-                }
-            ];
-
-            const unauthorizedPermission =
-                delegatedPermissions.find(
-                    permission =>
-                        permission.requested === true &&
-                        permission.owned !== true
-                );
-
-            if (unauthorizedPermission) {
-                await client.query("ROLLBACK");
-
-                return {
-                    forbidden: true,
-                    reason:
-                        unauthorizedPermission.reason
-                };
-            }
+    /*
+     * Regular user hawezi kutoa permission
+     * ambayo yeye mwenyewe hana.
+     */
+    const delegatedPermissions = [
+        {
+            requested: canViewLeases,
+            owned:
+                requesterPermissions
+                    .can_view_leases,
+            reason:
+                "You cannot grant lease-viewing permission that you do not have."
+        },
+        {
+            requested: canViewFinances,
+            owned:
+                requesterPermissions
+                    .can_view_finances,
+            reason:
+                "You cannot grant financial-viewing permission that you do not have."
+        },
+        {
+            requested: canMakePayments,
+            owned:
+                requesterPermissions
+                    .can_make_payments,
+            reason:
+                "You cannot grant payment permission that you do not have."
+        },
+        {
+            requested:
+                canSubmitMaintenance,
+            owned:
+                requesterPermissions
+                    .can_submit_maintenance,
+            reason:
+                "You cannot grant maintenance permission that you do not have."
+        },
+        {
+            requested:
+                canManageTenantUsers,
+            owned:
+                requesterPermissions
+                    .can_manage_tenant_users,
+            reason:
+                "You cannot grant tenant-user management permission that you do not have."
         }
+    ];
+
+    const unauthorizedPermission =
+        delegatedPermissions.find(
+            permission =>
+                permission.requested === true &&
+                permission.owned !== true
+        );
+
+    if (unauthorizedPermission) {
+        await client.query("ROLLBACK");
+
+        return {
+            forbidden: true,
+            reason:
+                unauthorizedPermission.reason
+        };
+    }
+}
 
         /*
          * 6. Prevent duplicate active relationship.
@@ -876,65 +894,93 @@ const updateTenantUser = async ({
         let requesterLink = null;
 
         if (authenticatedUser.role !== "admin") {
-            /*
-             * Regular user cannot update their own
-             * tenant relationship.
-             */
-            if (
-                currentLink.user_id ===
+    /*
+     * Regular user cannot update their own
+     * tenant relationship.
+     */
+    if (
+        currentLink.user_id ===
+        authenticatedUser.id
+    ) {
+        await client.query("ROLLBACK");
+
+        return {
+            forbidden: true,
+            reason:
+                "You cannot update your own tenant relationship."
+        };
+    }
+
+    const requesterResult =
+        await client.query(
+            `
+            SELECT
+                id,
+                relationship_role,
+                is_primary,
+                can_view_leases,
+                can_view_finances,
+                can_make_payments,
+                can_submit_maintenance,
+                can_manage_tenant_users
+            FROM tenant_users
+            WHERE tenant_id = $1
+              AND user_id = $2
+              AND revoked_at IS NULL
+            LIMIT 1
+            FOR UPDATE
+            `,
+            [
+                tenant.id,
                 authenticatedUser.id
-            ) {
-                await client.query("ROLLBACK");
+            ]
+        );
 
-                return {
-                    forbidden: true,
-                    reason:
-                        "You cannot update your own tenant relationship."
-                };
-            }
+    if (
+        requesterResult.rows.length === 0 ||
+        requesterResult.rows[0]
+            .can_manage_tenant_users !== true
+    ) {
+        await client.query("ROLLBACK");
 
-            const requesterResult =
-                await client.query(
-                    `
-                    SELECT
-                        id,
-                        relationship_role,
-                        is_primary,
-                        can_view_leases,
-                        can_view_finances,
-                        can_make_payments,
-                        can_submit_maintenance,
-                        can_manage_tenant_users
-                    FROM tenant_users
-                    WHERE tenant_id = $1
-                      AND user_id = $2
-                      AND revoked_at IS NULL
-                    LIMIT 1
-                    FOR UPDATE
-                    `,
-                    [
-                        tenant.id,
-                        authenticatedUser.id
-                    ]
-                );
+        return {
+            forbidden: true,
+            reason:
+                "You do not have permission to update users for this tenant."
+        };
+    }
 
-            if (
-                requesterResult.rows.length === 0 ||
-                requesterResult.rows[0]
-                    .can_manage_tenant_users !== true
-            ) {
-                await client.query("ROLLBACK");
+    requesterLink =
+        requesterResult.rows[0];
 
-                return {
-                    forbidden: true,
-                    reason:
-                        "You do not have permission to update users for this tenant."
-                };
-            }
+    /*
+     * A limited manager cannot update another
+     * existing tenant manager.
+     *
+     * This prevents a limited manager from first
+     * removing the target's management permission
+     * and then revoking the target as an ordinary user.
+     */
+    if (
+        currentLink
+            .can_manage_tenant_users === true
+    ) {
+        const requesterIsCurrentPrimary =
+            requesterLink.is_primary === true &&
+            requesterLink.relationship_role ===
+                "primary_contact";
 
-            requesterLink =
-                requesterResult.rows[0];
+        if (!requesterIsCurrentPrimary) {
+            await client.query("ROLLBACK");
+
+            return {
+                forbidden: true,
+                reason:
+                    "Only an administrator or the current primary contact can update a tenant manager."
+            };
         }
+    }
+}
 
         /*
          * 4. Merge supplied fields with current values.
