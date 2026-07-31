@@ -24,6 +24,12 @@ const {
 );
 
 const {
+    addTenantUserController
+} = require(
+    "../controllers/tenantUserController"
+);
+
+const {
     getTenantsValidator,
     getSingleTenantValidator,
     updateTenantValidator,
@@ -32,6 +38,12 @@ const {
     createTenantValidator
 } = require(
     "../validators/tenantValidator"
+);
+
+const {
+    addTenantUserValidator
+} = require(
+    "../validators/tenantUserValidator"
 );
 
 /*
@@ -43,6 +55,17 @@ router.get(
     getTenantsValidator,
     validateRequest,
     getTenantsController
+);
+
+/*
+ * POST /api/tenants/:tenant_public_id/users
+ */
+router.post(
+    "/:tenant_public_id/users",
+    authMiddleware,
+    addTenantUserValidator,
+    validateRequest,
+    addTenantUserController
 );
 
 /*
