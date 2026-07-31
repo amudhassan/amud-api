@@ -326,7 +326,23 @@ const softDeleteTenantController =
                     )
                 );
             }
-
+            /*
+ * Active tenant portal users must be
+ * revoked before tenant deletion.
+ */
+if (result.activeTenantUsersExist) {
+    return next(
+        new AppError(
+            "Tenant cannot be deleted while active tenant users exist.",
+            409,
+            {
+                active_tenant_user_count:
+                    result
+                        .activeTenantUserCount
+            }
+        )
+    );
+}
             return res.status(200).json({
                 success: true,
 

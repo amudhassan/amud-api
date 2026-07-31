@@ -1299,7 +1299,49 @@ const softDeleteTenant = async ({
                         .rows.length
             };
         }
+        /*
+ * Tenant mwenye active tenant-user links
+ * hawezi kufutwa mpaka links zote
+ * zirevokewe.
+ *
+ * Tenant row tayari imefungwa, hivyo
+ * concurrent tenant-user insertion
+ * haiwezi kupita kabla ya transaction.
+ */
+const activeTenantUsersResult =
+    await client.query(
+        `
+        SELECT
+            id,
+            public_id,
+            user_id,
+            relationship_role,
+            is_primary,
+            revoked_at
 
+        FROM tenant_users
+
+        WHERE tenant_id = $1
+          AND revoked_at IS NULL
+
+        FOR UPDATE
+        `,
+        [tenantRecord.id]
+    );
+
+if (
+    activeTenantUsersResult.rows.length > 0
+) {
+    await client.query("ROLLBACK");
+
+    return {
+        activeTenantUsersExist: true,
+
+        activeTenantUserCount:
+            activeTenantUsersResult
+                .rows.length
+    };
+}
         const previousStatus =
             tenantRecord.status;
 
