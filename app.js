@@ -38,7 +38,9 @@ const swaggerUi = require(
 const swaggerSpec = require(
     "./config/swagger"
 );
-
+const leaseRoutes = require(
+    "./routes/leaseRoutes"
+);
 dotenv.config();
 
 const app = express();
@@ -83,6 +85,10 @@ app.use(
 app.use(
     "/api/tenants",
     tenantRoutes
+);
+app.use(
+    "/api/leases",
+    leaseRoutes
 );
 
 /*
