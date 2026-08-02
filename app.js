@@ -27,6 +27,14 @@ const tenantRoutes = require(
     "./routes/tenantRoutes"
 );
 
+const leaseRoutes = require(
+    "./routes/leaseRoutes"
+);
+
+const invoiceRoutes = require(
+    "./routes/invoiceRoutes"
+);
+
 const errorHandler = require(
     "./middleware/errorHandler"
 );
@@ -38,9 +46,7 @@ const swaggerUi = require(
 const swaggerSpec = require(
     "./config/swagger"
 );
-const leaseRoutes = require(
-    "./routes/leaseRoutes"
-);
+
 dotenv.config();
 
 const app = express();
@@ -86,9 +92,15 @@ app.use(
     "/api/tenants",
     tenantRoutes
 );
+
 app.use(
     "/api/leases",
     leaseRoutes
+);
+
+app.use(
+    "/api/invoices",
+    invoiceRoutes
 );
 
 /*
