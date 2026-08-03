@@ -104,16 +104,71 @@ const verifyReceiptVerificationToken = ({
     );
 };
 
+/*
+ * Produce a deterministic, non-secret cache version
+ * from the current receipt lifecycle state.
+ *
+ * The HMAC token remains the authorization mechanism.
+ * This version only ensures that a reversed receipt uses
+ * a different public PDF URL from its previous valid state.
+ */
+const createReceiptLifecycleVersion = ({
+    receiptStatus,
+    updatedAt
+}) => {
+    const normalizedStatus =
+        String(receiptStatus || "current")
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]/g, "-")
+            .slice(0, 30) || "current";
+
+    const normalizedUpdatedAt =
+        updatedAt instanceof Date
+            ? updatedAt.toISOString()
+            : String(updatedAt || "unknown")
+                .trim();
+
+    const stateDigest = crypto
+        .createHash("sha256")
+        .update(
+            `${normalizedStatus}:${normalizedUpdatedAt}`
+        )
+        .digest("hex")
+        .slice(0, 16);
+
+    return `state-${normalizedStatus}-${stateDigest}`;
+};
+
 const buildReceiptVerificationUrl =
-    receiptNumber => {
+    (
+        receiptNumber,
+        lifecycleState = null
+    ) => {
         const token =
             createReceiptVerificationToken(
                 receiptNumber
             );
 
-        return `${getApplicationBaseUrl()}/api/receipts/${encodeURIComponent(
+        const legacyVerificationUrl =
+            `${getApplicationBaseUrl()}/api/receipts/${encodeURIComponent(
             receiptNumber
         )}/verify/${token}`;
+
+        if (
+            lifecycleState === null ||
+            typeof lifecycleState !== "object" ||
+            Array.isArray(lifecycleState)
+        ) {
+            return legacyVerificationUrl;
+        }
+
+        const lifecycleVersion =
+            createReceiptLifecycleVersion(
+                lifecycleState
+            );
+
+        return `${legacyVerificationUrl}/state/${lifecycleVersion}`;
     };
 
 module.exports = {

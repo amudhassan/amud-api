@@ -122,11 +122,70 @@ const getReceiptPdfController =
 /*
  * GET /api/receipts/:receipt_number/verify/:verification_token
  *
- * Public endpoint used only by the signed QR URL. The
- * same generic response is used for an invalid token and
- * a missing receipt to avoid exposing receipt existence.
+ * Public legacy endpoint used by previously generated QR
+ * URLs. The same generic response is used for an invalid
+ * token and a missing receipt to avoid exposing existence.
  */
 const getVerifiedReceiptPdfController =
+    asyncHandler(
+        async (req, res, next) => {
+            const result =
+                await getVerifiedReceipt({
+                    receiptNumber:
+                        req.params
+                            .receipt_number,
+                    verificationToken:
+                        req.params
+                            .verification_token
+                });
+
+            if (
+                result
+                    .invalidVerificationToken ||
+                result.receiptNotFound
+            ) {
+                return next(
+                    new AppError(
+                        "Receipt verification link is invalid.",
+                        404
+                    )
+                );
+            }
+
+            const pdfBuffer =
+                await generateReceiptPdf(
+                    result.receipt
+                );
+
+            const fileName =
+                `${result.receipt.receipt_number}.pdf`;
+
+            return res
+                .status(200)
+                .set({
+                    "Content-Type":
+                        "application/pdf",
+                    "Content-Disposition":
+                        `inline; filename="${fileName}"`,
+                    "Content-Length":
+                        pdfBuffer.length,
+                    "Cache-Control":
+                        "no-store"
+                })
+                .send(pdfBuffer);
+        }
+    );
+
+/*
+ * GET /api/receipts/:receipt_number/verify/:verification_token/state/:lifecycle_version
+ *
+ * Public lifecycle-aware QR endpoint. The lifecycle state
+ * segment changes the URL after a payment reversal, while
+ * the signed token remains the authorization mechanism.
+ * The PDF is always regenerated from the current database
+ * receipt state.
+ */
+const getVerifiedReceiptLifecyclePdfController =
     asyncHandler(
         async (req, res, next) => {
             const result =
@@ -179,5 +238,6 @@ const getVerifiedReceiptPdfController =
 module.exports = {
     getReceiptController,
     getReceiptPdfController,
-    getVerifiedReceiptPdfController
+    getVerifiedReceiptPdfController,
+    getVerifiedReceiptLifecyclePdfController
 };

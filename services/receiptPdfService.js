@@ -118,7 +118,14 @@ const ensureSpace = (document, requiredHeight) => {
 const generateReceiptPdf = async receipt => {
     const verificationUrl =
         buildReceiptVerificationUrl(
-            receipt.receipt_number
+            receipt.receipt_number,
+            {
+                receiptStatus:
+                    receipt.receipt_status,
+
+                updatedAt:
+                    receipt.payment.updated_at
+            }
         );
 
     const qrCodeBuffer = await QRCode.toBuffer(

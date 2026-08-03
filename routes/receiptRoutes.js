@@ -14,7 +14,8 @@ const validateRequest = require(
 
 const {
     getReceiptValidator,
-    verifyReceiptPdfValidator
+    verifyReceiptPdfValidator,
+    verifyReceiptLifecyclePdfValidator
 } = require(
     "../validators/receiptValidator"
 );
@@ -22,14 +23,36 @@ const {
 const {
     getReceiptController,
     getReceiptPdfController,
-    getVerifiedReceiptPdfController
+    getVerifiedReceiptPdfController,
+    getVerifiedReceiptLifecyclePdfController
 } = require(
     "../controllers/receiptController"
 );
 
 /*
- * Public signed QR verification route.
- * This must remain before authenticated receipt routes.
+ * Public lifecycle-aware signed QR verification route.
+ * This specific route must remain before the legacy and
+ * authenticated receipt routes.
+ *
+ * The HMAC token is the authorization mechanism, so
+ * authMiddleware must not be added here. The lifecycle
+ * version changes the public PDF URL whenever the receipt
+ * state changes, including payment reversal.
+ *
+ * GET /api/receipts/:receipt_number/verify/:verification_token/state/:lifecycle_version
+ */
+router.get(
+    "/:receipt_number/verify/:verification_token/state/:lifecycle_version",
+    verifyReceiptLifecyclePdfValidator,
+    validateRequest,
+    getVerifiedReceiptLifecyclePdfController
+);
+
+/*
+ * Public legacy signed QR verification route.
+ * Retained for QR codes generated before lifecycle-aware
+ * verification URLs were introduced.
+ *
  * The HMAC token is the authorization mechanism, so
  * authMiddleware must not be added here.
  *

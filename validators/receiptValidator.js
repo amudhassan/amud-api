@@ -94,10 +94,8 @@ const getReceiptValidator = [
 /*
  * GET /api/receipts/:receipt_number/verify/:verification_token
  *
- * The receipt-number, query and body rules remain
- * identical to the authenticated receipt endpoints.
- * The signed verification token permits public access
- * only to the exact receipt encoded in the QR URL.
+ * Legacy permanent verification route retained for
+ * QR codes generated before lifecycle-aware URLs.
  */
 const verifyReceiptPdfValidator = [
     ...getReceiptValidator,
@@ -123,7 +121,63 @@ const verifyReceiptPdfValidator = [
         )
 ];
 
+/*
+ * GET /api/receipts/:receipt_number/verify/:verification_token/state/:lifecycle_version
+ *
+ * Lifecycle-aware QR route. The signed verification
+ * token remains the authorization mechanism. The state
+ * segment changes whenever the receipt lifecycle changes,
+ * preventing a valid PDF URL from being reused after a
+ * payment reversal.
+ */
+const verifyReceiptLifecyclePdfValidator = [
+    ...getReceiptValidator,
+
+    param("verification_token")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Receipt verification token is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Receipt verification token must be a string."
+        )
+
+        .trim()
+
+        .matches(/^[a-fA-F0-9]{64}$/)
+        .withMessage(
+            "Invalid receipt verification token format."
+        ),
+
+    param("lifecycle_version")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Receipt lifecycle version is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Receipt lifecycle version must be a string."
+        )
+
+        .trim()
+
+        .matches(
+            /^state-[a-z0-9_-]{1,30}-[a-fA-F0-9]{16}$/
+        )
+        .withMessage(
+            "Invalid receipt lifecycle version format."
+        )
+];
+
 module.exports = {
     getReceiptValidator,
-    verifyReceiptPdfValidator
+    verifyReceiptPdfValidator,
+    verifyReceiptLifecyclePdfValidator
 };
