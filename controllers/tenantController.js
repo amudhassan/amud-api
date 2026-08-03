@@ -11,6 +11,7 @@ const {
     getSingleTenant,
     updateTenant,
     softDeleteTenant,
+    activateTenant,
     restoreTenant,
     createTenant
 } = require(
@@ -353,7 +354,96 @@ if (result.activeTenantUsersExist) {
             });
         }
     );
-    /*
+/*
+ * PATCH /api/tenants/:tenant_public_id/activate
+ */
+const activateTenantController =
+    asyncHandler(
+        async (req, res, next) => {
+            const {
+                tenant_public_id
+            } = req.params;
+
+            const {
+                owner_public_id
+            } = req.query;
+
+            const result =
+                await activateTenant({
+                    ownerPublicId:
+                        owner_public_id,
+
+                    tenantPublicId:
+                        tenant_public_id,
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            /*
+             * Owner hayupo, si active,
+             * amefutwa au regular user hana
+             * management permission.
+             */
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Owner not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Tenant hayupo, amefutwa,
+             * relationship si current active,
+             * au regular user hana primary
+             * owner relationship.
+             */
+            if (result.tenantNotFound) {
+                return next(
+                    new AppError(
+                        "Tenant not found.",
+                        404
+                    )
+                );
+            }
+
+            if (result.alreadyActive) {
+                return next(
+                    new AppError(
+                        "Tenant is already active.",
+                        409
+                    )
+                );
+            }
+
+            if (result.notProspective) {
+                return next(
+                    new AppError(
+                        "Only a prospective tenant can be activated.",
+                        409,
+                        {
+                            current_status:
+                                result
+                                    .currentStatus
+                        }
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Tenant activated successfully.",
+
+                data: result
+            });
+        }
+    );
+
+/*
  * PATCH /api/tenants/:tenant_public_id/restore
  */
 const restoreTenantController =
@@ -525,6 +615,7 @@ module.exports = {
     getSingleTenantController,
     updateTenantController,
     softDeleteTenantController,
+    activateTenantController,
     restoreTenantController,
     createTenantController
 };

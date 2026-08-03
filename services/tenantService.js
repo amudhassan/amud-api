@@ -1427,6 +1427,296 @@ if (
     }
 };
 /*
+ * PATCH /api/tenants/:tenant_public_id/activate
+ */
+const activateTenant = async ({
+    ownerPublicId,
+    tenantPublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const ownerValues = [
+            ownerPublicId
+        ];
+
+        let ownerAccessCondition = "";
+
+        /*
+         * Regular user lazima awe na management
+         * permission kupitia selected owner.
+         */
+        if (authenticatedUser.role !== "admin") {
+            ownerValues.push(
+                authenticatedUser.id
+            );
+
+            ownerAccessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM owner_users AS user_access
+
+                    WHERE user_access.owner_id = o.id
+                      AND user_access.user_id = $2
+                      AND user_access.revoked_at IS NULL
+                      AND user_access.can_manage_properties = TRUE
+                      AND user_access.relationship_role IN (
+                          'owner',
+                          'representative',
+                          'manager'
+                      )
+                )
+            `;
+        }
+
+        /*
+         * Validate na lock active owner.
+         */
+        const ownerResult = await client.query(
+            `
+            SELECT
+                o.id,
+                o.public_id,
+                o.owner_type,
+                o.display_name,
+                o.status,
+                o.created_at,
+                o.updated_at
+
+            FROM owners AS o
+
+            WHERE o.public_id = $1
+              AND o.status = 'active'
+              AND o.deleted_at IS NULL
+
+              ${ownerAccessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF o
+            `,
+            ownerValues
+        );
+
+        if (ownerResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return null;
+        }
+
+        const owner = ownerResult.rows[0];
+
+        /*
+         * Regular user lazima selected owner awe
+         * primary owner relationship ya tenant.
+         * Admin anaweza kutumia current active
+         * relationship yoyote.
+         */
+        let primaryRelationshipCondition = "";
+
+        if (authenticatedUser.role !== "admin") {
+            primaryRelationshipCondition = `
+                AND ot.is_primary_owner_relationship =
+                    TRUE
+            `;
+        }
+
+        /*
+         * Validate na lock tenant pamoja na
+         * current owner relationship yake.
+         */
+        const tenantResult = await client.query(
+            `
+            SELECT
+                t.id,
+                t.status,
+
+                ot.public_id
+                    AS relationship_public_id,
+
+                ot.relationship_status,
+                ot.is_primary_owner_relationship,
+                ot.notes
+                    AS relationship_notes,
+
+                ot.created_at
+                    AS relationship_created_at,
+
+                ot.updated_at
+                    AS relationship_updated_at,
+
+                ot.ended_at
+
+            FROM tenants AS t
+
+            INNER JOIN owner_tenants AS ot
+                ON ot.tenant_id = t.id
+
+            WHERE t.public_id = $1
+              AND t.deleted_at IS NULL
+              AND ot.owner_id = $2
+              AND ot.relationship_status =
+                  'active'
+              AND ot.ended_at IS NULL
+
+              ${primaryRelationshipCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF t, ot
+            `,
+            [
+                tenantPublicId,
+                owner.id
+            ]
+        );
+
+        if (tenantResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                tenantNotFound: true
+            };
+        }
+
+        const tenantRecord =
+            tenantResult.rows[0];
+
+        if (tenantRecord.status === "active") {
+            await client.query("ROLLBACK");
+
+            return {
+                alreadyActive: true
+            };
+        }
+
+        if (
+            tenantRecord.status !==
+            "prospective"
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                notProspective: true,
+                currentStatus:
+                    tenantRecord.status
+            };
+        }
+
+        const previousStatus =
+            tenantRecord.status;
+
+        const activatedTenantResult =
+            await client.query(
+                `
+                UPDATE tenants
+
+                SET
+                    status = 'active',
+                    updated_at =
+                        CURRENT_TIMESTAMP
+
+                WHERE id = $1
+                  AND status = 'prospective'
+                  AND deleted_at IS NULL
+
+                RETURNING
+                    public_id,
+                    tenant_type,
+                    display_name,
+                    national_id,
+                    passport_number,
+                    registration_number,
+                    tax_identification_number,
+                    email,
+                    phone_number,
+                    alternative_phone,
+                    address,
+                    city,
+                    region,
+                    country,
+                    status,
+                    created_at,
+                    updated_at,
+                    deleted_at
+                `,
+                [tenantRecord.id]
+            );
+
+        /*
+         * Lazimisha deferred integrity checks
+         * kabla transaction haija-commit.
+         */
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        delete owner.id;
+
+        const activatedTenant =
+            activatedTenantResult.rows[0];
+
+        return {
+            owner,
+
+            tenant:
+                activatedTenant,
+
+            owner_relationship: {
+                public_id:
+                    tenantRecord
+                        .relationship_public_id,
+
+                relationship_status:
+                    tenantRecord
+                        .relationship_status,
+
+                is_primary_owner_relationship:
+                    tenantRecord
+                        .is_primary_owner_relationship,
+
+                notes:
+                    tenantRecord
+                        .relationship_notes,
+
+                created_at:
+                    tenantRecord
+                        .relationship_created_at,
+
+                updated_at:
+                    tenantRecord
+                        .relationship_updated_at,
+
+                ended_at:
+                    tenantRecord.ended_at
+            },
+
+            activation_summary: {
+                activated: true,
+
+                previous_status:
+                    previousStatus,
+
+                current_status:
+                    activatedTenant.status
+            }
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+/*
  * PATCH /api/tenants/:tenant_public_id/restore
  */
 const restoreTenant = async ({
@@ -1996,6 +2286,7 @@ module.exports = {
     getSingleTenant,
     updateTenant,
     softDeleteTenant,
+    activateTenant,
     restoreTenant,
     createTenant
 };

@@ -17,6 +17,7 @@ const {
     getSingleTenantController,
     updateTenantController,
     softDeleteTenantController,
+    activateTenantController,
     restoreTenantController,
     createTenantController
 } = require(
@@ -37,6 +38,7 @@ const {
     getSingleTenantValidator,
     updateTenantValidator,
     softDeleteTenantValidator,
+    activateTenantValidator,
     restoreTenantValidator,
     createTenantValidator
 } = require(
@@ -112,6 +114,19 @@ router.get(
     getSingleTenantValidator,
     validateRequest,
     getSingleTenantController
+);
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/activate
+ *
+ * Must remain before the general PATCH route.
+ */
+router.patch(
+    "/:tenant_public_id/activate",
+    authMiddleware,
+    activateTenantValidator,
+    validateRequest,
+    activateTenantController
 );
 
 /*
