@@ -35,6 +35,14 @@ const invoiceRoutes = require(
     "./routes/invoiceRoutes"
 );
 
+const paymentRoutes = require(
+    "./routes/paymentRoutes"
+);
+
+const receiptRoutes = require(
+    "./routes/receiptRoutes"
+);
+
 const errorHandler = require(
     "./middleware/errorHandler"
 );
@@ -101,6 +109,16 @@ app.use(
 app.use(
     "/api/invoices",
     invoiceRoutes
+);
+
+app.use(
+    "/api/payments",
+    paymentRoutes
+);
+
+app.use(
+    "/api/receipts",
+    receiptRoutes
 );
 
 /*

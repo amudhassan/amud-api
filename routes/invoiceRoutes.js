@@ -27,6 +27,12 @@ const {
 );
 
 const {
+    recordRentPaymentController
+} = require(
+    "../controllers/paymentController"
+);
+
+const {
     createDraftRentInvoiceValidator,
     getInvoicesValidator,
     getSingleInvoiceValidator,
@@ -38,6 +44,12 @@ const {
     voidRentInvoiceValidator
 } = require(
     "../validators/invoiceValidator"
+);
+
+const {
+    recordRentPaymentValidator
+} = require(
+    "../validators/paymentValidator"
 );
 
 /*
@@ -97,6 +109,20 @@ router.post(
 );
 
 /*
+ * POST /api/invoices/:invoice_public_id/payments
+ *
+ * Record and allocate a completed payment to
+ * an authorized eligible rent invoice.
+ */
+router.post(
+    "/:invoice_public_id/payments",
+    authMiddleware,
+    recordRentPaymentValidator,
+    validateRequest,
+    recordRentPaymentController
+);
+
+/*
  * DELETE /api/invoices/:invoice_public_id/items/:item_public_id
  *
  * Delete an existing billing line belonging
@@ -109,6 +135,7 @@ router.delete(
     validateRequest,
     deleteDraftRentInvoiceItemController
 );
+
 /*
  * PATCH /api/invoices/:invoice_public_id/items/:item_public_id
  *
@@ -122,6 +149,7 @@ router.patch(
     validateRequest,
     updateDraftRentInvoiceItemController
 );
+
 /*
  * PATCH /api/invoices/:invoice_public_id/issue
  *
@@ -135,6 +163,7 @@ router.patch(
     validateRequest,
     issueRentInvoiceController
 );
+
 /*
  * PATCH /api/invoices/:invoice_public_id/void
  *
