@@ -1,0 +1,46 @@
+NOTIFICATIONS BATCH E — LOCAL TEST PLAN
+
+1. Extract the package into the project root.
+
+2. Run migration:
+   database/migrations/20260807_033_add_maintenance_notification_processing.sql
+
+3. Run verification:
+   database/verification/notifications_batch_e_verification.sql
+
+   Expected final value:
+   notification_maintenance_processing = passed
+
+4. From the project root run:
+   node scripts/checkNotificationBatchE.js
+
+   Expected:
+   Notification Batch E import and worker check passed.
+
+5. Keep recurring worker disabled:
+   NOTIFICATION_MAINTENANCE_WORKER_ENABLED=false
+
+6. Create one local test event:
+   database/testing/notifications_batch_e_create_test_event.sql
+
+7. Process the queue once:
+   node scripts/processMaintenanceNotifications.js
+
+8. Run result check:
+   database/testing/notifications_batch_e_result_check.sql
+
+   Expected for the latest test event:
+   - source_processed_at is not null
+   - notification_event_status = processed
+   - candidate_decisions equals created_decisions + suppressed_decisions
+   - recipient_count equals created_decisions
+   - last_processing_error and notification_last_error are null
+
+9. Repeat the one-off processor:
+   node scripts/processMaintenanceNotifications.js
+
+   The already processed source event must not create duplicates.
+
+10. Verify recipient ownership through the existing inbox endpoints.
+
+11. Add the worker startup integration only after all local tests pass.

@@ -1,0 +1,29 @@
+NOTIFICATION MAINTENANCE WORKER INTEGRATION
+
+The package does not replace server.js because the existing startup shape must be
+preserved.
+
+1. Add this import near the other server-level imports:
+
+const {
+    startNotificationMaintenanceWorker
+} = require(
+    "./workers/notificationMaintenanceWorker"
+);
+
+2. Call the worker only after the HTTP server has started successfully.
+
+Example inside the existing listen callback:
+
+startNotificationMaintenanceWorker();
+
+3. Keep this environment variable false during local API verification:
+
+NOTIFICATION_MAINTENANCE_WORKER_ENABLED=false
+
+4. After one-off processing tests pass, enable it:
+
+NOTIFICATION_MAINTENANCE_WORKER_ENABLED=true
+
+The worker catches its own run errors, prevents overlapping runs and does not stop
+the HTTP server when a notification-processing attempt fails.

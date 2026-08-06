@@ -1,0 +1,12 @@
+NOTIFICATION_MAINTENANCE_WORKER_ENABLED=false
+NOTIFICATION_MAINTENANCE_WORKER_INTERVAL_MS=30000
+NOTIFICATION_MAINTENANCE_BATCH_LIMIT=25
+NOTIFICATION_MAINTENANCE_MAX_ATTEMPTS=5
+NOTIFICATION_MAINTENANCE_RETRY_BASE_SECONDS=60
+
+MEANING
+- WORKER_ENABLED: enables recurring processing after server startup integration.
+- WORKER_INTERVAL_MS: delay between worker runs; default 30 seconds.
+- BATCH_LIMIT: maximum source events processed per run; maximum 100.
+- MAX_ATTEMPTS: terminal dead-letter threshold; maximum 20.
+- RETRY_BASE_SECONDS: exponential retry base, capped at one hour.

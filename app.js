@@ -59,6 +59,11 @@ const maintenanceRoutes = require(
     "./routes/maintenanceRoutes"
 );
 
+const notificationRoutes = require(
+    "./routes/notificationRoutes"
+);
+
+
 dotenv.config();
 
 const app = express();
@@ -128,6 +133,10 @@ app.use(
 app.use(
     "/api/maintenance",
     maintenanceRoutes
+);
+app.use(
+    "/api/notifications",
+    notificationRoutes
 );
 /*
  * Swagger documentation
