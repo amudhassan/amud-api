@@ -55,6 +55,10 @@ const swaggerSpec = require(
     "./config/swagger"
 );
 
+const maintenanceRoutes = require(
+    "./routes/maintenanceRoutes"
+);
+
 dotenv.config();
 
 const app = express();
@@ -121,6 +125,10 @@ app.use(
     receiptRoutes
 );
 
+app.use(
+    "/api/maintenance",
+    maintenanceRoutes
+);
 /*
  * Swagger documentation
  */
