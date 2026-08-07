@@ -1,0 +1,58 @@
+REPORTS & DASHBOARD ENDPOINT MATRIX
+===================================
+
+FOUNDATION
+GET /api/reports/context
+
+FINANCIAL
+GET /api/reports/financial/summary
+GET /api/reports/financial/revenue
+GET /api/reports/financial/outstanding
+GET /api/reports/financial/collections
+
+OCCUPANCY & LEASES
+GET /api/reports/occupancy
+GET /api/reports/leases
+GET /api/reports/leases/expiring
+
+MAINTENANCE
+GET /api/reports/maintenance/summary
+GET /api/reports/maintenance/performance
+GET /api/reports/maintenance/costs
+
+DASHBOARD
+GET /api/reports/dashboard
+
+EXPORTS
+GET /api/reports/financial/summary/export?format=csv
+GET /api/reports/financial/revenue/export?format=pdf&period=monthly
+GET /api/reports/financial/outstanding/export?format=csv&limit=50
+GET /api/reports/financial/collections/export?format=pdf&period=monthly
+GET /api/reports/occupancy/export?format=pdf
+GET /api/reports/leases/export?format=csv&status=active&limit=50
+GET /api/reports/leases/expiring/export?format=pdf&days=30
+GET /api/reports/maintenance/summary/export?format=csv
+GET /api/reports/maintenance/performance/export?format=pdf&limit=50
+GET /api/reports/maintenance/costs/export?format=csv
+GET /api/reports/dashboard/export?format=pdf
+
+COMMON OPTIONAL FILTERS
+owner_public_id
+property_public_id
+date_from=YYYY-MM-DD
+date_to=YYYY-MM-DD
+currency_code=TZS
+
+AUTHORIZATION
+- Admin: global scope.
+- Owner user financial endpoints: can_manage_finances.
+- Occupancy/lease endpoints: can_manage_properties.
+- Maintenance endpoints: can_view_maintenance_requests.
+- Dashboard: section-by-section authorization.
+- Tenant users: no management reporting access.
+
+EXPECTED HTTP STATUS
+200 success
+400 validation failure
+403 insufficient reporting permission
+404 inaccessible/not-found selected owner/property

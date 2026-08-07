@@ -1,0 +1,15 @@
+REPORTS BATCH B INTEGRATION
+
+Batch B replaces routes/reportRoutes.js with a complete version that retains:
+GET /api/reports/context
+
+and adds:
+GET /api/reports/financial/summary
+GET /api/reports/financial/revenue
+GET /api/reports/financial/outstanding
+GET /api/reports/financial/collections
+
+No new app.js integration is required if Batch A already added:
+
+const reportRoutes = require("./routes/reportRoutes");
+app.use("/api/reports", reportRoutes);

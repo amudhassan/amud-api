@@ -1,0 +1,28 @@
+REPORTS & DASHBOARD - BATCH A APP INTEGRATION
+
+1. Copy the Batch A folders into the project root.
+
+2. In app.js add:
+
+const reportRoutes = require(
+    "./routes/reportRoutes"
+);
+
+3. Mount the routes with the other API modules:
+
+app.use(
+    "/api/reports",
+    reportRoutes
+);
+
+4. No server.js change is required for Batch A.
+
+5. Run:
+
+node --check app.js
+node --check routes/reportRoutes.js
+node scripts/checkReportsBatchA.js
+
+6. Start/restart the local server and test:
+
+GET /api/reports/context

@@ -1,0 +1,47 @@
+REPORTS BATCH B - LOCAL POSTMAN TEST PLAN
+
+Base URL:
+http://localhost:3000/api/reports
+
+Header:
+Authorization: Bearer <ACCESS_TOKEN>
+
+1. ADMIN SUMMARY
+GET /financial/summary
+Expected: 200
+
+2. OWNER FINANCIAL USER SUMMARY
+GET /financial/summary
+Expected: 200 and only accessible owner scope.
+
+3. OWNER WITHOUT FINANCIAL PERMISSION
+GET /financial/summary
+Expected: 403
+
+4. REVENUE TREND
+GET /financial/revenue?period=monthly
+Expected: 200
+
+5. OUTSTANDING
+GET /financial/outstanding?limit=20
+Expected: 200
+
+6. COLLECTIONS
+GET /financial/collections?period=monthly
+Expected: 200
+
+7. CURRENCY FILTER
+GET /financial/summary?currency_code=TZS
+Expected: 200 and no mixed-currency total.
+
+8. DATE FILTER
+GET /financial/summary?date_from=2026-01-01&date_to=2026-12-31
+Expected: 200
+
+9. INVALID DATE RANGE
+GET /financial/summary?date_from=2026-12-31&date_to=2026-01-01
+Expected: 400 validation failure.
+
+10. TENANT-ONLY USER
+GET /financial/summary
+Expected: 403.

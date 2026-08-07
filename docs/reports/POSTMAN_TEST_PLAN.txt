@@ -1,0 +1,50 @@
+REPORTS & DASHBOARD - BATCH A POSTMAN TEST PLAN
+
+Endpoint:
+GET /api/reports/context
+
+Required header:
+Authorization: Bearer <ACCESS_TOKEN>
+
+TEST 1 - Admin base context
+GET /api/reports/context
+Expected: 200 OK
+Expected owner_scope: all
+
+TEST 2 - Owner-user base context
+GET /api/reports/context
+Expected: 200 OK only when the user has an active owner_users relationship with can_manage_properties or can_manage_finances.
+Expected owner_scope: accessible
+
+TEST 3 - Selected owner
+GET /api/reports/context?owner_public_id=<OWNER_PUBLIC_ID>
+Expected: 200 OK for an accessible owner.
+Expected selected_owner object.
+
+TEST 4 - Inaccessible owner isolation
+Use another regular user token and request an owner outside that user's active reporting scope.
+Expected: 404 Not Found
+
+TEST 5 - Property filter
+GET /api/reports/context?property_public_id=<PROPERTY_PUBLIC_ID>
+Expected: 200 OK only when the property is within the caller's current owner reporting scope.
+
+TEST 6 - Owner/property relationship
+GET /api/reports/context?owner_public_id=<OWNER_PUBLIC_ID>&property_public_id=<PROPERTY_PUBLIC_ID>
+Expected: 200 OK only when the selected owner currently owns the selected property.
+
+TEST 7 - Date/currency filters
+GET /api/reports/context?date_from=2026-01-01&date_to=2026-12-31&currency_code=TZS
+Expected: 200 OK and the normalized filters echoed in data.filters.
+
+TEST 8 - Invalid date order
+GET /api/reports/context?date_from=2026-12-31&date_to=2026-01-01
+Expected: 400 Bad Request from validateRequest.
+
+TEST 9 - Unsupported query field
+GET /api/reports/context?unsupported_field=test
+Expected: 400 Bad Request.
+
+TEST 10 - Tenant-only account
+Use an account with no qualifying owner_users reporting relationship.
+Expected: 403 Forbidden.

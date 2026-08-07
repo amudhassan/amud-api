@@ -63,6 +63,9 @@ const notificationRoutes = require(
     "./routes/notificationRoutes"
 );
 
+const reportRoutes = require(
+    "./routes/reportRoutes"
+);
 
 dotenv.config();
 
@@ -137,6 +140,10 @@ app.use(
 app.use(
     "/api/notifications",
     notificationRoutes
+);
+app.use(
+    "/api/reports",
+    reportRoutes
 );
 /*
  * Swagger documentation
