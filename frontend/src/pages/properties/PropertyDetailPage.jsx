@@ -7,9 +7,11 @@ import {
     MapPin,
     Pencil,
     Phone,
+    Plus,
     RefreshCw,
     Save,
     ShieldCheck,
+    Trash2,
     Users,
     X
 } from "lucide-react";
@@ -155,6 +157,65 @@ const makeEditForm = property => ({
         Boolean(property?.is_multi_unit)
 });
 
+const OWNERSHIP_TYPES = [
+    "legal",
+    "beneficial",
+    "trustee",
+    "nominee",
+    "customary",
+    "government",
+    "other"
+];
+
+const MANAGER_ROLES = [
+    "owner",
+    "representative",
+    "manager"
+];
+
+const makeOwnershipDraft = ownership => ({
+    local_key:
+        ownership?.ownership_public_id ||
+        `ownership_${Date.now()}_${Math.random()
+            .toString(36)
+            .slice(2)}`,
+    owner_public_id:
+        ownership?.owner?.public_id || "",
+    ownership_percentage:
+        ownership?.ownership_percentage ?? "",
+    ownership_type:
+        ownership?.ownership_type || "legal",
+    is_primary_contact:
+        Boolean(
+            ownership?.is_primary_contact
+        )
+});
+
+const isManageableOwner = owner => {
+    if (!owner || owner.status !== "active") {
+        return false;
+    }
+
+    /*
+     * Admin list records return null relationship
+     * fields. Regular users must have the property
+     * management permission and an accepted role.
+     */
+    if (
+        owner.can_manage_properties === null ||
+        owner.can_manage_properties === undefined
+    ) {
+        return true;
+    }
+
+    return (
+        owner.can_manage_properties === true &&
+        MANAGER_ROLES.includes(
+            owner.relationship_role
+        )
+    );
+};
+
 const DetailItem = ({
     label,
     value
@@ -215,6 +276,30 @@ function PropertyDetailPage() {
         useState("");
     const [successMessage, setSuccessMessage] =
         useState("");
+    const [
+        isManagingOwnership,
+        setIsManagingOwnership
+    ] = useState(false);
+    const [
+        ownershipForm,
+        setOwnershipForm
+    ] = useState([]);
+    const [
+        availableOwners,
+        setAvailableOwners
+    ] = useState([]);
+    const [
+        ownersLoading,
+        setOwnersLoading
+    ] = useState(false);
+    const [
+        ownershipSaving,
+        setOwnershipSaving
+    ] = useState(false);
+    const [
+        ownershipError,
+        setOwnershipError
+    ] = useState("");
 
     const loadProperty = useCallback(
         async () => {
@@ -518,6 +603,356 @@ function PropertyDetailPage() {
             setSaving(false);
         }
     };
+
+    const loadAvailableOwners =
+        useCallback(async () => {
+            try {
+                setOwnersLoading(true);
+                setOwnershipError("");
+
+                const response =
+                    await apiClient.get(
+                        "/owners?status=active&page=1&limit=100"
+                    );
+
+                const owners =
+                    Array.isArray(
+                        response?.data?.data
+                    )
+                        ? response.data.data
+                        : [];
+
+                setAvailableOwners(
+                    owners.filter(
+                        isManageableOwner
+                    )
+                );
+            } catch (requestError) {
+                setAvailableOwners([]);
+                setOwnershipError(
+                    getErrorMessage(
+                        requestError
+                    )
+                );
+            } finally {
+                setOwnersLoading(false);
+            }
+        }, []);
+
+    const openOwnershipManager =
+        async () => {
+            setSuccessMessage("");
+            setOwnershipError("");
+
+            const initialRows =
+                ownerships.length > 0
+                    ? ownerships.map(
+                        makeOwnershipDraft
+                    )
+                    : [
+                        makeOwnershipDraft(
+                            null
+                        )
+                    ];
+
+            if (initialRows.length === 1) {
+                initialRows[0]
+                    .is_primary_contact =
+                    true;
+            }
+
+            setOwnershipForm(
+                initialRows
+            );
+            setIsManagingOwnership(
+                true
+            );
+
+            await loadAvailableOwners();
+        };
+
+    const closeOwnershipManager = () => {
+        if (ownershipSaving) {
+            return;
+        }
+
+        setIsManagingOwnership(false);
+        setOwnershipForm([]);
+        setOwnershipError("");
+    };
+
+    const updateOwnershipRow = (
+        localKey,
+        field,
+        value
+    ) => {
+        setOwnershipForm(current =>
+            current.map(row => {
+                if (
+                    field ===
+                        "is_primary_contact" &&
+                    value === true
+                ) {
+                    return {
+                        ...row,
+                        is_primary_contact:
+                            row.local_key ===
+                            localKey
+                    };
+                }
+
+                if (
+                    row.local_key !==
+                    localKey
+                ) {
+                    return row;
+                }
+
+                return {
+                    ...row,
+                    [field]: value
+                };
+            })
+        );
+    };
+
+    const addOwnershipRow = () => {
+        setOwnershipForm(current => [
+            ...current,
+            makeOwnershipDraft(null)
+        ]);
+    };
+
+    const removeOwnershipRow =
+        localKey => {
+            setOwnershipForm(current => {
+                const next =
+                    current.filter(
+                        row =>
+                            row.local_key !==
+                            localKey
+                    );
+
+                if (next.length === 1) {
+                    next[0] = {
+                        ...next[0],
+                        is_primary_contact:
+                            true
+                    };
+                }
+
+                return next;
+            });
+        };
+
+    const ownershipTotal = useMemo(
+        () =>
+            Number(
+                ownershipForm
+                    .reduce(
+                        (sum, row) =>
+                            sum +
+                            Number(
+                                row
+                                    .ownership_percentage ||
+                                    0
+                            ),
+                        0
+                    )
+                    .toFixed(4)
+            ),
+        [ownershipForm]
+    );
+
+    const validateOwnershipForm =
+        () => {
+            if (
+                ownershipForm.length < 1
+            ) {
+                return "At least one property owner is required.";
+            }
+
+            const ownerIds =
+                ownershipForm.map(
+                    row =>
+                        row.owner_public_id
+                );
+
+            if (
+                ownerIds.some(
+                    ownerId => !ownerId
+                )
+            ) {
+                return "Select an owner for every ownership row.";
+            }
+
+            if (
+                new Set(ownerIds).size !==
+                ownerIds.length
+            ) {
+                return "The same owner cannot appear more than once.";
+            }
+
+            for (
+                const row
+                of ownershipForm
+            ) {
+                const rawValue =
+                    String(
+                        row.ownership_percentage
+                    );
+
+                if (
+                    !/^\d+(\.\d{1,4})?$/.test(
+                        rawValue
+                    )
+                ) {
+                    return "Ownership percentage may contain at most four decimal places.";
+                }
+
+                const percentage =
+                    Number(rawValue);
+
+                if (
+                    percentage <= 0 ||
+                    percentage > 100
+                ) {
+                    return "Each ownership percentage must be greater than 0 and cannot exceed 100.";
+                }
+
+                if (
+                    !OWNERSHIP_TYPES.includes(
+                        row.ownership_type
+                    )
+                ) {
+                    return "Select a valid ownership type.";
+                }
+            }
+
+            if (ownershipTotal > 100) {
+                return `Total property ownership cannot exceed 100%. Current total: ${ownershipTotal}%.`;
+            }
+
+            const primaryCount =
+                ownershipForm.filter(
+                    row =>
+                        row
+                            .is_primary_contact ===
+                        true
+                ).length;
+
+            if (primaryCount > 1) {
+                return "Only one owner can be the primary contact.";
+            }
+
+            /*
+             * Active property replacements must retain
+             * exactly 100% ownership and one primary owner.
+             */
+            if (
+                property?.operational_status ===
+                    "active" &&
+                ownershipTotal !== 100
+            ) {
+                return `An active property must retain exactly 100% ownership. Current total: ${ownershipTotal}%.`;
+            }
+
+            if (
+                property?.operational_status ===
+                    "active" &&
+                primaryCount !== 1
+            ) {
+                return "An active property must retain exactly one primary owner contact.";
+            }
+
+            return "";
+        };
+
+    const saveOwnership =
+        async event => {
+            event.preventDefault();
+
+            const validationError =
+                validateOwnershipForm();
+
+            if (validationError) {
+                setOwnershipError(
+                    validationError
+                );
+                return;
+            }
+
+            const normalizedRows =
+                ownershipForm.map(
+                    row => ({
+                        ...row
+                    })
+                );
+
+            if (
+                normalizedRows.length === 1
+            ) {
+                normalizedRows[0]
+                    .is_primary_contact =
+                    true;
+            }
+
+            const payload = {
+                ownerships:
+                    normalizedRows.map(
+                        row => ({
+                            owner_public_id:
+                                row.owner_public_id,
+                            ownership_percentage:
+                                Number(
+                                    row
+                                        .ownership_percentage
+                                ),
+                            ownership_type:
+                                row.ownership_type,
+                            is_primary_contact:
+                                Boolean(
+                                    row
+                                        .is_primary_contact
+                                )
+                        })
+                    )
+            };
+
+            try {
+                setOwnershipSaving(
+                    true
+                );
+                setOwnershipError("");
+                setSuccessMessage("");
+
+                await apiClient.put(
+                    `/properties/${property_public_id}/owners`,
+                    payload
+                );
+
+                setIsManagingOwnership(
+                    false
+                );
+                setOwnershipForm([]);
+
+                await loadProperty();
+
+                setSuccessMessage(
+                    "Property ownership replaced successfully."
+                );
+            } catch (requestError) {
+                setOwnershipError(
+                    getErrorMessage(
+                        requestError
+                    )
+                );
+            } finally {
+                setOwnershipSaving(
+                    false
+                );
+            }
+        };
 
     if (loading) {
         return (
@@ -1655,40 +2090,686 @@ function PropertyDetailPage() {
                     <div
                         className="
                             flex
-                            items-center
+                            flex-col
                             gap-3
+                            sm:flex-row
+                            sm:items-start
+                            sm:justify-between
                         "
                     >
-                        <Users
+                        <div
                             className="
-                                h-5 w-5
-                                text-blue-600
+                                flex
+                                items-center
+                                gap-3
                             "
-                        />
-
-                        <div>
-                            <h2
+                        >
+                            <Users
                                 className="
-                                    text-lg
-                                    font-bold
-                                    text-slate-900
+                                    h-5 w-5
+                                    text-blue-600
                                 "
-                            >
-                                Ownership
-                            </h2>
+                            />
 
-                            <p
-                                className="
-                                    mt-1
-                                    text-sm
-                                    text-slate-500
-                                "
-                            >
-                                Current active property
-                                ownership records.
-                            </p>
+                            <div>
+                                <h2
+                                    className="
+                                        text-lg
+                                        font-bold
+                                        text-slate-900
+                                    "
+                                >
+                                    Ownership
+                                </h2>
+
+                                <p
+                                    className="
+                                        mt-1
+                                        text-sm
+                                        text-slate-500
+                                    "
+                                >
+                                    Current active property
+                                    ownership records.
+                                </p>
+                            </div>
                         </div>
+
+                        <button
+                            type="button"
+                            onClick={
+                                openOwnershipManager
+                            }
+                            disabled={
+                                isManagingOwnership
+                            }
+                            className="
+                                inline-flex
+                                items-center
+                                justify-center
+                                gap-2
+                                rounded-xl
+                                border
+                                border-blue-200
+                                bg-blue-50
+                                px-3
+                                py-2
+                                text-sm
+                                font-semibold
+                                text-blue-700
+                                transition
+                                hover:bg-blue-100
+                                disabled:cursor-not-allowed
+                                disabled:opacity-50
+                            "
+                        >
+                            <Pencil className="h-4 w-4" />
+                            Manage Ownership
+                        </button>
                     </div>
+
+                    {isManagingOwnership && (
+                        <form
+                            onSubmit={
+                                saveOwnership
+                            }
+                            className="
+                                mt-5
+                                rounded-2xl
+                                border
+                                border-blue-200
+                                bg-blue-50/40
+                                p-4
+                            "
+                        >
+                            <div
+                                className="
+                                    flex
+                                    items-start
+                                    justify-between
+                                    gap-3
+                                "
+                            >
+                                <div>
+                                    <h3
+                                        className="
+                                            font-bold
+                                            text-slate-900
+                                        "
+                                    >
+                                        Replace Current Ownership
+                                    </h3>
+
+                                    <p
+                                        className="
+                                            mt-1
+                                            text-xs
+                                            leading-5
+                                            text-slate-500
+                                        "
+                                    >
+                                        Saving closes the current
+                                        active ownership records and
+                                        creates the replacement
+                                        ownership effective today.
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={
+                                        closeOwnershipManager
+                                    }
+                                    disabled={
+                                        ownershipSaving
+                                    }
+                                    className="
+                                        inline-flex
+                                        h-8 w-8
+                                        shrink-0
+                                        items-center
+                                        justify-center
+                                        rounded-lg
+                                        text-slate-500
+                                        transition
+                                        hover:bg-white
+                                        hover:text-slate-900
+                                        disabled:opacity-50
+                                    "
+                                    aria-label="Close ownership manager"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+
+                            {ownershipError && (
+                                <div
+                                    className="
+                                        mt-4
+                                        rounded-xl
+                                        border
+                                        border-rose-200
+                                        bg-rose-50
+                                        px-3
+                                        py-2.5
+                                        text-sm
+                                        text-rose-700
+                                    "
+                                >
+                                    {ownershipError}
+                                </div>
+                            )}
+
+                            {ownersLoading ? (
+                                <div
+                                    className="
+                                        mt-4
+                                        flex
+                                        items-center
+                                        gap-2
+                                        rounded-xl
+                                        border
+                                        border-slate-200
+                                        bg-white
+                                        px-4
+                                        py-4
+                                        text-sm
+                                        text-slate-500
+                                    "
+                                >
+                                    <RefreshCw
+                                        className="
+                                            h-4 w-4
+                                            animate-spin
+                                        "
+                                    />
+                                    Loading active owners...
+                                </div>
+                            ) : (
+                                <>
+                                    <div
+                                        className="
+                                            mt-4
+                                            space-y-3
+                                        "
+                                    >
+                                        {ownershipForm.map(
+                                            (
+                                                row,
+                                                index
+                                            ) => {
+                                                const selectedIds =
+                                                    ownershipForm
+                                                        .filter(
+                                                            item =>
+                                                                item.local_key !==
+                                                                row.local_key
+                                                        )
+                                                        .map(
+                                                            item =>
+                                                                item.owner_public_id
+                                                        );
+
+                                                return (
+                                                    <div
+                                                        key={
+                                                            row.local_key
+                                                        }
+                                                        className="
+                                                            rounded-xl
+                                                            border
+                                                            border-slate-200
+                                                            bg-white
+                                                            p-3
+                                                        "
+                                                    >
+                                                        <div
+                                                            className="
+                                                                mb-3
+                                                                flex
+                                                                items-center
+                                                                justify-between
+                                                            "
+                                                        >
+                                                            <span
+                                                                className="
+                                                                    text-xs
+                                                                    font-bold
+                                                                    uppercase
+                                                                    tracking-wide
+                                                                    text-slate-400
+                                                                "
+                                                            >
+                                                                Owner{" "}
+                                                                {index +
+                                                                    1}
+                                                            </span>
+
+                                                            {ownershipForm.length >
+                                                                1 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        removeOwnershipRow(
+                                                                            row.local_key
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        ownershipSaving
+                                                                    }
+                                                                    className="
+                                                                        inline-flex
+                                                                        items-center
+                                                                        gap-1
+                                                                        text-xs
+                                                                        font-semibold
+                                                                        text-rose-600
+                                                                        hover:text-rose-700
+                                                                        disabled:opacity-50
+                                                                    "
+                                                                >
+                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                    Remove
+                                                                </button>
+                                                            )}
+                                                        </div>
+
+                                                        <div
+                                                            className="
+                                                                grid
+                                                                gap-3
+                                                            "
+                                                        >
+                                                            <label className="text-xs font-semibold text-slate-600">
+                                                                Owner
+                                                                <select
+                                                                    value={
+                                                                        row.owner_public_id
+                                                                    }
+                                                                    onChange={
+                                                                        event =>
+                                                                            updateOwnershipRow(
+                                                                                row.local_key,
+                                                                                "owner_public_id",
+                                                                                event
+                                                                                    .target
+                                                                                    .value
+                                                                            )
+                                                                    }
+                                                                    disabled={
+                                                                        ownershipSaving
+                                                                    }
+                                                                    className={
+                                                                        FIELD_CLASS_NAME
+                                                                    }
+                                                                    required
+                                                                >
+                                                                    <option value="">
+                                                                        Select
+                                                                        owner
+                                                                    </option>
+
+                                                                    {availableOwners.map(
+                                                                        owner => (
+                                                                            <option
+                                                                                key={
+                                                                                    owner.public_id
+                                                                                }
+                                                                                value={
+                                                                                    owner.public_id
+                                                                                }
+                                                                                disabled={
+                                                                                    selectedIds.includes(
+                                                                                        owner.public_id
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                {
+                                                                                    owner.display_name
+                                                                                }{" "}
+                                                                                (
+                                                                                {formatLabel(
+                                                                                    owner.owner_type
+                                                                                )}
+                                                                                )
+                                                                            </option>
+                                                                        )
+                                                                    )}
+                                                                </select>
+                                                            </label>
+
+                                                            <div
+                                                                className="
+                                                                    grid
+                                                                    gap-3
+                                                                    sm:grid-cols-2
+                                                                "
+                                                            >
+                                                                <label className="text-xs font-semibold text-slate-600">
+                                                                    Ownership
+                                                                    %
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0.0001"
+                                                                        max="100"
+                                                                        step="0.0001"
+                                                                        value={
+                                                                            row.ownership_percentage
+                                                                        }
+                                                                        onChange={
+                                                                            event =>
+                                                                                updateOwnershipRow(
+                                                                                    row.local_key,
+                                                                                    "ownership_percentage",
+                                                                                    event
+                                                                                        .target
+                                                                                        .value
+                                                                                )
+                                                                        }
+                                                                        disabled={
+                                                                            ownershipSaving
+                                                                        }
+                                                                        className={
+                                                                            FIELD_CLASS_NAME
+                                                                        }
+                                                                        required
+                                                                    />
+                                                                </label>
+
+                                                                <label className="text-xs font-semibold text-slate-600">
+                                                                    Ownership
+                                                                    Type
+                                                                    <select
+                                                                        value={
+                                                                            row.ownership_type
+                                                                        }
+                                                                        onChange={
+                                                                            event =>
+                                                                                updateOwnershipRow(
+                                                                                    row.local_key,
+                                                                                    "ownership_type",
+                                                                                    event
+                                                                                        .target
+                                                                                        .value
+                                                                                )
+                                                                        }
+                                                                        disabled={
+                                                                            ownershipSaving
+                                                                        }
+                                                                        className={
+                                                                            FIELD_CLASS_NAME
+                                                                        }
+                                                                    >
+                                                                        {OWNERSHIP_TYPES.map(
+                                                                            type => (
+                                                                                <option
+                                                                                    key={
+                                                                                        type
+                                                                                    }
+                                                                                    value={
+                                                                                        type
+                                                                                    }
+                                                                                >
+                                                                                    {formatLabel(
+                                                                                        type
+                                                                                    )}
+                                                                                </option>
+                                                                            )
+                                                                        )}
+                                                                    </select>
+                                                                </label>
+                                                            </div>
+
+                                                            <label
+                                                                className="
+                                                                    flex
+                                                                    items-center
+                                                                    gap-2
+                                                                    rounded-lg
+                                                                    border
+                                                                    border-slate-200
+                                                                    bg-slate-50
+                                                                    px-3
+                                                                    py-2.5
+                                                                    text-xs
+                                                                    font-semibold
+                                                                    text-slate-700
+                                                                "
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={
+                                                                        row.is_primary_contact
+                                                                    }
+                                                                    onChange={
+                                                                        event =>
+                                                                            updateOwnershipRow(
+                                                                                row.local_key,
+                                                                                "is_primary_contact",
+                                                                                event
+                                                                                    .target
+                                                                                    .checked
+                                                                            )
+                                                                    }
+                                                                    disabled={
+                                                                        ownershipSaving ||
+                                                                        ownershipForm.length ===
+                                                                            1
+                                                                    }
+                                                                    className="
+                                                                        h-4 w-4
+                                                                        rounded
+                                                                        border-slate-300
+                                                                    "
+                                                                />
+                                                                Primary
+                                                                owner
+                                                                contact
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                        )}
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            addOwnershipRow
+                                        }
+                                        disabled={
+                                            ownershipSaving ||
+                                            ownershipForm.length >=
+                                                100
+                                        }
+                                        className="
+                                            mt-3
+                                            inline-flex
+                                            items-center
+                                            gap-2
+                                            rounded-lg
+                                            border
+                                            border-dashed
+                                            border-blue-300
+                                            bg-white
+                                            px-3
+                                            py-2
+                                            text-xs
+                                            font-semibold
+                                            text-blue-700
+                                            transition
+                                            hover:bg-blue-50
+                                            disabled:cursor-not-allowed
+                                            disabled:opacity-50
+                                        "
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add Owner
+                                    </button>
+
+                                    <div
+                                        className="
+                                            mt-4
+                                            rounded-xl
+                                            border
+                                            border-slate-200
+                                            bg-white
+                                            p-3
+                                        "
+                                    >
+                                        <div
+                                            className="
+                                                flex
+                                                items-center
+                                                justify-between
+                                                gap-3
+                                                text-sm
+                                            "
+                                        >
+                                            <span className="text-slate-500">
+                                                New ownership
+                                                total
+                                            </span>
+
+                                            <span
+                                                className={
+                                                    ownershipTotal >
+                                                    100
+                                                        ? "font-bold text-rose-700"
+                                                        : "font-bold text-slate-900"
+                                                }
+                                            >
+                                                {ownershipTotal.toFixed(
+                                                    4
+                                                )}
+                                                %
+                                            </span>
+                                        </div>
+
+                                        <div
+                                            className="
+                                                mt-2
+                                                flex
+                                                items-center
+                                                justify-between
+                                                gap-3
+                                                text-sm
+                                            "
+                                        >
+                                            <span className="text-slate-500">
+                                                Remaining
+                                            </span>
+
+                                            <span className="font-bold text-slate-900">
+                                                {Number(
+                                                    100 -
+                                                        ownershipTotal
+                                                ).toFixed(
+                                                    4
+                                                )}
+                                                %
+                                            </span>
+                                        </div>
+
+                                        {property.operational_status ===
+                                            "active" && (
+                                            <p
+                                                className="
+                                                    mt-2
+                                                    text-xs
+                                                    leading-5
+                                                    text-amber-700
+                                                "
+                                            >
+                                                Active
+                                                properties
+                                                must remain at
+                                                exactly 100%
+                                                ownership with
+                                                one primary
+                                                owner.
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div
+                                        className="
+                                            mt-4
+                                            flex
+                                            flex-wrap
+                                            justify-end
+                                            gap-2
+                                        "
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={
+                                                closeOwnershipManager
+                                            }
+                                            disabled={
+                                                ownershipSaving
+                                            }
+                                            className="
+                                                rounded-lg
+                                                border
+                                                border-slate-200
+                                                bg-white
+                                                px-3
+                                                py-2
+                                                text-xs
+                                                font-semibold
+                                                text-slate-700
+                                                hover:bg-slate-50
+                                                disabled:opacity-50
+                                            "
+                                        >
+                                            Cancel
+                                        </button>
+
+                                        <button
+                                            type="submit"
+                                            disabled={
+                                                ownershipSaving ||
+                                                ownersLoading
+                                            }
+                                            className="
+                                                inline-flex
+                                                items-center
+                                                gap-2
+                                                rounded-lg
+                                                bg-blue-600
+                                                px-3
+                                                py-2
+                                                text-xs
+                                                font-semibold
+                                                text-white
+                                                transition
+                                                hover:bg-blue-700
+                                                disabled:cursor-not-allowed
+                                                disabled:opacity-60
+                                            "
+                                        >
+                                            {ownershipSaving ? (
+                                                <RefreshCw
+                                                    className="
+                                                        h-4 w-4
+                                                        animate-spin
+                                                    "
+                                                />
+                                            ) : (
+                                                <Save className="h-4 w-4" />
+                                            )}
+
+                                            {ownershipSaving
+                                                ? "Saving..."
+                                                : "Save Ownership"}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </form>
+                    )}
 
                     <div
                         className="
