@@ -14,6 +14,7 @@ const validateRequest
 
 const {
     getPropertiesController,
+    getDeletedPropertiesController,
     createPropertyController,
     getSinglePropertyController,
     updatePropertyController,
@@ -57,6 +58,18 @@ router.get(
     validateRequest,
     getPropertiesController
 );
+/*
+ * Administrative recovery list.
+ * Must stay before /:property_public_id routes.
+ */
+router.get(
+    "/deleted",
+    authMiddleware,
+    getPropertiesValidator,
+    validateRequest,
+    getDeletedPropertiesController
+);
+
 router.post(
     "/",
     authMiddleware,

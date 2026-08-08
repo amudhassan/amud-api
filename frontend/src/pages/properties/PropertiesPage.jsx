@@ -5,6 +5,7 @@ import {
     MapPin,
     Plus,
     RefreshCw,
+    RotateCcw,
     Search,
     ShieldCheck,
     Trash2,
@@ -141,6 +142,17 @@ const getErrorMessage = error => {
         error?.message ||
         "Properties could not be loaded. Please try again."
     );
+};
+
+const getCurrentUser = () => {
+    try {
+        return JSON.parse(
+            localStorage.getItem("auth_user") ||
+            "null"
+        );
+    } catch {
+        return null;
+    }
 };
 
 const getStatusClassName = status => {
@@ -285,6 +297,31 @@ function PropertiesPage() {
     const [pagination, setPagination] =
         useState(EMPTY_PAGINATION);
 
+    const currentUser = useMemo(
+        () => getCurrentUser(),
+        []
+    );
+
+    const isAdmin =
+        currentUser?.role === "admin";
+
+    const [deletedOpen, setDeletedOpen] =
+        useState(false);
+    const [deletedProperties, setDeletedProperties] =
+        useState([]);
+    const [deletedPagination, setDeletedPagination] =
+        useState(EMPTY_PAGINATION);
+    const [deletedPage, setDeletedPage] =
+        useState(1);
+    const [deletedLoading, setDeletedLoading] =
+        useState(false);
+    const [deletedError, setDeletedError] =
+        useState("");
+    const [restoreSuccess, setRestoreSuccess] =
+        useState("");
+    const [restoringPropertyId, setRestoringPropertyId] =
+        useState("");
+
     const [loading, setLoading] =
         useState(true);
     const [error, setError] =
@@ -387,6 +424,145 @@ function PropertiesPage() {
             usageCategory
         ]
     );
+
+    const loadDeletedProperties =
+        useCallback(
+            async requestedPage => {
+                if (!isAdmin) {
+                    return;
+                }
+
+                const targetPage =
+                    requestedPage ||
+                    deletedPage;
+
+                try {
+                    setDeletedLoading(true);
+                    setDeletedError("");
+
+                    const response =
+                        await apiClient.get(
+                            "/properties/deleted",
+                            {
+                                params: {
+                                    page: targetPage,
+                                    limit: 20
+                                }
+                            }
+                        );
+
+                    const payload =
+                        response.data || {};
+
+                    setDeletedProperties(
+                        Array.isArray(
+                            payload?.data
+                                ?.properties
+                        )
+                            ? payload.data
+                                  .properties
+                            : []
+                    );
+
+                    setDeletedPagination({
+                        ...EMPTY_PAGINATION,
+                        ...(payload.pagination ||
+                            {})
+                    });
+
+                    setDeletedPage(
+                        targetPage
+                    );
+                } catch (requestError) {
+                    setDeletedProperties([]);
+                    setDeletedPagination(
+                        EMPTY_PAGINATION
+                    );
+                    setDeletedError(
+                        getErrorMessage(
+                            requestError
+                        )
+                    );
+                } finally {
+                    setDeletedLoading(false);
+                }
+            },
+            [
+                deletedPage,
+                isAdmin
+            ]
+        );
+
+    const openDeletedProperties =
+        async () => {
+            setRestoreSuccess("");
+            setDeletedError("");
+            setDeletedOpen(true);
+            setDeletedPage(1);
+
+            await loadDeletedProperties(1);
+        };
+
+    const closeDeletedProperties =
+        () => {
+            if (restoringPropertyId) {
+                return;
+            }
+
+            setDeletedOpen(false);
+            setDeletedError("");
+            setRestoreSuccess("");
+        };
+
+    const restoreProperty =
+        async property => {
+            if (
+                !isAdmin ||
+                !property?.public_id
+            ) {
+                return;
+            }
+
+            const confirmed =
+                window.confirm(
+                    `Restore "${property.property_name}"? It will return as Inactive and can be activated again later.`
+                );
+
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                setRestoringPropertyId(
+                    property.public_id
+                );
+                setDeletedError("");
+                setRestoreSuccess("");
+
+                await apiClient.patch(
+                    `/properties/${property.public_id}/restore`
+                );
+
+                setRestoreSuccess(
+                    "Property restored successfully."
+                );
+
+                await Promise.all([
+                    loadDeletedProperties(
+                        deletedPage
+                    ),
+                    loadProperties()
+                ]);
+            } catch (requestError) {
+                setDeletedError(
+                    getErrorMessage(
+                        requestError
+                    )
+                );
+            } finally {
+                setRestoringPropertyId("");
+            }
+        };
 
     const loadOwners = useCallback(
         async () => {
@@ -795,6 +971,36 @@ function PropertiesPage() {
                         Refresh
                     </button>
 
+                    {isAdmin && (
+                        <button
+                            type="button"
+                            onClick={
+                                openDeletedProperties
+                            }
+                            className="
+                                inline-flex
+                                items-center
+                                justify-center
+                                gap-2
+                                rounded-xl
+                                border
+                                border-amber-200
+                                bg-amber-50
+                                px-4
+                                py-2.5
+                                text-sm
+                                font-semibold
+                                text-amber-700
+                                shadow-sm
+                                transition
+                                hover:bg-amber-100
+                            "
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            Deleted Properties
+                        </button>
+                    )}
+
                     <button
                         type="button"
                         onClick={openCreateProperty}
@@ -823,6 +1029,24 @@ function PropertiesPage() {
                     </button>
                 </div>
             </div>
+
+            {restoreSuccess && !deletedOpen && (
+                <div
+                    className="
+                        rounded-2xl
+                        border
+                        border-emerald-200
+                        bg-emerald-50
+                        px-4
+                        py-3
+                        text-sm
+                        font-medium
+                        text-emerald-700
+                    "
+                >
+                    {restoreSuccess}
+                </div>
+            )}
 
             {createSuccess && (
                 <div
@@ -1852,6 +2076,479 @@ function PropertiesPage() {
                     </>
                 )}
             </div>
+
+            {deletedOpen && isAdmin && (
+                <div
+                    className="
+                        fixed inset-0 z-50
+                        flex items-center
+                        justify-center
+                        bg-slate-950/50
+                        p-4
+                    "
+                >
+                    <div
+                        className="
+                            flex
+                            max-h-[90vh]
+                            w-full
+                            max-w-5xl
+                            flex-col
+                            overflow-hidden
+                            rounded-3xl
+                            bg-white
+                            shadow-2xl
+                        "
+                    >
+                        <div
+                            className="
+                                flex items-start
+                                justify-between
+                                gap-4
+                                border-b
+                                border-slate-200
+                                px-6 py-5
+                            "
+                        >
+                            <div>
+                                <h2
+                                    className="
+                                        text-xl
+                                        font-bold
+                                        text-slate-950
+                                    "
+                                >
+                                    Deleted Properties
+                                </h2>
+
+                                <p
+                                    className="
+                                        mt-1
+                                        text-sm
+                                        text-slate-500
+                                    "
+                                >
+                                    Admin recovery area for
+                                    soft-deleted properties.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={
+                                    closeDeletedProperties
+                                }
+                                disabled={
+                                    Boolean(
+                                        restoringPropertyId
+                                    )
+                                }
+                                className="
+                                    inline-flex
+                                    h-9 w-9
+                                    items-center
+                                    justify-center
+                                    rounded-xl
+                                    text-slate-500
+                                    hover:bg-slate-100
+                                    hover:text-slate-900
+                                    disabled:opacity-50
+                                "
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div
+                            className="
+                                flex-1
+                                overflow-y-auto
+                                px-6 py-5
+                            "
+                        >
+                            {restoreSuccess && (
+                                <div
+                                    className="
+                                        mb-4
+                                        rounded-xl
+                                        border
+                                        border-emerald-200
+                                        bg-emerald-50
+                                        px-4
+                                        py-3
+                                        text-sm
+                                        font-medium
+                                        text-emerald-700
+                                    "
+                                >
+                                    {restoreSuccess}
+                                </div>
+                            )}
+
+                            {deletedError && (
+                                <div
+                                    className="
+                                        mb-4
+                                        rounded-xl
+                                        border
+                                        border-rose-200
+                                        bg-rose-50
+                                        px-4
+                                        py-3
+                                        text-sm
+                                        text-rose-700
+                                    "
+                                >
+                                    {deletedError}
+                                </div>
+                            )}
+
+                            {deletedLoading ? (
+                                <div
+                                    className="
+                                        flex
+                                        items-center
+                                        justify-center
+                                        gap-2
+                                        py-12
+                                        text-sm
+                                        text-slate-500
+                                    "
+                                >
+                                    <RefreshCw
+                                        className="
+                                            h-4 w-4
+                                            animate-spin
+                                        "
+                                    />
+                                    Loading deleted
+                                    properties...
+                                </div>
+                            ) : deletedProperties.length ===
+                              0 ? (
+                                <div
+                                    className="
+                                        rounded-2xl
+                                        border
+                                        border-dashed
+                                        border-slate-200
+                                        bg-slate-50
+                                        px-6
+                                        py-12
+                                        text-center
+                                    "
+                                >
+                                    <Trash2
+                                        className="
+                                            mx-auto
+                                            h-8 w-8
+                                            text-slate-300
+                                        "
+                                    />
+
+                                    <p
+                                        className="
+                                            mt-3
+                                            font-semibold
+                                            text-slate-700
+                                        "
+                                    >
+                                        No deleted
+                                        properties
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {deletedProperties.map(
+                                        property => (
+                                            <div
+                                                key={
+                                                    property.public_id
+                                                }
+                                                className="
+                                                    rounded-2xl
+                                                    border
+                                                    border-slate-200
+                                                    bg-white
+                                                    p-4
+                                                "
+                                            >
+                                                <div
+                                                    className="
+                                                        flex
+                                                        flex-col
+                                                        gap-4
+                                                        md:flex-row
+                                                        md:items-center
+                                                        md:justify-between
+                                                    "
+                                                >
+                                                    <div className="min-w-0">
+                                                        <div
+                                                            className="
+                                                                flex
+                                                                flex-wrap
+                                                                items-center
+                                                                gap-2
+                                                            "
+                                                        >
+                                                            <h3
+                                                                className="
+                                                                    truncate
+                                                                    font-bold
+                                                                    text-slate-900
+                                                                "
+                                                            >
+                                                                {
+                                                                    property.property_name
+                                                                }
+                                                            </h3>
+
+                                                            <span
+                                                                className="
+                                                                    rounded-full
+                                                                    bg-rose-50
+                                                                    px-2.5
+                                                                    py-1
+                                                                    text-xs
+                                                                    font-semibold
+                                                                    text-rose-700
+                                                                    ring-1
+                                                                    ring-rose-200
+                                                                "
+                                                            >
+                                                                Deleted
+                                                            </span>
+                                                        </div>
+
+                                                        <p
+                                                            className="
+                                                                mt-1
+                                                                text-sm
+                                                                text-slate-500
+                                                            "
+                                                        >
+                                                            {
+                                                                property.property_code
+                                                            }{" "}
+                                                            ·{" "}
+                                                            {formatLabel(
+                                                                property.property_type
+                                                            )}
+                                                        </p>
+
+                                                        <div
+                                                            className="
+                                                                mt-3
+                                                                grid
+                                                                gap-2
+                                                                text-sm
+                                                                text-slate-600
+                                                                sm:grid-cols-2
+                                                            "
+                                                        >
+                                                            <div>
+                                                                Owner:{" "}
+                                                                <span className="font-medium text-slate-800">
+                                                                    {property.primary_owner
+                                                                        ?.display_name ||
+                                                                        "No primary owner"}
+                                                                </span>
+                                                            </div>
+
+                                                            <div>
+                                                                Ownership:{" "}
+                                                                <span className="font-medium text-slate-800">
+                                                                    {Number(
+                                                                        property
+                                                                            .ownership_summary
+                                                                            ?.total_active_ownership ||
+                                                                            0
+                                                                    ).toFixed(
+                                                                        2
+                                                                    )}
+                                                                    %
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="sm:col-span-2">
+                                                                Deleted:{" "}
+                                                                <span className="font-medium text-slate-800">
+                                                                    {property.deleted_at
+                                                                        ? new Date(
+                                                                              property.deleted_at
+                                                                          ).toLocaleString()
+                                                                        : "—"}
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="sm:col-span-2">
+                                                                Location:{" "}
+                                                                <span className="font-medium text-slate-800">
+                                                                    {getLocationText(
+                                                                        property.location
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            restoreProperty(
+                                                                property
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            Boolean(
+                                                                restoringPropertyId
+                                                            )
+                                                        }
+                                                        className="
+                                                            inline-flex
+                                                            shrink-0
+                                                            items-center
+                                                            justify-center
+                                                            gap-2
+                                                            rounded-xl
+                                                            bg-emerald-600
+                                                            px-4
+                                                            py-2.5
+                                                            text-sm
+                                                            font-semibold
+                                                            text-white
+                                                            transition
+                                                            hover:bg-emerald-700
+                                                            disabled:cursor-not-allowed
+                                                            disabled:opacity-50
+                                                        "
+                                                    >
+                                                        {restoringPropertyId ===
+                                                        property.public_id ? (
+                                                            <RefreshCw
+                                                                className="
+                                                                    h-4 w-4
+                                                                    animate-spin
+                                                                "
+                                                            />
+                                                        ) : (
+                                                            <RotateCcw className="h-4 w-4" />
+                                                        )}
+
+                                                        {restoringPropertyId ===
+                                                        property.public_id
+                                                            ? "Restoring..."
+                                                            : "Restore"}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div
+                            className="
+                                flex
+                                flex-col
+                                gap-3
+                                border-t
+                                border-slate-200
+                                bg-slate-50
+                                px-6 py-4
+                                sm:flex-row
+                                sm:items-center
+                                sm:justify-between
+                            "
+                        >
+                            <p
+                                className="
+                                    text-sm
+                                    text-slate-500
+                                "
+                            >
+                                Page{" "}
+                                {deletedPagination.page ||
+                                    1}{" "}
+                                of{" "}
+                                {deletedPagination.total_pages ||
+                                    0}
+                            </p>
+
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        loadDeletedProperties(
+                                            Math.max(
+                                                1,
+                                                deletedPage -
+                                                    1
+                                            )
+                                        )
+                                    }
+                                    disabled={
+                                        deletedLoading ||
+                                        !deletedPagination.has_previous_page
+                                    }
+                                    className="
+                                        inline-flex
+                                        items-center
+                                        gap-1
+                                        rounded-lg
+                                        border
+                                        border-slate-200
+                                        bg-white
+                                        px-3
+                                        py-2
+                                        text-sm
+                                        font-semibold
+                                        text-slate-700
+                                        disabled:opacity-40
+                                    "
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                    Previous
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        loadDeletedProperties(
+                                            deletedPage +
+                                                1
+                                        )
+                                    }
+                                    disabled={
+                                        deletedLoading ||
+                                        !deletedPagination.has_next_page
+                                    }
+                                    className="
+                                        inline-flex
+                                        items-center
+                                        gap-1
+                                        rounded-lg
+                                        border
+                                        border-slate-200
+                                        bg-white
+                                        px-3
+                                        py-2
+                                        text-sm
+                                        font-semibold
+                                        text-slate-700
+                                        disabled:opacity-40
+                                    "
+                                >
+                                    Next
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {createOpen && (
                 <div

@@ -5,6 +5,7 @@ const AppError =
 
 const {
     getProperties,
+    getDeletedProperties,
     createProperty,
     getSingleProperty,
     updateProperty,
@@ -44,6 +45,45 @@ const getPropertiesController =
             });
         }
     );
+const getDeletedPropertiesController =
+    asyncHandler(
+        async (req, res, next) => {
+            const result =
+                await getDeletedProperties({
+                    filters: req.query,
+                    authenticatedUser:
+                        req.user
+                });
+
+            if (result.forbidden) {
+                return next(
+                    new AppError(
+                        "Only administrators can view deleted properties.",
+                        403
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Deleted properties retrieved successfully.",
+
+                count:
+                    result.properties.length,
+
+                pagination:
+                    result.pagination,
+
+                data: {
+                    properties:
+                        result.properties
+                }
+            });
+        }
+    );
+
 const createPropertyController =
     asyncHandler(
         async (req, res, next) => {
@@ -608,6 +648,7 @@ const createPropertyController =
     );
 module.exports = {
     getPropertiesController,
+    getDeletedPropertiesController,
     createPropertyController,
     getSinglePropertyController,
     updatePropertyController,
