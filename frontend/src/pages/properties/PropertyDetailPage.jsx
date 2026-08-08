@@ -5,10 +5,13 @@ import {
     Home,
     Mail,
     MapPin,
+    Pencil,
     Phone,
     RefreshCw,
+    Save,
     ShieldCheck,
-    Users
+    Users,
+    X
 } from "lucide-react";
 import {
     useCallback,
@@ -95,6 +98,63 @@ const getStatusClassName = status => {
     }
 };
 
+const USAGE_CATEGORIES = [
+    "residential",
+    "commercial",
+    "mixed",
+    "industrial",
+    "land",
+    "hospitality",
+    "institutional",
+    "agricultural",
+    "other"
+];
+
+const FIELD_CLASS_NAME = `
+    mt-1.5
+    w-full
+    rounded-xl
+    border
+    border-slate-200
+    bg-white
+    px-3
+    py-2.5
+    text-sm
+    text-slate-900
+    outline-none
+    transition
+    focus:border-blue-400
+    focus:ring-4
+    focus:ring-blue-50
+`;
+
+const makeEditForm = property => ({
+    property_name:
+        property?.property_name || "",
+    property_type:
+        property?.property_type || "",
+    usage_category:
+        property?.usage_category || "residential",
+    description:
+        property?.description || "",
+    address:
+        property?.address || "",
+    city:
+        property?.city || "",
+    region:
+        property?.region || "",
+    country:
+        property?.country || "",
+    latitude:
+        property?.latitude ?? "",
+    longitude:
+        property?.longitude ?? "",
+    year_built:
+        property?.year_built ?? "",
+    is_multi_unit:
+        Boolean(property?.is_multi_unit)
+});
+
 const DetailItem = ({
     label,
     value
@@ -144,6 +204,16 @@ function PropertyDetailPage() {
     const [loading, setLoading] =
         useState(true);
     const [error, setError] =
+        useState("");
+    const [isEditing, setIsEditing] =
+        useState(false);
+    const [editForm, setEditForm] =
+        useState(null);
+    const [saving, setSaving] =
+        useState(false);
+    const [editError, setEditError] =
+        useState("");
+    const [successMessage, setSuccessMessage] =
         useState("");
 
     const loadProperty = useCallback(
@@ -211,6 +281,243 @@ function PropertyDetailPage() {
             ? parts.join(", ")
             : "Location not provided";
     }, [property]);
+
+    const openEdit = () => {
+        setEditForm(
+            makeEditForm(property)
+        );
+        setEditError("");
+        setSuccessMessage("");
+        setIsEditing(true);
+    };
+
+    const closeEdit = () => {
+        if (saving) {
+            return;
+        }
+
+        setEditForm(null);
+        setEditError("");
+        setIsEditing(false);
+    };
+
+    const updateEditField = (
+        field,
+        value
+    ) => {
+        setEditForm(current => ({
+            ...current,
+            [field]: value
+        }));
+    };
+
+    const validateEditForm = () => {
+        const propertyName =
+            editForm?.property_name?.trim() || "";
+        const propertyType =
+            editForm?.property_type?.trim() || "";
+        const country =
+            editForm?.country?.trim() || "";
+
+        if (
+            propertyName.length < 2 ||
+            propertyName.length > 150
+        ) {
+            return "Property name must contain between 2 and 150 characters.";
+        }
+
+        if (
+            propertyType.length < 2 ||
+            propertyType.length > 60 ||
+            !/^[A-Za-z0-9_-]+$/.test(
+                propertyType
+            )
+        ) {
+            return "Property type must contain 2–60 letters, numbers, underscores or hyphens.";
+        }
+
+        if (
+            !USAGE_CATEGORIES.includes(
+                editForm?.usage_category
+            )
+        ) {
+            return "Please select a valid usage category.";
+        }
+
+        if (
+            country.length < 2 ||
+            country.length > 100
+        ) {
+            return "Country must contain between 2 and 100 characters.";
+        }
+
+        if (
+            editForm?.description?.length > 2000
+        ) {
+            return "Description cannot exceed 2000 characters.";
+        }
+
+        if (
+            editForm?.address?.length > 255
+        ) {
+            return "Address cannot exceed 255 characters.";
+        }
+
+        for (const [
+            field,
+            label
+        ] of [
+            ["city", "City"],
+            ["region", "Region"]
+        ]) {
+            if (
+                editForm?.[field]?.length > 100
+            ) {
+                return `${label} cannot exceed 100 characters.`;
+            }
+        }
+
+        if (editForm?.year_built !== "") {
+            const yearBuilt =
+                Number(editForm.year_built);
+
+            if (
+                !Number.isInteger(yearBuilt) ||
+                yearBuilt < 1000 ||
+                yearBuilt > 2100
+            ) {
+                return "Year built must be between 1000 and 2100.";
+            }
+        }
+
+        if (editForm?.latitude !== "") {
+            const latitude =
+                Number(editForm.latitude);
+
+            if (
+                Number.isNaN(latitude) ||
+                latitude < -90 ||
+                latitude > 90
+            ) {
+                return "Latitude must be between -90 and 90.";
+            }
+        }
+
+        if (editForm?.longitude !== "") {
+            const longitude =
+                Number(editForm.longitude);
+
+            if (
+                Number.isNaN(longitude) ||
+                longitude < -180 ||
+                longitude > 180
+            ) {
+                return "Longitude must be between -180 and 180.";
+            }
+        }
+
+        return "";
+    };
+
+    const saveProperty = async event => {
+        event.preventDefault();
+
+        const validationError =
+            validateEditForm();
+
+        if (validationError) {
+            setEditError(
+                validationError
+            );
+            return;
+        }
+
+        const nullableText = value => {
+            const normalized =
+                String(value || "").trim();
+
+            return normalized === ""
+                ? null
+                : normalized;
+        };
+
+        const payload = {
+            property_name:
+                editForm.property_name.trim(),
+            property_type:
+                editForm.property_type.trim(),
+            usage_category:
+                editForm.usage_category,
+            description:
+                nullableText(
+                    editForm.description
+                ),
+            address:
+                nullableText(
+                    editForm.address
+                ),
+            city:
+                nullableText(
+                    editForm.city
+                ),
+            region:
+                nullableText(
+                    editForm.region
+                ),
+            country:
+                editForm.country.trim(),
+            latitude:
+                editForm.latitude === ""
+                    ? null
+                    : Number(
+                        editForm.latitude
+                    ),
+            longitude:
+                editForm.longitude === ""
+                    ? null
+                    : Number(
+                        editForm.longitude
+                    ),
+            year_built:
+                editForm.year_built === ""
+                    ? null
+                    : Number(
+                        editForm.year_built
+                    ),
+            is_multi_unit:
+                Boolean(
+                    editForm.is_multi_unit
+                )
+        };
+
+        try {
+            setSaving(true);
+            setEditError("");
+            setSuccessMessage("");
+
+            await apiClient.patch(
+                `/properties/${property_public_id}`,
+                payload
+            );
+
+            setIsEditing(false);
+            setEditForm(null);
+
+            await loadProperty();
+
+            setSuccessMessage(
+                "Property updated successfully."
+            );
+        } catch (requestError) {
+            setEditError(
+                getErrorMessage(
+                    requestError
+                )
+            );
+        } finally {
+            setSaving(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -420,32 +727,545 @@ function PropertyDetailPage() {
                     </div>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={loadProperty}
+                <div
                     className="
-                        inline-flex
+                        flex
+                        flex-wrap
                         items-center
-                        justify-center
                         gap-2
-                        rounded-xl
-                        border
-                        border-slate-200
-                        bg-white
-                        px-4
-                        py-2.5
-                        text-sm
-                        font-semibold
-                        text-slate-700
-                        shadow-sm
-                        transition
-                        hover:bg-slate-50
                     "
                 >
-                    <RefreshCw className="h-4 w-4" />
-                    Refresh
-                </button>
+                    <button
+                        type="button"
+                        onClick={openEdit}
+                        disabled={isEditing}
+                        className="
+                            inline-flex
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-xl
+                            bg-blue-600
+                            px-4
+                            py-2.5
+                            text-sm
+                            font-semibold
+                            text-white
+                            shadow-sm
+                            transition
+                            hover:bg-blue-700
+                            disabled:cursor-not-allowed
+                            disabled:opacity-50
+                        "
+                    >
+                        <Pencil className="h-4 w-4" />
+                        Edit Property
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={loadProperty}
+                        disabled={saving}
+                        className="
+                            inline-flex
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-white
+                            px-4
+                            py-2.5
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                            shadow-sm
+                            transition
+                            hover:bg-slate-50
+                            disabled:cursor-not-allowed
+                            disabled:opacity-50
+                        "
+                    >
+                        <RefreshCw className="h-4 w-4" />
+                        Refresh
+                    </button>
+                </div>
             </div>
+
+            {successMessage && (
+                <div
+                    className="
+                        rounded-2xl
+                        border
+                        border-emerald-200
+                        bg-emerald-50
+                        px-4
+                        py-3
+                        text-sm
+                        font-medium
+                        text-emerald-700
+                    "
+                >
+                    {successMessage}
+                </div>
+            )}
+
+            {isEditing && editForm && (
+                <form
+                    onSubmit={saveProperty}
+                    className="
+                        rounded-2xl
+                        border
+                        border-blue-200
+                        bg-white
+                        p-5
+                        shadow-sm
+                    "
+                >
+                    <div
+                        className="
+                            flex
+                            flex-col
+                            gap-3
+                            sm:flex-row
+                            sm:items-start
+                            sm:justify-between
+                        "
+                    >
+                        <div>
+                            <h2
+                                className="
+                                    text-lg
+                                    font-bold
+                                    text-slate-900
+                                "
+                            >
+                                Edit Property
+                            </h2>
+
+                            <p
+                                className="
+                                    mt-1
+                                    text-sm
+                                    text-slate-500
+                                "
+                            >
+                                Update property details.
+                                Ownership records are managed
+                                separately.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={closeEdit}
+                            disabled={saving}
+                            className="
+                                inline-flex
+                                h-9 w-9
+                                items-center
+                                justify-center
+                                rounded-lg
+                                text-slate-500
+                                transition
+                                hover:bg-slate-100
+                                hover:text-slate-900
+                                disabled:opacity-50
+                            "
+                            aria-label="Close edit form"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+                    </div>
+
+                    {editError && (
+                        <div
+                            className="
+                                mt-4
+                                rounded-xl
+                                border
+                                border-rose-200
+                                bg-rose-50
+                                px-4
+                                py-3
+                                text-sm
+                                text-rose-700
+                            "
+                        >
+                            {editError}
+                        </div>
+                    )}
+
+                    <div
+                        className="
+                            mt-5
+                            grid
+                            gap-4
+                            md:grid-cols-2
+                        "
+                    >
+                        <label className="text-sm font-semibold text-slate-700">
+                            Property Name
+                            <input
+                                type="text"
+                                value={
+                                    editForm.property_name
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "property_name",
+                                        event.target.value
+                                    )
+                                }
+                                maxLength={150}
+                                required
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            />
+                        </label>
+
+                        <label className="text-sm font-semibold text-slate-700">
+                            Property Type
+                            <input
+                                type="text"
+                                value={
+                                    editForm.property_type
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "property_type",
+                                        event.target.value
+                                    )
+                                }
+                                maxLength={60}
+                                required
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            />
+                        </label>
+
+                        <label className="text-sm font-semibold text-slate-700">
+                            Usage Category
+                            <select
+                                value={
+                                    editForm.usage_category
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "usage_category",
+                                        event.target.value
+                                    )
+                                }
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            >
+                                {USAGE_CATEGORIES.map(
+                                    category => (
+                                        <option
+                                            key={
+                                                category
+                                            }
+                                            value={
+                                                category
+                                            }
+                                        >
+                                            {formatLabel(
+                                                category
+                                            )}
+                                        </option>
+                                    )
+                                )}
+                            </select>
+                        </label>
+
+                        <label className="text-sm font-semibold text-slate-700">
+                            Country
+                            <input
+                                type="text"
+                                value={
+                                    editForm.country
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "country",
+                                        event.target.value
+                                    )
+                                }
+                                maxLength={100}
+                                required
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            />
+                        </label>
+
+                        <label className="text-sm font-semibold text-slate-700">
+                            Address
+                            <input
+                                type="text"
+                                value={
+                                    editForm.address
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "address",
+                                        event.target.value
+                                    )
+                                }
+                                maxLength={255}
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            />
+                        </label>
+
+                        <label className="text-sm font-semibold text-slate-700">
+                            City
+                            <input
+                                type="text"
+                                value={
+                                    editForm.city
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "city",
+                                        event.target.value
+                                    )
+                                }
+                                maxLength={100}
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            />
+                        </label>
+
+                        <label className="text-sm font-semibold text-slate-700">
+                            Region
+                            <input
+                                type="text"
+                                value={
+                                    editForm.region
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "region",
+                                        event.target.value
+                                    )
+                                }
+                                maxLength={100}
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            />
+                        </label>
+
+                        <label className="text-sm font-semibold text-slate-700">
+                            Year Built
+                            <input
+                                type="number"
+                                min="1000"
+                                max="2100"
+                                value={
+                                    editForm.year_built
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "year_built",
+                                        event.target.value
+                                    )
+                                }
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            />
+                        </label>
+
+                        <label className="text-sm font-semibold text-slate-700">
+                            Latitude
+                            <input
+                                type="number"
+                                step="any"
+                                min="-90"
+                                max="90"
+                                value={
+                                    editForm.latitude
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "latitude",
+                                        event.target.value
+                                    )
+                                }
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            />
+                        </label>
+
+                        <label className="text-sm font-semibold text-slate-700">
+                            Longitude
+                            <input
+                                type="number"
+                                step="any"
+                                min="-180"
+                                max="180"
+                                value={
+                                    editForm.longitude
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "longitude",
+                                        event.target.value
+                                    )
+                                }
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            />
+                        </label>
+
+                        <label
+                            className="
+                                flex
+                                items-center
+                                gap-3
+                                rounded-xl
+                                border
+                                border-slate-200
+                                bg-slate-50
+                                px-4
+                                py-3
+                                text-sm
+                                font-semibold
+                                text-slate-700
+                                md:col-span-2
+                            "
+                        >
+                            <input
+                                type="checkbox"
+                                checked={
+                                    editForm.is_multi_unit
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "is_multi_unit",
+                                        event.target.checked
+                                    )
+                                }
+                                className="
+                                    h-4 w-4
+                                    rounded
+                                    border-slate-300
+                                "
+                            />
+
+                            Multi-unit property
+                        </label>
+
+                        <label
+                            className="
+                                text-sm
+                                font-semibold
+                                text-slate-700
+                                md:col-span-2
+                            "
+                        >
+                            Description
+                            <textarea
+                                rows={4}
+                                value={
+                                    editForm.description
+                                }
+                                onChange={event =>
+                                    updateEditField(
+                                        "description",
+                                        event.target.value
+                                    )
+                                }
+                                maxLength={2000}
+                                className={
+                                    FIELD_CLASS_NAME
+                                }
+                            />
+                        </label>
+                    </div>
+
+                    <div
+                        className="
+                            mt-5
+                            flex
+                            flex-wrap
+                            justify-end
+                            gap-3
+                            border-t
+                            border-slate-200
+                            pt-5
+                        "
+                    >
+                        <button
+                            type="button"
+                            onClick={closeEdit}
+                            disabled={saving}
+                            className="
+                                rounded-xl
+                                border
+                                border-slate-200
+                                bg-white
+                                px-4
+                                py-2.5
+                                text-sm
+                                font-semibold
+                                text-slate-700
+                                transition
+                                hover:bg-slate-50
+                                disabled:opacity-50
+                            "
+                        >
+                            Cancel
+                        </button>
+
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="
+                                inline-flex
+                                items-center
+                                gap-2
+                                rounded-xl
+                                bg-blue-600
+                                px-4
+                                py-2.5
+                                text-sm
+                                font-semibold
+                                text-white
+                                transition
+                                hover:bg-blue-700
+                                disabled:cursor-not-allowed
+                                disabled:opacity-60
+                            "
+                        >
+                            {saving ? (
+                                <RefreshCw
+                                    className="
+                                        h-4 w-4
+                                        animate-spin
+                                    "
+                                />
+                            ) : (
+                                <Save className="h-4 w-4" />
+                            )}
+
+                            {saving
+                                ? "Saving..."
+                                : "Save Changes"}
+                        </button>
+                    </div>
+                </form>
+            )}
 
             <div
                 className="
