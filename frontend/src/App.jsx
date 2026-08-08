@@ -13,6 +13,7 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import OwnersPage from "./pages/owners/OwnersPage";
 import PropertiesPage from "./pages/properties/PropertiesPage";
+import PropertyDetailPage from "./pages/properties/PropertyDetailPage";
 import UnitsPage from "./pages/units/UnitsPage";
 import TenantsPage from "./pages/tenants/TenantsPage";
 import LeasesPage from "./pages/leases/LeasesPage";
@@ -66,6 +67,11 @@ function App() {
                     <Route
                         path="properties"
                         element={<PropertiesPage />}
+                    />
+
+                    <Route
+                        path="properties/:property_public_id"
+                        element={<PropertyDetailPage />}
                     />
 
                     <Route

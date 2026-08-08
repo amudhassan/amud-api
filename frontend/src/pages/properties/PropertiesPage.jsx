@@ -18,6 +18,8 @@ import {
     useState
 } from "react";
 
+import { useNavigate } from "react-router-dom";
+
 import apiClient from "../../api/apiClient";
 
 const STATUS_OPTIONS = [
@@ -277,6 +279,7 @@ const validateCreateProperty = form => {
 };
 
 function PropertiesPage() {
+    const navigate = useNavigate();
     const [properties, setProperties] =
         useState([]);
     const [pagination, setPagination] =
@@ -1307,16 +1310,27 @@ function PropertiesPage() {
                                                         </div>
 
                                                         <div>
-                                                            <div
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    navigate(
+                                                                        `/properties/${property.public_id}`
+                                                                    )
+                                                                }
                                                                 className="
+                                                                    text-left
                                                                     font-semibold
                                                                     text-slate-900
+                                                                    transition
+                                                                    hover:text-blue-600
+                                                                    hover:underline
+                                                                    hover:underline-offset-4
                                                                 "
                                                             >
                                                                 {
                                                                     property.property_name
                                                                 }
-                                                            </div>
+                                                            </button>
 
                                                             <div
                                                                 className="
@@ -1585,17 +1599,28 @@ function PropertiesPage() {
                                                 </div>
 
                                                 <div className="min-w-0">
-                                                    <h3
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            navigate(
+                                                                `/properties/${property.public_id}`
+                                                            )
+                                                        }
                                                         className="
+                                                            block
+                                                            max-w-full
                                                             truncate
+                                                            text-left
                                                             font-bold
                                                             text-slate-900
+                                                            transition
+                                                            hover:text-blue-600
                                                         "
                                                     >
                                                         {
                                                             property.property_name
                                                         }
-                                                    </h3>
+                                                    </button>
 
                                                     <p
                                                         className="
