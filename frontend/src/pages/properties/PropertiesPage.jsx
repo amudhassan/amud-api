@@ -3,10 +3,13 @@ import {
     ChevronLeft,
     ChevronRight,
     MapPin,
+    Plus,
     RefreshCw,
     Search,
     ShieldCheck,
-    Users
+    Trash2,
+    Users,
+    X
 } from "lucide-react";
 import {
     useCallback,
@@ -41,6 +44,41 @@ const USAGE_OPTIONS = [
     { value: "agricultural", label: "Agricultural" },
     { value: "other", label: "Other" }
 ];
+
+
+const OWNERSHIP_TYPE_OPTIONS = [
+    { value: "legal", label: "Legal" },
+    { value: "beneficial", label: "Beneficial" },
+    { value: "trustee", label: "Trustee" },
+    { value: "nominee", label: "Nominee" },
+    { value: "customary", label: "Customary" },
+    { value: "government", label: "Government" },
+    { value: "other", label: "Other" }
+];
+
+const makeOwnership = () => ({
+    owner_public_id: "",
+    ownership_percentage: "100",
+    ownership_type: "legal",
+    is_primary_contact: true,
+    effective_from: ""
+});
+
+const makePropertyForm = () => ({
+    property_name: "",
+    property_type: "",
+    usage_category: "residential",
+    description: "",
+    address: "",
+    city: "",
+    region: "",
+    country: "",
+    latitude: "",
+    longitude: "",
+    year_built: "",
+    is_multi_unit: true,
+    ownerships: [makeOwnership()]
+});
 
 const EMPTY_PAGINATION = {
     page: 1,
@@ -119,6 +157,125 @@ const getStatusClassName = status => {
     }
 };
 
+
+const nullableString = value => {
+    const trimmed = String(value ?? "").trim();
+    return trimmed === "" ? null : trimmed;
+};
+
+const validateCreateProperty = form => {
+    const name = form.property_name.trim();
+    const type = form.property_type.trim();
+    const country = form.country.trim();
+
+    if (name.length < 2 || name.length > 150) {
+        return "Property name must contain between 2 and 150 characters.";
+    }
+
+    if (
+        type.length < 2 ||
+        type.length > 60 ||
+        !/^[A-Za-z0-9_-]+$/.test(type)
+    ) {
+        return "Property type must be 2-60 characters using letters, numbers, underscores or hyphens only.";
+    }
+
+    if (country.length < 2 || country.length > 100) {
+        return "Country must contain between 2 and 100 characters.";
+    }
+
+    if (form.description.length > 2000) {
+        return "Description cannot exceed 2000 characters.";
+    }
+
+    if (form.address.length > 255) {
+        return "Address cannot exceed 255 characters.";
+    }
+
+    if (form.city.length > 100 || form.region.length > 100) {
+        return "City and region cannot exceed 100 characters.";
+    }
+
+    if (form.latitude !== "") {
+        const value = Number(form.latitude);
+
+        if (!Number.isFinite(value) || value < -90 || value > 90) {
+            return "Latitude must be between -90 and 90.";
+        }
+    }
+
+    if (form.longitude !== "") {
+        const value = Number(form.longitude);
+
+        if (!Number.isFinite(value) || value < -180 || value > 180) {
+            return "Longitude must be between -180 and 180.";
+        }
+    }
+
+    if (form.year_built !== "") {
+        const value = Number(form.year_built);
+
+        if (
+            !Number.isInteger(value) ||
+            value < 1000 ||
+            value > 2100
+        ) {
+            return "Year built must be between 1000 and 2100.";
+        }
+    }
+
+    if (!form.ownerships.length) {
+        return "At least one property owner is required.";
+    }
+
+    const ownerIds = form.ownerships.map(
+        ownership => ownership.owner_public_id.trim()
+    );
+
+    if (ownerIds.some(ownerId => !ownerId)) {
+        return "Select an owner for every ownership record.";
+    }
+
+    if (new Set(ownerIds).size !== ownerIds.length) {
+        return "The same owner cannot appear more than once.";
+    }
+
+    let total = 0;
+
+    for (const ownership of form.ownerships) {
+        const raw = String(
+            ownership.ownership_percentage
+        ).trim();
+
+        if (!/^\d+(\.\d{1,4})?$/.test(raw)) {
+            return "Ownership percentage may contain at most four decimal places.";
+        }
+
+        const value = Number(raw);
+
+        if (!Number.isFinite(value) || value <= 0 || value > 100) {
+            return "Ownership percentage must be greater than 0 and cannot exceed 100.";
+        }
+
+        total += value;
+    }
+
+    if (Number(total.toFixed(4)) > 100) {
+        return "Total property ownership cannot exceed 100%.";
+    }
+
+    if (
+        form.ownerships.filter(
+            ownership =>
+                ownership.is_primary_contact === true
+        ).length > 1
+    ) {
+        return "Only one property owner can be the primary contact.";
+    }
+
+    return "";
+};
+
 function PropertiesPage() {
     const [properties, setProperties] =
         useState([]);
@@ -140,6 +297,25 @@ function PropertiesPage() {
         useState("");
     const [page, setPage] =
         useState(1);
+
+    const [createOpen, setCreateOpen] =
+        useState(false);
+    const [createSubmitting, setCreateSubmitting] =
+        useState(false);
+    const [createError, setCreateError] =
+        useState("");
+    const [createSuccess, setCreateSuccess] =
+        useState("");
+
+    const [owners, setOwners] =
+        useState([]);
+    const [ownersLoading, setOwnersLoading] =
+        useState(false);
+    const [ownersError, setOwnersError] =
+        useState("");
+
+    const [propertyForm, setPropertyForm] =
+        useState(makePropertyForm());
 
     const loadProperties = useCallback(
         async () => {
@@ -208,6 +384,291 @@ function PropertiesPage() {
             usageCategory
         ]
     );
+
+    const loadOwners = useCallback(
+        async () => {
+            try {
+                setOwnersLoading(true);
+                setOwnersError("");
+
+                const response =
+                    await apiClient.get(
+                        "/owners",
+                        {
+                            params: {
+                                status: "active",
+                                page: 1,
+                                limit: 100
+                            }
+                        }
+                    );
+
+                const rows =
+                    Array.isArray(response?.data?.data)
+                        ? response.data.data
+                        : [];
+
+                setOwners(
+                    rows.filter(
+                        owner =>
+                            owner.status === "active" &&
+                            owner.can_manage_properties !== false
+                    )
+                );
+            } catch (requestError) {
+                setOwners([]);
+                setOwnersError(
+                    getErrorMessage(requestError)
+                );
+            } finally {
+                setOwnersLoading(false);
+            }
+        },
+        []
+    );
+
+    const ownershipTotal = useMemo(
+        () =>
+            Number(
+                propertyForm.ownerships
+                    .reduce(
+                        (total, ownership) =>
+                            total +
+                            (
+                                Number(
+                                    ownership
+                                        .ownership_percentage
+                                ) || 0
+                            ),
+                        0
+                    )
+                    .toFixed(4)
+            ),
+        [propertyForm.ownerships]
+    );
+
+    const openCreateProperty = async () => {
+        setCreateError("");
+        setCreateSuccess("");
+        setPropertyForm(makePropertyForm());
+        setCreateOpen(true);
+        await loadOwners();
+    };
+
+    const closeCreateProperty = () => {
+        if (!createSubmitting) {
+            setCreateOpen(false);
+            setCreateError("");
+        }
+    };
+
+    const updatePropertyField = (field, value) => {
+        setPropertyForm(current => ({
+            ...current,
+            [field]: value
+        }));
+    };
+
+    const updateOwnership = (
+        index,
+        field,
+        value
+    ) => {
+        setPropertyForm(current => ({
+            ...current,
+            ownerships:
+                current.ownerships.map(
+                    (ownership, itemIndex) => {
+                        if (
+                            field ===
+                                "is_primary_contact" &&
+                            value === true
+                        ) {
+                            return {
+                                ...ownership,
+                                is_primary_contact:
+                                    itemIndex === index
+                            };
+                        }
+
+                        if (itemIndex !== index) {
+                            return ownership;
+                        }
+
+                        return {
+                            ...ownership,
+                            [field]: value
+                        };
+                    }
+                )
+        }));
+    };
+
+    const addOwnership = () => {
+        setPropertyForm(current => ({
+            ...current,
+            ownerships: [
+                ...current.ownerships,
+                {
+                    ...makeOwnership(),
+                    ownership_percentage: "",
+                    is_primary_contact: false
+                }
+            ]
+        }));
+    };
+
+    const removeOwnership = index => {
+        setPropertyForm(current => {
+            if (current.ownerships.length <= 1) {
+                return current;
+            }
+
+            const ownerships =
+                current.ownerships.filter(
+                    (_, itemIndex) =>
+                        itemIndex !== index
+                );
+
+            if (ownerships.length === 1) {
+                ownerships[0] = {
+                    ...ownerships[0],
+                    is_primary_contact: true
+                };
+            }
+
+            return {
+                ...current,
+                ownerships
+            };
+        });
+    };
+
+    const handleCreateProperty = async event => {
+        event.preventDefault();
+        setCreateError("");
+
+        const validationError =
+            validateCreateProperty(
+                propertyForm
+            );
+
+        if (validationError) {
+            setCreateError(validationError);
+            return;
+        }
+
+        const payload = {
+            property_name:
+                propertyForm.property_name.trim(),
+            property_type:
+                propertyForm.property_type.trim(),
+            usage_category:
+                propertyForm.usage_category,
+            description:
+                nullableString(
+                    propertyForm.description
+                ),
+            address:
+                nullableString(
+                    propertyForm.address
+                ),
+            city:
+                nullableString(
+                    propertyForm.city
+                ),
+            region:
+                nullableString(
+                    propertyForm.region
+                ),
+            country:
+                propertyForm.country.trim(),
+            latitude:
+                propertyForm.latitude === ""
+                    ? null
+                    : Number(
+                          propertyForm.latitude
+                      ),
+            longitude:
+                propertyForm.longitude === ""
+                    ? null
+                    : Number(
+                          propertyForm.longitude
+                      ),
+            year_built:
+                propertyForm.year_built === ""
+                    ? null
+                    : Number(
+                          propertyForm.year_built
+                      ),
+            is_multi_unit:
+                Boolean(
+                    propertyForm.is_multi_unit
+                ),
+            ownerships:
+                propertyForm.ownerships.map(
+                    ownership => {
+                        const normalized = {
+                            owner_public_id:
+                                ownership.owner_public_id,
+                            ownership_percentage:
+                                Number(
+                                    ownership
+                                        .ownership_percentage
+                                ),
+                            ownership_type:
+                                ownership.ownership_type,
+                            is_primary_contact:
+                                propertyForm
+                                    .ownerships
+                                    .length === 1
+                                    ? true
+                                    : Boolean(
+                                          ownership
+                                              .is_primary_contact
+                                      )
+                        };
+
+                        if (ownership.effective_from) {
+                            normalized.effective_from =
+                                ownership.effective_from;
+                        }
+
+                        return normalized;
+                    }
+                )
+        };
+
+        try {
+            setCreateSubmitting(true);
+
+            const response =
+                await apiClient.post(
+                    "/properties",
+                    payload
+                );
+
+            const created =
+                response?.data?.data?.property;
+
+            setCreateSuccess(
+                created?.property_code
+                    ? `${created.property_name} (${created.property_code}) created successfully. It starts as Inactive.`
+                    : "Property created successfully. It starts as Inactive."
+            );
+
+            setCreateOpen(false);
+            setPropertyForm(makePropertyForm());
+            setPage(1);
+            await loadProperties();
+        } catch (requestError) {
+            setCreateError(
+                getErrorMessage(requestError)
+            );
+        } finally {
+            setCreateSubmitting(false);
+        }
+    };
 
     useEffect(() => {
         loadProperties();
@@ -290,46 +751,93 @@ function PropertiesPage() {
                             text-slate-500
                         "
                     >
-                        View and filter properties
-                        available to your account.
+                        View, filter and create
+                        properties available to your account.
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={loadProperties}
-                    disabled={loading}
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        onClick={loadProperties}
+                        disabled={loading}
+                        className="
+                            inline-flex
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-white
+                            px-4
+                            py-2.5
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                            shadow-sm
+                            transition
+                            hover:bg-slate-50
+                            disabled:cursor-not-allowed
+                            disabled:opacity-60
+                        "
+                    >
+                        <RefreshCw
+                            className={`h-4 w-4 ${
+                                loading
+                                    ? "animate-spin"
+                                    : ""
+                            }`}
+                        />
+                        Refresh
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={openCreateProperty}
+                        className="
+                            inline-flex
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-xl
+                            bg-blue-600
+                            px-4
+                            py-2.5
+                            text-sm
+                            font-semibold
+                            text-white
+                            shadow-sm
+                            transition
+                            hover:bg-blue-700
+                            focus:outline-none
+                            focus:ring-4
+                            focus:ring-blue-100
+                        "
+                    >
+                        <Plus className="h-4 w-4" />
+                        Add Property
+                    </button>
+                </div>
+            </div>
+
+            {createSuccess && (
+                <div
                     className="
-                        inline-flex
-                        items-center
-                        justify-center
-                        gap-2
-                        rounded-xl
+                        rounded-2xl
                         border
-                        border-slate-200
-                        bg-white
+                        border-emerald-200
+                        bg-emerald-50
                         px-4
-                        py-2.5
+                        py-3
                         text-sm
-                        font-semibold
-                        text-slate-700
-                        shadow-sm
-                        transition
-                        hover:bg-slate-50
-                        disabled:cursor-not-allowed
-                        disabled:opacity-60
+                        font-medium
+                        text-emerald-700
                     "
                 >
-                    <RefreshCw
-                        className={`h-4 w-4 ${
-                            loading
-                                ? "animate-spin"
-                                : ""
-                        }`}
-                    />
-                    Refresh
-                </button>
-            </div>
+                    {createSuccess}
+                </div>
+            )}
 
             <div
                 className="
@@ -1319,6 +1827,595 @@ function PropertiesPage() {
                     </>
                 )}
             </div>
+
+            {createOpen && (
+                <div
+                    className="
+                        fixed inset-0 z-50
+                        overflow-y-auto
+                        bg-slate-950/50
+                        px-4 py-6
+                        backdrop-blur-sm
+                    "
+                >
+                    <div
+                        className="
+                            mx-auto
+                            w-full
+                            max-w-5xl
+                            overflow-hidden
+                            rounded-3xl
+                            bg-white
+                            shadow-2xl
+                        "
+                    >
+                        <div
+                            className="
+                                flex
+                                items-start
+                                justify-between
+                                gap-4
+                                border-b
+                                border-slate-200
+                                px-6
+                                py-5
+                            "
+                        >
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-950">
+                                    Add Property
+                                </h2>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    Create a property and assign its ownership.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={closeCreateProperty}
+                                disabled={createSubmitting}
+                                className="
+                                    rounded-xl
+                                    p-2
+                                    text-slate-400
+                                    transition
+                                    hover:bg-slate-100
+                                    hover:text-slate-700
+                                    disabled:opacity-50
+                                "
+                                aria-label="Close"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreateProperty}>
+                            <div
+                                className="
+                                    max-h-[72vh]
+                                    space-y-7
+                                    overflow-y-auto
+                                    px-6
+                                    py-6
+                                "
+                            >
+                                {createError && (
+                                    <div
+                                        className="
+                                            rounded-2xl
+                                            border
+                                            border-rose-200
+                                            bg-rose-50
+                                            px-4
+                                            py-3
+                                            text-sm
+                                            text-rose-700
+                                        "
+                                    >
+                                        {createError}
+                                    </div>
+                                )}
+
+                                <section>
+                                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                                        Property Details
+                                    </h3>
+
+                                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                        <label className="space-y-1.5">
+                                            <span className="text-sm font-semibold text-slate-700">
+                                                Property Name *
+                                            </span>
+                                            <input
+                                                value={propertyForm.property_name}
+                                                onChange={event =>
+                                                    updatePropertyField(
+                                                        "property_name",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                maxLength={150}
+                                                required
+                                                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                                placeholder="e.g. Riverside Apartments"
+                                            />
+                                        </label>
+
+                                        <label className="space-y-1.5">
+                                            <span className="text-sm font-semibold text-slate-700">
+                                                Property Type *
+                                            </span>
+                                            <input
+                                                value={propertyForm.property_type}
+                                                onChange={event =>
+                                                    updatePropertyField(
+                                                        "property_type",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                maxLength={60}
+                                                required
+                                                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                                placeholder="e.g. apartment_building"
+                                            />
+                                            <span className="block text-xs text-slate-400">
+                                                Letters, numbers, underscores and hyphens only.
+                                            </span>
+                                        </label>
+
+                                        <label className="space-y-1.5">
+                                            <span className="text-sm font-semibold text-slate-700">
+                                                Usage Category *
+                                            </span>
+                                            <select
+                                                value={propertyForm.usage_category}
+                                                onChange={event =>
+                                                    updatePropertyField(
+                                                        "usage_category",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                            >
+                                                {USAGE_OPTIONS
+                                                    .filter(option => option.value)
+                                                    .map(option => (
+                                                        <option
+                                                            key={option.value}
+                                                            value={option.value}
+                                                        >
+                                                            {option.label}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </label>
+
+                                        <label className="space-y-1.5">
+                                            <span className="text-sm font-semibold text-slate-700">
+                                                Property Structure *
+                                            </span>
+                                            <select
+                                                value={
+                                                    propertyForm.is_multi_unit
+                                                        ? "true"
+                                                        : "false"
+                                                }
+                                                onChange={event =>
+                                                    updatePropertyField(
+                                                        "is_multi_unit",
+                                                        event.target.value === "true"
+                                                    )
+                                                }
+                                                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                            >
+                                                <option value="true">
+                                                    Multi-unit property
+                                                </option>
+                                                <option value="false">
+                                                    Single-unit property
+                                                </option>
+                                            </select>
+                                        </label>
+
+                                        <label className="space-y-1.5 md:col-span-2">
+                                            <span className="text-sm font-semibold text-slate-700">
+                                                Description
+                                            </span>
+                                            <textarea
+                                                value={propertyForm.description}
+                                                onChange={event =>
+                                                    updatePropertyField(
+                                                        "description",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                maxLength={2000}
+                                                rows={3}
+                                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                            />
+                                        </label>
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                                        Location
+                                    </h3>
+
+                                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                        <label className="space-y-1.5 md:col-span-2">
+                                            <span className="text-sm font-semibold text-slate-700">
+                                                Address
+                                            </span>
+                                            <input
+                                                value={propertyForm.address}
+                                                onChange={event =>
+                                                    updatePropertyField(
+                                                        "address",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                maxLength={255}
+                                                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                            />
+                                        </label>
+
+                                        {[
+                                            ["city", "City"],
+                                            ["region", "Region"],
+                                            ["country", "Country *"]
+                                        ].map(([field, label]) => (
+                                            <label
+                                                key={field}
+                                                className="space-y-1.5"
+                                            >
+                                                <span className="text-sm font-semibold text-slate-700">
+                                                    {label}
+                                                </span>
+                                                <input
+                                                    value={propertyForm[field]}
+                                                    onChange={event =>
+                                                        updatePropertyField(
+                                                            field,
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    maxLength={100}
+                                                    required={field === "country"}
+                                                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                                />
+                                            </label>
+                                        ))}
+
+                                        <label className="space-y-1.5">
+                                            <span className="text-sm font-semibold text-slate-700">
+                                                Year Built
+                                            </span>
+                                            <input
+                                                type="number"
+                                                min="1000"
+                                                max="2100"
+                                                value={propertyForm.year_built}
+                                                onChange={event =>
+                                                    updatePropertyField(
+                                                        "year_built",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                            />
+                                        </label>
+
+                                        <label className="space-y-1.5">
+                                            <span className="text-sm font-semibold text-slate-700">
+                                                Latitude
+                                            </span>
+                                            <input
+                                                type="number"
+                                                step="any"
+                                                min="-90"
+                                                max="90"
+                                                value={propertyForm.latitude}
+                                                onChange={event =>
+                                                    updatePropertyField(
+                                                        "latitude",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                            />
+                                        </label>
+
+                                        <label className="space-y-1.5">
+                                            <span className="text-sm font-semibold text-slate-700">
+                                                Longitude
+                                            </span>
+                                            <input
+                                                type="number"
+                                                step="any"
+                                                min="-180"
+                                                max="180"
+                                                value={propertyForm.longitude}
+                                                onChange={event =>
+                                                    updatePropertyField(
+                                                        "longitude",
+                                                        event.target.value
+                                                    )
+                                                }
+                                                className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                            />
+                                        </label>
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                                                Ownership
+                                            </h3>
+                                            <p className="mt-1 text-sm text-slate-500">
+                                                Total ownership may not exceed 100%.
+                                            </p>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <span
+                                                className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                                                    ownershipTotal > 100
+                                                        ? "bg-rose-50 text-rose-700"
+                                                        : "bg-slate-100 text-slate-700"
+                                                }`}
+                                            >
+                                                Total: {ownershipTotal.toFixed(4)}%
+                                            </span>
+
+                                            <button
+                                                type="button"
+                                                onClick={addOwnership}
+                                                disabled={
+                                                    propertyForm.ownerships.length >= 100
+                                                }
+                                                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                                Add Owner
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {ownersLoading ? (
+                                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                                            Loading authorized owners...
+                                        </div>
+                                    ) : ownersError ? (
+                                        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                                            {ownersError}
+                                        </div>
+                                    ) : owners.length === 0 ? (
+                                        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+                                            No active owner is available for property creation.
+                                        </div>
+                                    ) : (
+                                        <div className="mt-4 space-y-4">
+                                            {propertyForm.ownerships.map(
+                                                (ownership, index) => {
+                                                    const selectedByOthers =
+                                                        new Set(
+                                                            propertyForm.ownerships
+                                                                .filter(
+                                                                    (_, itemIndex) =>
+                                                                        itemIndex !== index
+                                                                )
+                                                                .map(
+                                                                    item =>
+                                                                        item.owner_public_id
+                                                                )
+                                                                .filter(Boolean)
+                                                        );
+
+                                                    return (
+                                                        <div
+                                                            key={index}
+                                                            className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-sm font-bold text-slate-800">
+                                                                    Owner {index + 1}
+                                                                </span>
+
+                                                                {propertyForm.ownerships.length > 1 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            removeOwnership(index)
+                                                                        }
+                                                                        className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                                                                        aria-label="Remove owner"
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                                                                <label className="space-y-1.5 md:col-span-2">
+                                                                    <span className="text-xs font-semibold text-slate-600">
+                                                                        Owner *
+                                                                    </span>
+                                                                    <select
+                                                                        value={ownership.owner_public_id}
+                                                                        onChange={event =>
+                                                                            updateOwnership(
+                                                                                index,
+                                                                                "owner_public_id",
+                                                                                event.target.value
+                                                                            )
+                                                                        }
+                                                                        required
+                                                                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                                                    >
+                                                                        <option value="">
+                                                                            Select active owner
+                                                                        </option>
+                                                                        {owners.map(owner => (
+                                                                            <option
+                                                                                key={owner.public_id}
+                                                                                value={owner.public_id}
+                                                                                disabled={
+                                                                                    selectedByOthers.has(
+                                                                                        owner.public_id
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                {owner.display_name} (
+                                                                                {formatLabel(
+                                                                                    owner.owner_type
+                                                                                )}
+                                                                                )
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </label>
+
+                                                                <label className="space-y-1.5">
+                                                                    <span className="text-xs font-semibold text-slate-600">
+                                                                        Ownership % *
+                                                                    </span>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0.0001"
+                                                                        max="100"
+                                                                        step="0.0001"
+                                                                        value={
+                                                                            ownership.ownership_percentage
+                                                                        }
+                                                                        onChange={event =>
+                                                                            updateOwnership(
+                                                                                index,
+                                                                                "ownership_percentage",
+                                                                                event.target.value
+                                                                            )
+                                                                        }
+                                                                        required
+                                                                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                                                    />
+                                                                </label>
+
+                                                                <label className="space-y-1.5">
+                                                                    <span className="text-xs font-semibold text-slate-600">
+                                                                        Ownership Type
+                                                                    </span>
+                                                                    <select
+                                                                        value={ownership.ownership_type}
+                                                                        onChange={event =>
+                                                                            updateOwnership(
+                                                                                index,
+                                                                                "ownership_type",
+                                                                                event.target.value
+                                                                            )
+                                                                        }
+                                                                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                                                    >
+                                                                        {OWNERSHIP_TYPE_OPTIONS.map(
+                                                                            option => (
+                                                                                <option
+                                                                                    key={option.value}
+                                                                                    value={option.value}
+                                                                                >
+                                                                                    {option.label}
+                                                                                </option>
+                                                                            )
+                                                                        )}
+                                                                    </select>
+                                                                </label>
+
+                                                                <label className="space-y-1.5">
+                                                                    <span className="text-xs font-semibold text-slate-600">
+                                                                        Effective From
+                                                                    </span>
+                                                                    <input
+                                                                        type="date"
+                                                                        value={ownership.effective_from}
+                                                                        onChange={event =>
+                                                                            updateOwnership(
+                                                                                index,
+                                                                                "effective_from",
+                                                                                event.target.value
+                                                                            )
+                                                                        }
+                                                                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                                                                    />
+                                                                </label>
+                                                            </div>
+
+                                                            <label className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={ownership.is_primary_contact}
+                                                                    onChange={event =>
+                                                                        updateOwnership(
+                                                                            index,
+                                                                            "is_primary_contact",
+                                                                            event.target.checked
+                                                                        )
+                                                                    }
+                                                                    className="h-4 w-4 rounded border-slate-300"
+                                                                />
+                                                                Primary contact
+                                                            </label>
+                                                        </div>
+                                                    );
+                                                }
+                                            )}
+                                        </div>
+                                    )}
+                                </section>
+
+                                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                                    New properties are created as <strong>Inactive</strong>.
+                                    Activation will be handled separately after ownership
+                                    and business requirements are satisfied.
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:justify-end">
+                                <button
+                                    type="button"
+                                    onClick={closeCreateProperty}
+                                    disabled={createSubmitting}
+                                    className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    disabled={
+                                        createSubmitting ||
+                                        ownersLoading ||
+                                        owners.length === 0 ||
+                                        ownershipTotal > 100
+                                    }
+                                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {createSubmitting ? (
+                                        <>
+                                            <RefreshCw className="h-4 w-4 animate-spin" />
+                                            Creating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="h-4 w-4" />
+                                            Create Property
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
