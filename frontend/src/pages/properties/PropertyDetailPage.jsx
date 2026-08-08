@@ -281,6 +281,10 @@ function PropertyDetailPage() {
         useState(false);
     const [activationError, setActivationError] =
         useState("");
+    const [deleting, setDeleting] =
+        useState(false);
+    const [deleteError, setDeleteError] =
+        useState("");
     const [
         isManagingOwnership,
         setIsManagingOwnership
@@ -435,6 +439,51 @@ function PropertyDetailPage() {
             );
         } finally {
             setActivating(false);
+        }
+    };
+
+    const deleteProperty = async () => {
+        if (!property || deleting) {
+            return;
+        }
+
+        const confirmed =
+            window.confirm(
+                `Delete "${property.property_name}"? This is a soft delete: the property will be hidden from normal property views, its status will become Inactive, and only an administrator can restore it later.`
+            );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            setDeleting(true);
+            setDeleteError("");
+            setActivationError("");
+            setSuccessMessage("");
+
+            await apiClient.delete(
+                `/properties/${property_public_id}`
+            );
+
+            window.alert(
+                "Property deleted successfully."
+            );
+
+            navigate(
+                "/properties",
+                {
+                    replace: true
+                }
+            );
+        } catch (requestError) {
+            setDeleteError(
+                getErrorMessage(
+                    requestError
+                )
+            );
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -1324,8 +1373,59 @@ function PropertyDetailPage() {
 
                     <button
                         type="button"
+                        onClick={
+                            deleteProperty
+                        }
+                        disabled={
+                            deleting ||
+                            saving ||
+                            activating ||
+                            ownershipSaving
+                        }
+                        className="
+                            inline-flex
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-xl
+                            border
+                            border-rose-200
+                            bg-rose-50
+                            px-4
+                            py-2.5
+                            text-sm
+                            font-semibold
+                            text-rose-700
+                            shadow-sm
+                            transition
+                            hover:bg-rose-100
+                            disabled:cursor-not-allowed
+                            disabled:opacity-50
+                        "
+                    >
+                        {deleting ? (
+                            <RefreshCw
+                                className="
+                                    h-4 w-4
+                                    animate-spin
+                                "
+                            />
+                        ) : (
+                            <Trash2 className="h-4 w-4" />
+                        )}
+
+                        {deleting
+                            ? "Deleting..."
+                            : "Delete Property"}
+                    </button>
+
+                    <button
+                        type="button"
                         onClick={loadProperty}
-                        disabled={saving}
+                        disabled={
+                            saving ||
+                            deleting
+                        }
                         className="
                             inline-flex
                             items-center
@@ -1386,6 +1486,24 @@ function PropertyDetailPage() {
                     "
                 >
                     {activationError}
+                </div>
+            )}
+
+
+            {deleteError && (
+                <div
+                    className="
+                        rounded-2xl
+                        border
+                        border-rose-200
+                        bg-rose-50
+                        px-4
+                        py-3
+                        text-sm
+                        text-rose-700
+                    "
+                >
+                    {deleteError}
                 </div>
             )}
 
