@@ -22,6 +22,11 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import apiClient from "../../api/apiClient";
+import {
+    ActionGroup,
+    Button,
+    IconButton
+} from "../../components/ui/Button";
 
 const STATUS_OPTIONS = [
     { value: "", label: "All statuses" },
@@ -935,98 +940,37 @@ function PropertiesPage() {
                     </p>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        onClick={loadProperties}
-                        disabled={loading}
-                        className="
-                            inline-flex
-                            items-center
-                            justify-center
-                            gap-2
-                            rounded-xl
-                            border
-                            border-slate-200
-                            bg-white
-                            px-4
-                            py-2.5
-                            text-sm
-                            font-semibold
-                            text-slate-700
-                            shadow-sm
-                            transition
-                            hover:bg-slate-50
-                            disabled:cursor-not-allowed
-                            disabled:opacity-60
-                        "
-                    >
-                        <RefreshCw
-                            className={`h-4 w-4 ${
-                                loading
-                                    ? "animate-spin"
-                                    : ""
-                            }`}
+                <div className="flex flex-wrap items-center gap-2">
+                    <ActionGroup>
+                        <IconButton
+                            label="Refresh properties"
+                            icon={RefreshCw}
+                            onClick={loadProperties}
+                            loading={loading}
+                            variant="ghost"
                         />
-                        Refresh
-                    </button>
 
-                    {isAdmin && (
-                        <button
-                            type="button"
-                            onClick={
-                                openDeletedProperties
-                            }
-                            className="
-                                inline-flex
-                                items-center
-                                justify-center
-                                gap-2
-                                rounded-xl
-                                border
-                                border-amber-200
-                                bg-amber-50
-                                px-4
-                                py-2.5
-                                text-sm
-                                font-semibold
-                                text-amber-700
-                                shadow-sm
-                                transition
-                                hover:bg-amber-100
-                            "
-                        >
-                            <Trash2 className="h-4 w-4" />
-                            Deleted Properties
-                        </button>
-                    )}
+                        {isAdmin && (
+                            <IconButton
+                                label="Deleted properties"
+                                icon={Trash2}
+                                onClick={
+                                    openDeletedProperties
+                                }
+                                variant="warning"
+                            />
+                        )}
+                    </ActionGroup>
 
-                    <button
-                        type="button"
+                    <Button
                         onClick={openCreateProperty}
-                        className="
-                            inline-flex
-                            items-center
-                            justify-center
-                            gap-2
-                            rounded-xl
-                            bg-blue-600
-                            px-4
-                            py-2.5
-                            text-sm
-                            font-semibold
-                            text-white
-                            shadow-sm
-                            transition
-                            hover:bg-blue-700
-                            focus:outline-none
-                            focus:ring-4
-                            focus:ring-blue-100
-                        "
+                        variant="primary"
+                        size="md"
+                        leftIcon={Plus}
+                        className="px-3.5"
                     >
-                        <Plus className="h-4 w-4" />
                         Add Property
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -1213,54 +1157,24 @@ function PropertiesPage() {
                     </select>
 
                     <div className="flex gap-2">
-                        <button
+                        <Button
                             type="submit"
-                            className="
-                                inline-flex
-                                h-11
-                                flex-1
-                                items-center
-                                justify-center
-                                rounded-xl
-                                bg-blue-600
-                                px-5
-                                text-sm
-                                font-semibold
-                                text-white
-                                transition
-                                hover:bg-blue-700
-                                focus:outline-none
-                                focus:ring-4
-                                focus:ring-blue-100
-                            "
+                            size="lg"
+                            leftIcon={Search}
+                            className="flex-1"
                         >
                             Search
-                        </button>
+                        </Button>
 
-                        <button
-                            type="button"
+                        <Button
                             onClick={
                                 handleClearFilters
                             }
-                            className="
-                                inline-flex
-                                h-11
-                                items-center
-                                justify-center
-                                rounded-xl
-                                border
-                                border-slate-200
-                                bg-white
-                                px-4
-                                text-sm
-                                font-semibold
-                                text-slate-600
-                                transition
-                                hover:bg-slate-50
-                            "
+                            variant="secondary"
+                            size="lg"
                         >
                             Clear
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </div>

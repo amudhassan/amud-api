@@ -28,6 +28,10 @@ import {
 } from "react-router-dom";
 
 import apiClient from "../../api/apiClient";
+import {
+    ActionGroup,
+    IconButton
+} from "../../components/ui/Button";
 
 const formatLabel = value => {
     if (!value) {
@@ -1282,175 +1286,73 @@ function PropertyDetailPage() {
                     </div>
                 </div>
 
-                <div
-                    className="
-                        flex
-                        flex-wrap
-                        items-center
-                        gap-2
-                    "
-                >
+                <ActionGroup>
                     {property.operational_status !==
                         "active" &&
                         property.operational_status !==
                             "sold" && (
-                        <button
-                            type="button"
+                        <IconButton
+                            label={
+                                activationReady
+                                    ? "Activate property"
+                                    : "Activation requires exactly 100% ownership and one primary owner"
+                            }
+                            icon={Power}
                             onClick={
                                 activateProperty
                             }
+                            loading={activating}
                             disabled={
-                                activating ||
                                 !activationReady
                             }
-                            title={
-                                activationReady
-                                    ? "Activate property"
-                                    : "Requires exactly 100% ownership and one primary owner"
-                            }
-                            className="
-                                inline-flex
-                                items-center
-                                justify-center
-                                gap-2
-                                rounded-xl
-                                bg-emerald-600
-                                px-4
-                                py-2.5
-                                text-sm
-                                font-semibold
-                                text-white
-                                shadow-sm
-                                transition
-                                hover:bg-emerald-700
-                                disabled:cursor-not-allowed
-                                disabled:opacity-50
-                            "
-                        >
-                            {activating ? (
-                                <RefreshCw
-                                    className="
-                                        h-4 w-4
-                                        animate-spin
-                                    "
-                                />
-                            ) : (
-                                <Power className="h-4 w-4" />
-                            )}
-
-                            {activating
-                                ? "Activating..."
-                                : "Activate Property"}
-                        </button>
+                            variant="success"
+                        />
                     )}
 
-                    <button
-                        type="button"
+                    <IconButton
+                        label="Edit property"
+                        icon={Pencil}
                         onClick={openEdit}
                         disabled={isEditing}
-                        className="
-                            inline-flex
-                            items-center
-                            justify-center
-                            gap-2
-                            rounded-xl
-                            bg-blue-600
-                            px-4
-                            py-2.5
-                            text-sm
-                            font-semibold
-                            text-white
-                            shadow-sm
-                            transition
-                            hover:bg-blue-700
-                            disabled:cursor-not-allowed
-                            disabled:opacity-50
-                        "
-                    >
-                        <Pencil className="h-4 w-4" />
-                        Edit Property
-                    </button>
+                        variant="ghost"
+                        className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                    />
 
-                    <button
-                        type="button"
+                    <IconButton
+                        label="Delete property"
+                        icon={Trash2}
                         onClick={
                             deleteProperty
                         }
+                        loading={deleting}
                         disabled={
-                            deleting ||
                             saving ||
                             activating ||
                             ownershipSaving
                         }
+                        variant="danger"
+                    />
+
+                    <div
                         className="
-                            inline-flex
-                            items-center
-                            justify-center
-                            gap-2
-                            rounded-xl
-                            border
-                            border-rose-200
-                            bg-rose-50
-                            px-4
-                            py-2.5
-                            text-sm
-                            font-semibold
-                            text-rose-700
-                            shadow-sm
-                            transition
-                            hover:bg-rose-100
-                            disabled:cursor-not-allowed
-                            disabled:opacity-50
+                            mx-0.5
+                            h-6
+                            w-px
+                            bg-slate-200
                         "
-                    >
-                        {deleting ? (
-                            <RefreshCw
-                                className="
-                                    h-4 w-4
-                                    animate-spin
-                                "
-                            />
-                        ) : (
-                            <Trash2 className="h-4 w-4" />
-                        )}
+                    />
 
-                        {deleting
-                            ? "Deleting..."
-                            : "Delete Property"}
-                    </button>
-
-                    <button
-                        type="button"
+                    <IconButton
+                        label="Refresh property"
+                        icon={RefreshCw}
                         onClick={loadProperty}
                         disabled={
                             saving ||
                             deleting
                         }
-                        className="
-                            inline-flex
-                            items-center
-                            justify-center
-                            gap-2
-                            rounded-xl
-                            border
-                            border-slate-200
-                            bg-white
-                            px-4
-                            py-2.5
-                            text-sm
-                            font-semibold
-                            text-slate-700
-                            shadow-sm
-                            transition
-                            hover:bg-slate-50
-                            disabled:cursor-not-allowed
-                            disabled:opacity-50
-                        "
-                    >
-                        <RefreshCw className="h-4 w-4" />
-                        Refresh
-                    </button>
-                </div>
+                        variant="ghost"
+                    />
+                </ActionGroup>
             </div>
 
             {successMessage && (
