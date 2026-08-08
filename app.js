@@ -1,4 +1,5 @@
 const express = require("express");
+const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
 const pool = require("./config/db");
@@ -70,7 +71,28 @@ const reportRoutes = require(
 dotenv.config();
 
 const app = express();
+const allowedOrigins = [
+    "http://localhost:5173",
+    process.env.FRONTEND_URL
+].filter(Boolean);
 
+app.use(
+    cors({
+        origin: allowedOrigins,
+        methods: [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "OPTIONS"
+        ],
+        allowedHeaders: [
+            "Content-Type",
+            "Authorization"
+        ]
+    })
+);
 app.use(express.json());
 
 app.use(
