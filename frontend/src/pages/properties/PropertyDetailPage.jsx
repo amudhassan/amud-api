@@ -8,6 +8,7 @@ import {
     Pencil,
     Phone,
     Plus,
+    Power,
     RefreshCw,
     Save,
     ShieldCheck,
@@ -276,6 +277,10 @@ function PropertyDetailPage() {
         useState("");
     const [successMessage, setSuccessMessage] =
         useState("");
+    const [activating, setActivating] =
+        useState(false);
+    const [activationError, setActivationError] =
+        useState("");
     const [
         isManagingOwnership,
         setIsManagingOwnership
@@ -366,6 +371,72 @@ function PropertyDetailPage() {
             ? parts.join(", ")
             : "Location not provided";
     }, [property]);
+
+    const primaryOwnerCount =
+        ownerships.filter(
+            ownership =>
+                ownership.is_primary_contact ===
+                true
+        ).length;
+
+    const activationReady =
+        property?.operational_status !== "active" &&
+        property?.operational_status !== "sold" &&
+        ownershipSummary?.ownership_complete ===
+            true &&
+        primaryOwnerCount === 1;
+
+    const activateProperty = async () => {
+        if (
+            !property ||
+            property.operational_status ===
+                "active" ||
+            property.operational_status ===
+                "sold"
+        ) {
+            return;
+        }
+
+        if (!activationReady) {
+            setActivationError(
+                "Property activation requires exactly 100% active ownership and exactly one primary owner."
+            );
+            return;
+        }
+
+        const confirmed =
+            window.confirm(
+                `Activate "${property.property_name}"? This will change its operational status to Active.`
+            );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            setActivating(true);
+            setActivationError("");
+            setSuccessMessage("");
+
+            await apiClient.patch(
+                `/properties/${property_public_id}/activate`
+            );
+
+            await loadProperty();
+
+            setSuccessMessage(
+                "Property activated successfully."
+            );
+        } catch (requestError) {
+            setActivationError(
+                getErrorMessage(
+                    requestError
+                )
+            );
+        } finally {
+            setActivating(false);
+        }
+    };
 
     const openEdit = () => {
         setEditForm(
@@ -1170,6 +1241,60 @@ function PropertyDetailPage() {
                         gap-2
                     "
                 >
+                    {property.operational_status !==
+                        "active" &&
+                        property.operational_status !==
+                            "sold" && (
+                        <button
+                            type="button"
+                            onClick={
+                                activateProperty
+                            }
+                            disabled={
+                                activating ||
+                                !activationReady
+                            }
+                            title={
+                                activationReady
+                                    ? "Activate property"
+                                    : "Requires exactly 100% ownership and one primary owner"
+                            }
+                            className="
+                                inline-flex
+                                items-center
+                                justify-center
+                                gap-2
+                                rounded-xl
+                                bg-emerald-600
+                                px-4
+                                py-2.5
+                                text-sm
+                                font-semibold
+                                text-white
+                                shadow-sm
+                                transition
+                                hover:bg-emerald-700
+                                disabled:cursor-not-allowed
+                                disabled:opacity-50
+                            "
+                        >
+                            {activating ? (
+                                <RefreshCw
+                                    className="
+                                        h-4 w-4
+                                        animate-spin
+                                    "
+                                />
+                            ) : (
+                                <Power className="h-4 w-4" />
+                            )}
+
+                            {activating
+                                ? "Activating..."
+                                : "Activate Property"}
+                        </button>
+                    )}
+
                     <button
                         type="button"
                         onClick={openEdit}
@@ -1243,6 +1368,48 @@ function PropertyDetailPage() {
                     "
                 >
                     {successMessage}
+                </div>
+            )}
+
+
+            {activationError && (
+                <div
+                    className="
+                        rounded-2xl
+                        border
+                        border-rose-200
+                        bg-rose-50
+                        px-4
+                        py-3
+                        text-sm
+                        text-rose-700
+                    "
+                >
+                    {activationError}
+                </div>
+            )}
+
+            {property.operational_status !==
+                "active" &&
+                property.operational_status !==
+                    "sold" &&
+                !activationReady && (
+                <div
+                    className="
+                        rounded-2xl
+                        border
+                        border-amber-200
+                        bg-amber-50
+                        px-4
+                        py-3
+                        text-sm
+                        text-amber-700
+                    "
+                >
+                    Activation is currently unavailable.
+                    The property must have exactly
+                    100% active ownership and exactly
+                    one primary owner.
                 </div>
             )}
 
