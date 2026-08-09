@@ -468,6 +468,22 @@ const restoreTenantController =
             }
 
             /*
+             * Restore recreates a fresh current owner
+             * relationship. A concurrent/current relationship
+             * would make that unsafe.
+             */
+            if (
+                result.currentRelationshipExists
+            ) {
+                return next(
+                    new AppError(
+                        "Tenant cannot be restored because a current owner relationship already exists.",
+                        409
+                    )
+                );
+            }
+
+            /*
              * Identifier ya soft-deleted tenant
              * inaweza kuwa imetumiwa na current
              * tenant mwingine.

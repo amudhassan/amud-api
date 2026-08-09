@@ -1864,8 +1864,8 @@ const restoreTenant = async ({
         let ownerAccessCondition = "";
 
         /*
-         * Regular user lazima awe na management
-         * permission kupitia selected owner.
+         * Regular user must have current management
+         * permission through the selected owner.
          */
         if (authenticatedUser.role !== "admin") {
             ownerValues.push(
@@ -1892,7 +1892,7 @@ const restoreTenant = async ({
         }
 
         /*
-         * Validate na lock active owner.
+         * Validate and lock the active selected owner.
          */
         const ownerResult = await client.query(
             `
@@ -1929,13 +1929,10 @@ const restoreTenant = async ({
         const owner = ownerResult.rows[0];
 
         /*
-         * Tenant lazima:
-         * - awe soft-deleted,
-         * - selected owner awe amewahi kuwa
-         *   na relationship naye.
+         * Tenant must be soft-deleted and the selected owner
+         * must have a historical relationship with that tenant.
          *
-         * Historical relationship haifunguliwi
-         * upya wakati wa restore.
+         * The historical row remains untouched.
          */
         const tenantResult = await client.query(
             `
@@ -2002,6 +1999,47 @@ const restoreTenant = async ({
         const tenantRecord =
             tenantResult.rows[0];
 
+        /*
+         * Deletion requires all current owner relationships
+         * to be ended. Re-check that invariant during restore
+         * so the new primary relationship cannot conflict.
+         */
+        const currentRelationshipResult =
+            await client.query(
+                `
+                SELECT
+                    id,
+                    public_id,
+                    owner_id,
+                    relationship_status
+
+                FROM owner_tenants
+
+                WHERE tenant_id = $1
+                  AND ended_at IS NULL
+                  AND relationship_status IN (
+                      'active',
+                      'blocked'
+                  )
+
+                LIMIT 1
+
+                FOR UPDATE
+                `,
+                [tenantRecord.id]
+            );
+
+        if (
+            currentRelationshipResult.rows.length > 0
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                currentRelationshipExists:
+                    true
+            };
+        }
+
         const previousStatus =
             tenantRecord.status;
 
@@ -2009,8 +2047,7 @@ const restoreTenant = async ({
             tenantRecord.deleted_at;
 
         /*
-         * Restored tenant anabaki inactive.
-         * Relationship mpya haitengenezwi hapa.
+         * Restored tenant remains inactive until reviewed.
          */
         const restoredTenantResult =
             await client.query(
@@ -2050,9 +2087,60 @@ const restoreTenant = async ({
             );
 
         /*
-         * Lazimisha partial unique indexes
-         * na deferred integrity checks
-         * kabla ya commit.
+         * Re-establish owner scope with a NEW relationship row.
+         * Historical ended relationships are never reopened.
+         *
+         * The restored relationship is active and primary so
+         * the tenant becomes discoverable in the selected
+         * owner's current tenant list while remaining inactive
+         * at the tenant-profile lifecycle level.
+         */
+        const relationshipPublicId =
+            `owner_tenant_${nanoid(24)}`;
+
+        const restoredRelationshipResult =
+            await client.query(
+                `
+                INSERT INTO owner_tenants (
+                    public_id,
+                    owner_id,
+                    tenant_id,
+                    relationship_status,
+                    is_primary_owner_relationship,
+                    notes,
+                    created_by,
+                    ended_at
+                )
+                VALUES (
+                    $1,
+                    $2,
+                    $3,
+                    'active',
+                    TRUE,
+                    NULL,
+                    $4,
+                    NULL
+                )
+                RETURNING
+                    public_id,
+                    relationship_status,
+                    is_primary_owner_relationship,
+                    notes,
+                    created_at,
+                    updated_at,
+                    ended_at
+                `,
+                [
+                    relationshipPublicId,
+                    owner.id,
+                    tenantRecord.id,
+                    authenticatedUser.id
+                ]
+            );
+
+        /*
+         * Force partial unique indexes and deferred integrity
+         * checks before commit so restore is atomic.
          */
         await client.query(
             "SET CONSTRAINTS ALL IMMEDIATE"
@@ -2065,11 +2153,17 @@ const restoreTenant = async ({
         const restoredTenant =
             restoredTenantResult.rows[0];
 
+        const restoredRelationship =
+            restoredRelationshipResult.rows[0];
+
         return {
             owner,
 
             tenant:
                 restoredTenant,
+
+            owner_relationship:
+                restoredRelationship,
 
             restore_summary: {
                 restored:
@@ -2088,16 +2182,23 @@ const restoreTenant = async ({
                     restoredTenant.deleted_at,
 
                 relationship_recreated:
-                    false
+                    true,
+
+                relationship_status:
+                    restoredRelationship
+                        .relationship_status,
+
+                is_primary_owner_relationship:
+                    restoredRelationship
+                        .is_primary_owner_relationship
             }
         };
     } catch (error) {
         await client.query("ROLLBACK");
 
         /*
-         * Soft-deleted identifiers zinaweza kuwa
-         * zimetumiwa na current tenant mwingine.
-         * Restore ikigongana nazo irudishe 409.
+         * Soft-deleted identifiers may have been reused by a
+         * current tenant after deletion.
          */
         if (error.code === "23505") {
             const duplicateFields = {
@@ -2125,6 +2226,18 @@ const restoreTenant = async ({
                     duplicateField
                 };
             }
+
+            if (
+                error.constraint ===
+                    "uq_owner_tenants_current_relationship" ||
+                error.constraint ===
+                    "uq_owner_tenants_primary_relationship"
+            ) {
+                return {
+                    currentRelationshipExists:
+                        true
+                };
+            }
         }
 
         throw error;
@@ -2132,6 +2245,7 @@ const restoreTenant = async ({
         client.release();
     }
 };
+
 /*
  * POST /api/tenants
  */
