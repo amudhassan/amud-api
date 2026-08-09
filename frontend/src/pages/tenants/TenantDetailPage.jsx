@@ -33,6 +33,8 @@ import DeleteTenantModal from "./DeleteTenantModal";
 import ActivateTenantModal from "./ActivateTenantModal";
 import BlockTenantModal from "./BlockTenantModal";
 import UnblockTenantModal from "./UnblockTenantModal";
+import BlockOwnerTenantRelationshipModal from "./BlockOwnerTenantRelationshipModal";
+import UnblockOwnerTenantRelationshipModal from "./UnblockOwnerTenantRelationshipModal";
 import {
     ActionGroup,
     IconButton
@@ -135,6 +137,14 @@ function TenantDetailPage() {
         useState(false);
     const [unblockOpen, setUnblockOpen] =
         useState(false);
+    const [
+        relationshipBlockOpen,
+        setRelationshipBlockOpen
+    ] = useState(false);
+    const [
+        relationshipUnblockOpen,
+        setRelationshipUnblockOpen
+    ] = useState(false);
     const [endedRelationship, setEndedRelationship] =
         useState(null);
 
@@ -304,6 +314,40 @@ function TenantDetailPage() {
                             tenant.status !== "blocked" ||
                             relationship.relationship_status !==
                                 "active"
+                        }
+                    />
+
+                    <IconButton
+                        label="Block owner-tenant relationship"
+                        icon={ShieldOff}
+                        variant="danger"
+                        onClick={() => {
+                            setSuccess("");
+                            setRelationshipBlockOpen(true);
+                        }}
+                        disabled={
+                            !tenant ||
+                            !ownerPublicId ||
+                            Boolean(endedRelationship) ||
+                            relationship.relationship_status !==
+                                "active"
+                        }
+                    />
+
+                    <IconButton
+                        label="Unblock owner-tenant relationship"
+                        icon={ShieldCheck}
+                        variant="success"
+                        onClick={() => {
+                            setSuccess("");
+                            setRelationshipUnblockOpen(true);
+                        }}
+                        disabled={
+                            !tenant ||
+                            !ownerPublicId ||
+                            Boolean(endedRelationship) ||
+                            relationship.relationship_status !==
+                                "blocked"
                         }
                     />
 
@@ -610,6 +654,42 @@ function TenantDetailPage() {
                     setUnblockOpen(false);
                     setSuccess(
                         `${unblockedTenant?.display_name || tenant?.display_name || "Tenant"} unblocked successfully.`
+                    );
+                    await loadTenant();
+                }}
+            />
+
+            <BlockOwnerTenantRelationshipModal
+                open={relationshipBlockOpen}
+                tenant={tenant}
+                owner={owner}
+                relationship={relationship}
+                ownerPublicId={ownerPublicId}
+                onClose={() =>
+                    setRelationshipBlockOpen(false)
+                }
+                onBlocked={async blockedRelationship => {
+                    setRelationshipBlockOpen(false);
+                    setSuccess(
+                        "Owner-tenant relationship blocked successfully."
+                    );
+                    await loadTenant();
+                }}
+            />
+
+            <UnblockOwnerTenantRelationshipModal
+                open={relationshipUnblockOpen}
+                tenant={tenant}
+                owner={owner}
+                relationship={relationship}
+                ownerPublicId={ownerPublicId}
+                onClose={() =>
+                    setRelationshipUnblockOpen(false)
+                }
+                onUnblocked={async unblockedRelationship => {
+                    setRelationshipUnblockOpen(false);
+                    setSuccess(
+                        "Owner-tenant relationship unblocked successfully."
                     );
                     await loadTenant();
                 }}
