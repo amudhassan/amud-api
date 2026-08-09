@@ -3,12 +3,14 @@ import {
     Building2,
     CalendarDays,
     CircleUserRound,
+    Link2Off,
     Mail,
     MapPin,
     Pencil,
     Phone,
     RefreshCw,
-    ShieldCheck
+    ShieldCheck,
+    Trash2
 } from "lucide-react";
 import {
     useCallback,
@@ -23,6 +25,8 @@ import {
 
 import apiClient from "../../api/apiClient";
 import EditTenantModal from "./EditTenantModal";
+import EndTenantRelationshipModal from "./EndTenantRelationshipModal";
+import DeleteTenantModal from "./DeleteTenantModal";
 import {
     ActionGroup,
     IconButton
@@ -115,6 +119,12 @@ function TenantDetailPage() {
         useState("");
     const [editOpen, setEditOpen] =
         useState(false);
+    const [endRelationshipOpen, setEndRelationshipOpen] =
+        useState(false);
+    const [deleteOpen, setDeleteOpen] =
+        useState(false);
+    const [endedRelationship, setEndedRelationship] =
+        useState(null);
 
     const loadTenant =
         useCallback(
@@ -147,6 +157,7 @@ function TenantDetailPage() {
                         response?.data?.data ||
                             null
                     );
+                    setEndedRelationship(null);
                 } catch (requestError) {
                     setData(null);
                     setError(
@@ -168,6 +179,7 @@ function TenantDetailPage() {
     const tenant = data?.tenant;
     const owner = data?.owner;
     const relationship =
+        endedRelationship ||
         tenant?.owner_relationship || {};
     const createdBy =
         tenant?.created_by || {};
@@ -208,7 +220,10 @@ function TenantDetailPage() {
                         icon={RefreshCw}
                         onClick={loadTenant}
                         loading={loading}
-                        disabled={!ownerPublicId}
+                        disabled={
+                            !ownerPublicId ||
+                            Boolean(endedRelationship)
+                        }
                     />
 
                     <IconButton
@@ -218,7 +233,44 @@ function TenantDetailPage() {
                             setSuccess("");
                             setEditOpen(true);
                         }}
-                        disabled={!tenant || !ownerPublicId}
+                        disabled={
+                            !tenant ||
+                            !ownerPublicId ||
+                            Boolean(endedRelationship)
+                        }
+                    />
+
+                    <IconButton
+                        label="End owner-tenant relationship"
+                        icon={Link2Off}
+                        variant="danger"
+                        onClick={() => {
+                            setSuccess("");
+                            setEndRelationshipOpen(true);
+                        }}
+                        disabled={
+                            !tenant ||
+                            !ownerPublicId ||
+                            Boolean(endedRelationship) ||
+                            !["active", "blocked"].includes(
+                                relationship.relationship_status
+                            )
+                        }
+                    />
+
+                    <IconButton
+                        label="Delete tenant profile"
+                        icon={Trash2}
+                        variant="danger"
+                        onClick={() => {
+                            setSuccess("");
+                            setDeleteOpen(true);
+                        }}
+                        disabled={
+                            !tenant ||
+                            !ownerPublicId ||
+                            !endedRelationship
+                        }
                     />
                 </ActionGroup>
             </div>
@@ -441,6 +493,44 @@ function TenantDetailPage() {
                     </section>
                 </>
             )}
+
+            <EndTenantRelationshipModal
+                open={endRelationshipOpen}
+                tenant={tenant}
+                owner={owner}
+                relationship={relationship}
+                ownerPublicId={ownerPublicId}
+                onClose={() =>
+                    setEndRelationshipOpen(false)
+                }
+                onEnded={result => {
+                    setEndRelationshipOpen(false);
+                    setEndedRelationship(
+                        result?.owner_relationship || {
+                            ...relationship,
+                            relationship_status: "ended",
+                            is_primary_owner_relationship: false,
+                            ended_at: new Date().toISOString()
+                        }
+                    );
+                    setSuccess(
+                        "Owner-tenant relationship ended successfully. You can now delete the tenant profile if no other deletion rule blocks it."
+                    );
+                }}
+            />
+
+            <DeleteTenantModal
+                open={deleteOpen}
+                tenant={tenant}
+                owner={owner}
+                ownerPublicId={ownerPublicId}
+                onClose={() =>
+                    setDeleteOpen(false)
+                }
+                onDeleted={() =>
+                    navigate("/tenants")
+                }
+            />
 
             <EditTenantModal
                 open={editOpen}
