@@ -18,6 +18,7 @@ const {
     getSingleTenantController,
     updateTenantController,
     activateTenantController,
+    blockTenantController,
     softDeleteTenantController,
     restoreTenantController,
     createTenantController,
@@ -41,6 +42,7 @@ const {
     getSingleTenantValidator,
     updateTenantValidator,
     activateTenantValidator,
+    blockTenantValidator,
     softDeleteTenantValidator,
     restoreTenantValidator,
     createTenantValidator,
@@ -170,6 +172,20 @@ router.patch(
     activateTenantValidator,
     validateRequest,
     activateTenantController
+);
+
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/block
+ *
+ * Must remain before the general PATCH route.
+ */
+router.patch(
+    "/:tenant_public_id/block",
+    authMiddleware,
+    blockTenantValidator,
+    validateRequest,
+    blockTenantController
 );
 
 /*
