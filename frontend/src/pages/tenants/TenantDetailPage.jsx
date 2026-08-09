@@ -8,6 +8,7 @@ import {
     MapPin,
     Pencil,
     Phone,
+    Power,
     RefreshCw,
     ShieldCheck,
     Trash2
@@ -27,6 +28,7 @@ import apiClient from "../../api/apiClient";
 import EditTenantModal from "./EditTenantModal";
 import EndTenantRelationshipModal from "./EndTenantRelationshipModal";
 import DeleteTenantModal from "./DeleteTenantModal";
+import ActivateTenantModal from "./ActivateTenantModal";
 import {
     ActionGroup,
     IconButton
@@ -122,6 +124,8 @@ function TenantDetailPage() {
     const [endRelationshipOpen, setEndRelationshipOpen] =
         useState(false);
     const [deleteOpen, setDeleteOpen] =
+        useState(false);
+    const [activateOpen, setActivateOpen] =
         useState(false);
     const [endedRelationship, setEndedRelationship] =
         useState(null);
@@ -237,6 +241,25 @@ function TenantDetailPage() {
                             !tenant ||
                             !ownerPublicId ||
                             Boolean(endedRelationship)
+                        }
+                    />
+
+                    <IconButton
+                        label="Activate tenant"
+                        icon={Power}
+                        onClick={() => {
+                            setSuccess("");
+                            setActivateOpen(true);
+                        }}
+                        disabled={
+                            !tenant ||
+                            !ownerPublicId ||
+                            Boolean(endedRelationship) ||
+                            !["prospective", "inactive"].includes(
+                                tenant.status
+                            ) ||
+                            relationship.relationship_status !==
+                                "active"
                         }
                     />
 
@@ -493,6 +516,24 @@ function TenantDetailPage() {
                     </section>
                 </>
             )}
+
+            <ActivateTenantModal
+                open={activateOpen}
+                tenant={tenant}
+                owner={owner}
+                relationship={relationship}
+                ownerPublicId={ownerPublicId}
+                onClose={() =>
+                    setActivateOpen(false)
+                }
+                onActivated={async activatedTenant => {
+                    setActivateOpen(false);
+                    setSuccess(
+                        `${activatedTenant?.display_name || tenant?.display_name || "Tenant"} activated successfully.`
+                    );
+                    await loadTenant();
+                }}
+            />
 
             <EndTenantRelationshipModal
                 open={endRelationshipOpen}
