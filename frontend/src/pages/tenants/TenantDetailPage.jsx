@@ -3,6 +3,7 @@ import {
     Building2,
     CalendarDays,
     CircleUserRound,
+    Ban,
     Link2Off,
     Mail,
     MapPin,
@@ -11,6 +12,7 @@ import {
     Power,
     RefreshCw,
     ShieldCheck,
+    ShieldOff,
     Trash2
 } from "lucide-react";
 import {
@@ -29,6 +31,8 @@ import EditTenantModal from "./EditTenantModal";
 import EndTenantRelationshipModal from "./EndTenantRelationshipModal";
 import DeleteTenantModal from "./DeleteTenantModal";
 import ActivateTenantModal from "./ActivateTenantModal";
+import BlockTenantModal from "./BlockTenantModal";
+import UnblockTenantModal from "./UnblockTenantModal";
 import {
     ActionGroup,
     IconButton
@@ -126,6 +130,10 @@ function TenantDetailPage() {
     const [deleteOpen, setDeleteOpen] =
         useState(false);
     const [activateOpen, setActivateOpen] =
+        useState(false);
+    const [blockOpen, setBlockOpen] =
+        useState(false);
+    const [unblockOpen, setUnblockOpen] =
         useState(false);
     const [endedRelationship, setEndedRelationship] =
         useState(null);
@@ -258,6 +266,42 @@ function TenantDetailPage() {
                             !["prospective", "inactive"].includes(
                                 tenant.status
                             ) ||
+                            relationship.relationship_status !==
+                                "active"
+                        }
+                    />
+
+                    <IconButton
+                        label="Block tenant"
+                        icon={Ban}
+                        variant="danger"
+                        onClick={() => {
+                            setSuccess("");
+                            setBlockOpen(true);
+                        }}
+                        disabled={
+                            !tenant ||
+                            !ownerPublicId ||
+                            Boolean(endedRelationship) ||
+                            tenant.status !== "active" ||
+                            relationship.relationship_status !==
+                                "active"
+                        }
+                    />
+
+                    <IconButton
+                        label="Unblock tenant"
+                        icon={ShieldOff}
+                        variant="success"
+                        onClick={() => {
+                            setSuccess("");
+                            setUnblockOpen(true);
+                        }}
+                        disabled={
+                            !tenant ||
+                            !ownerPublicId ||
+                            Boolean(endedRelationship) ||
+                            tenant.status !== "blocked" ||
                             relationship.relationship_status !==
                                 "active"
                         }
@@ -530,6 +574,42 @@ function TenantDetailPage() {
                     setActivateOpen(false);
                     setSuccess(
                         `${activatedTenant?.display_name || tenant?.display_name || "Tenant"} activated successfully.`
+                    );
+                    await loadTenant();
+                }}
+            />
+
+            <BlockTenantModal
+                open={blockOpen}
+                tenant={tenant}
+                owner={owner}
+                relationship={relationship}
+                ownerPublicId={ownerPublicId}
+                onClose={() =>
+                    setBlockOpen(false)
+                }
+                onBlocked={async blockedTenant => {
+                    setBlockOpen(false);
+                    setSuccess(
+                        `${blockedTenant?.display_name || tenant?.display_name || "Tenant"} blocked successfully.`
+                    );
+                    await loadTenant();
+                }}
+            />
+
+            <UnblockTenantModal
+                open={unblockOpen}
+                tenant={tenant}
+                owner={owner}
+                relationship={relationship}
+                ownerPublicId={ownerPublicId}
+                onClose={() =>
+                    setUnblockOpen(false)
+                }
+                onUnblocked={async unblockedTenant => {
+                    setUnblockOpen(false);
+                    setSuccess(
+                        `${unblockedTenant?.display_name || tenant?.display_name || "Tenant"} unblocked successfully.`
                     );
                     await loadTenant();
                 }}
