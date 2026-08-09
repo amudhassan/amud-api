@@ -5,6 +5,7 @@ import {
     DoorOpen,
     Gauge,
     Home,
+    Plus,
     RefreshCw,
     Search,
     Wrench
@@ -17,6 +18,7 @@ import {
 } from "react";
 
 import apiClient from "../../api/apiClient";
+import CreateUnitModal from "./CreateUnitModal";
 import {
     ActionGroup,
     Button,
@@ -122,6 +124,14 @@ function UnitsPage() {
         useState(false);
     const [error, setError] =
         useState("");
+    const [
+        createOpen,
+        setCreateOpen
+    ] = useState(false);
+    const [
+        createSuccess,
+        setCreateSuccess
+    ] = useState("");
 
     const [page, setPage] =
         useState(1);
@@ -397,6 +407,15 @@ function UnitsPage() {
         setPage(1);
     };
 
+    const handleUnitCreated = async () => {
+        setCreateOpen(false);
+        setCreateSuccess(
+            "Unit created successfully. It starts in Inactive status."
+        );
+        setPage(1);
+        await loadUnits();
+    };
+
     const stats = [
         {
             label: "Total Units",
@@ -459,18 +478,49 @@ function UnitsPage() {
                     </p>
                 </div>
 
-                <ActionGroup>
-                    <IconButton
-                        label="Refresh units"
-                        icon={RefreshCw}
-                        onClick={loadUnits}
-                        loading={loading}
+                <div className="flex items-center gap-2">
+                    <ActionGroup>
+                        <IconButton
+                            label="Refresh units"
+                            icon={RefreshCw}
+                            onClick={loadUnits}
+                            loading={loading}
+                            disabled={
+                                !selectedPropertyId
+                            }
+                        />
+                    </ActionGroup>
+
+                    <Button
+                        onClick={() => {
+                            setCreateSuccess("");
+                            setCreateOpen(true);
+                        }}
+                        leftIcon={Plus}
                         disabled={
                             !selectedPropertyId
                         }
-                    />
-                </ActionGroup>
+                    >
+                        Add Unit
+                    </Button>
+                </div>
             </div>
+
+            {createSuccess && (
+                <div
+                    role="status"
+                    className="
+                        rounded-2xl
+                        border border-emerald-200
+                        bg-emerald-50
+                        px-4 py-3
+                        text-sm font-medium
+                        text-emerald-700
+                    "
+                >
+                    {createSuccess}
+                </div>
+            )}
 
             {propertiesError && (
                 <div
@@ -1383,6 +1433,16 @@ function UnitsPage() {
                     </div>
                 </div>
             </div>
+            <CreateUnitModal
+                open={createOpen}
+                property={selectedProperty}
+                onClose={() =>
+                    setCreateOpen(false)
+                }
+                onCreated={
+                    handleUnitCreated
+                }
+            />
         </div>
     );
 }
