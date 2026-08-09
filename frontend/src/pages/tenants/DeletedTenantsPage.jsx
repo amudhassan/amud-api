@@ -1,16 +1,13 @@
 import {
     ArchiveRestore,
+    ArrowLeft,
     Building2,
     ChevronLeft,
     ChevronRight,
     CircleUserRound,
-    Eye,
-    Plus,
     RefreshCw,
-    Search,
-    ShieldCheck,
-    UserRoundCheck,
-    UserRoundX
+    RotateCcw,
+    Search
 } from "lucide-react";
 import {
     useCallback,
@@ -19,11 +16,12 @@ import {
     useState
 } from "react";
 import {
-    useNavigate
+    useNavigate,
+    useSearchParams
 } from "react-router-dom";
 
 import apiClient from "../../api/apiClient";
-import CreateTenantModal from "./CreateTenantModal";
+import RestoreTenantModal from "./RestoreTenantModal";
 import {
     ActionGroup,
     Button,
@@ -37,28 +35,6 @@ const TENANT_TYPES = [
     "organization",
     "partnership"
 ];
-
-const TENANT_STATUSES = [
-    "prospective",
-    "active",
-    "inactive",
-    "blocked"
-];
-
-const RELATIONSHIP_STATUSES = [
-    "active",
-    "blocked"
-];
-
-const EMPTY_SUMMARY = {
-    total_tenants: 0,
-    prospective_tenants: 0,
-    active_tenants: 0,
-    inactive_tenants: 0,
-    blocked_tenants: 0,
-    active_relationships: 0,
-    blocked_relationships: 0
-};
 
 const EMPTY_PAGINATION = {
     current_page: 1,
@@ -76,31 +52,33 @@ const formatLabel = value =>
             character.toUpperCase()
         );
 
+const formatDateTime = value => {
+    if (!value) {
+        return "—";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return String(value);
+    }
+
+    return date.toLocaleString();
+};
+
 const getErrorMessage = error =>
     error?.response?.data?.message ||
     error?.message ||
     "Unable to complete the request.";
 
-const statusClassName = status => {
-    const styles = {
-        prospective:
-            "bg-amber-50 text-amber-700 ring-amber-200",
-        active:
-            "bg-emerald-50 text-emerald-700 ring-emerald-200",
-        inactive:
-            "bg-slate-100 text-slate-700 ring-slate-200",
-        blocked:
-            "bg-rose-50 text-rose-700 ring-rose-200"
-    };
-
-    return (
-        styles[status] ||
-        "bg-slate-100 text-slate-700 ring-slate-200"
-    );
-};
-
-function TenantsPage() {
+function DeletedTenantsPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+
+    const requestedOwnerId =
+        searchParams.get(
+            "owner_public_id"
+        ) || "";
 
     const [owners, setOwners] =
         useState([]);
@@ -113,8 +91,6 @@ function TenantsPage() {
 
     const [tenants, setTenants] =
         useState([]);
-    const [summary, setSummary] =
-        useState(EMPTY_SUMMARY);
     const [pagination, setPagination] =
         useState(EMPTY_PAGINATION);
     const [loading, setLoading] =
@@ -123,8 +99,8 @@ function TenantsPage() {
         useState("");
     const [success, setSuccess] =
         useState("");
-    const [createOpen, setCreateOpen] =
-        useState(false);
+    const [restoreTenant, setRestoreTenant] =
+        useState(null);
 
     const [page, setPage] =
         useState(1);
@@ -133,10 +109,6 @@ function TenantsPage() {
     const [search, setSearch] =
         useState("");
     const [tenantType, setTenantType] =
-        useState("");
-    const [tenantStatus, setTenantStatus] =
-        useState("");
-    const [relationshipStatus, setRelationshipStatus] =
         useState("");
 
     const selectedOwner =
@@ -197,6 +169,17 @@ function TenantsPage() {
                                 return current;
                             }
 
+                            if (
+                                requestedOwnerId &&
+                                rows.some(
+                                    owner =>
+                                        owner.public_id ===
+                                        requestedOwnerId
+                                )
+                            ) {
+                                return requestedOwnerId;
+                            }
+
                             return (
                                 rows[0]?.public_id ||
                                 ""
@@ -215,15 +198,14 @@ function TenantsPage() {
                     setOwnersLoading(false);
                 }
             },
-            []
+            [requestedOwnerId]
         );
 
-    const loadTenants =
+    const loadDeletedTenants =
         useCallback(
             async () => {
                 if (!selectedOwnerId) {
                     setTenants([]);
-                    setSummary(EMPTY_SUMMARY);
                     setPagination(
                         EMPTY_PAGINATION
                     );
@@ -251,81 +233,22 @@ function TenantsPage() {
                             tenantType;
                     }
 
-                    if (tenantStatus) {
-                        params.status =
-                            tenantStatus;
-                    }
-
-                    if (relationshipStatus) {
-                        params.relationship_status =
-                            relationshipStatus;
-                    }
-
                     const response =
                         await apiClient.get(
-                            "/tenants",
+                            "/tenants/deleted",
                             { params }
                         );
 
                     const payload =
                         response?.data?.data || {};
 
-                    const rows =
+                    setTenants(
                         Array.isArray(
                             payload.tenants
                         )
                             ? payload.tenants
-                            : [];
-
-                    setTenants(rows);
-
-                    const sourceSummary =
-                        payload.summary || {};
-
-                    setSummary({
-                        total_tenants:
-                            Number(
-                                sourceSummary
-                                    .total_tenants ||
-                                    0
-                            ),
-                        prospective_tenants:
-                            Number(
-                                sourceSummary
-                                    .prospective_tenants ||
-                                    0
-                            ),
-                        active_tenants:
-                            Number(
-                                sourceSummary
-                                    .active_tenants ||
-                                    0
-                            ),
-                        inactive_tenants:
-                            Number(
-                                sourceSummary
-                                    .inactive_tenants ||
-                                    0
-                            ),
-                        blocked_tenants:
-                            Number(
-                                sourceSummary
-                                    .blocked_tenants ||
-                                    0
-                            ),
-                        active_relationships:
-                            Number(
-                                sourceSummary
-                                    .active_relationships ||
-                                    0
-                            ),
-                        blocked_relationships:
-                            Number(
-                                sourceSummary
-                                    .blocked_relationships ||
-                                    0
-                            )
-                    });
+                            : []
+                    );
 
                     setPagination({
                         ...EMPTY_PAGINATION,
@@ -333,7 +256,6 @@ function TenantsPage() {
                     });
                 } catch (requestError) {
                     setTenants([]);
-                    setSummary(EMPTY_SUMMARY);
                     setPagination(
                         EMPTY_PAGINATION
                     );
@@ -348,10 +270,8 @@ function TenantsPage() {
             },
             [
                 page,
-                relationshipStatus,
                 search,
                 selectedOwnerId,
-                tenantStatus,
                 tenantType
             ]
         );
@@ -361,8 +281,8 @@ function TenantsPage() {
     }, [loadOwners]);
 
     useEffect(() => {
-        loadTenants();
-    }, [loadTenants]);
+        loadDeletedTenants();
+    }, [loadDeletedTenants]);
 
     const handleOwnerChange = event => {
         setSelectedOwnerId(
@@ -372,8 +292,7 @@ function TenantsPage() {
         setSearchInput("");
         setSearch("");
         setTenantType("");
-        setTenantStatus("");
-        setRelationshipStatus("");
+        setSuccess("");
     };
 
     const handleSearchSubmit = event => {
@@ -388,82 +307,46 @@ function TenantsPage() {
         setSearchInput("");
         setSearch("");
         setTenantType("");
-        setTenantStatus("");
-        setRelationshipStatus("");
         setPage(1);
     };
 
-    const stats = [
-        {
-            label: "Total Tenants",
-            value: summary.total_tenants,
-            icon: CircleUserRound
-        },
-        {
-            label: "Active",
-            value: summary.active_tenants,
-            icon: UserRoundCheck
-        },
-        {
-            label: "Prospective",
-            value:
-                summary.prospective_tenants,
-            icon: ShieldCheck
-        },
-        {
-            label: "Blocked",
-            value: summary.blocked_tenants,
-            icon: UserRoundX
-        }
-    ];
-
     return (
         <div className="space-y-6">
-            <div
-                className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"
-            >
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-950">
-                        Tenants
-                    </h1>
+                    <Button
+                        variant="secondary"
+                        leftIcon={ArrowLeft}
+                        onClick={() =>
+                            navigate("/tenants")
+                        }
+                    >
+                        Back to Tenants
+                    </Button>
 
-                    <p className="mt-2 text-sm text-slate-500">
-                        View tenant profiles and current owner relationships.
-                    </p>
+                    <div className="mt-4">
+                        <h1 className="text-3xl font-bold tracking-tight text-slate-950">
+                            Deleted Tenants
+                        </h1>
+
+                        <p className="mt-2 text-sm text-slate-500">
+                            Review soft-deleted tenant profiles and restore eligible records.
+                        </p>
+                    </div>
                 </div>
 
                 <ActionGroup>
                     <IconButton
-                        label="Refresh tenants"
+                        label="Refresh deleted tenants"
                         icon={RefreshCw}
-                        onClick={loadTenants}
+                        onClick={
+                            loadDeletedTenants
+                        }
                         loading={loading}
                         disabled={
                             !selectedOwnerId
                         }
                     />
-
-                    <IconButton
-                        label="View deleted tenants"
-                        icon={ArchiveRestore}
-                        onClick={() =>
-                            navigate(
-                                `/tenants/deleted?owner_public_id=${encodeURIComponent(selectedOwnerId)}`
-                            )
-                        }
-                        disabled={!selectedOwnerId}
-                    />
-
-                    <Button
-                        leftIcon={Plus}
-                        onClick={() => {
-                            setSuccess("");
-                            setCreateOpen(true);
-                        }}
-                        disabled={!selectedOwnerId}
-                    >
-                        Add Tenant
-                    </Button>
                 </ActionGroup>
             </div>
 
@@ -497,7 +380,7 @@ function TenantsPage() {
                                 Owner Context
                             </p>
                             <p className="text-xs text-slate-500">
-                                Tenant records are scoped to the selected authorized owner.
+                                Deleted tenant records remain scoped to an authorized historical owner relationship.
                             </p>
                         </div>
                     </div>
@@ -538,56 +421,48 @@ function TenantsPage() {
                         )}
                     </select>
                 </div>
-
-                {selectedOwner && (
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-                        <span className="rounded-lg bg-slate-100 px-2.5 py-1">
-                            {selectedOwner.display_name}
-                        </span>
-                        {selectedOwner.status && (
-                            <span className="rounded-lg bg-slate-100 px-2.5 py-1">
-                                Owner status: {formatLabel(selectedOwner.status)}
-                            </span>
-                        )}
-                    </div>
-                )}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {stats.map(stat => {
-                    const Icon = stat.icon;
-
-                    return (
-                        <div
-                            key={stat.label}
-                            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                        >
-                            <div className="flex items-start justify-between gap-3">
-                                <div>
-                                    <p className="text-sm font-medium text-slate-500">
-                                        {stat.label}
-                                    </p>
-                                    <p className="mt-2 text-2xl font-bold text-slate-950">
-                                        {stat.value}
-                                    </p>
-                                </div>
-
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-                                    <Icon className="h-5 w-5" />
-                                </div>
-                            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-medium text-slate-500">
+                                Deleted Records
+                            </p>
+                            <p className="mt-2 text-2xl font-bold text-slate-950">
+                                {pagination.total_items}
+                            </p>
                         </div>
-                    );
-                })}
+
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                            <ArchiveRestore className="h-5 w-5" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-sm font-medium text-slate-500">
+                        Selected Owner
+                    </p>
+                    <p className="mt-2 text-lg font-bold text-slate-950">
+                        {selectedOwner?.display_name ||
+                            "No owner selected"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                        Restore creates a fresh active owner relationship while the tenant profile returns as inactive.
+                    </p>
+                </div>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <form
                     onSubmit={handleSearchSubmit}
-                    className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_190px_170px_190px_auto]"
+                    className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_220px_auto]"
                 >
                     <div className="relative">
                         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
                         <input
                             type="search"
                             value={searchInput}
@@ -596,7 +471,7 @@ function TenantsPage() {
                                     event.target.value
                                 )
                             }
-                            placeholder="Search tenant details"
+                            placeholder="Search deleted tenant"
                             disabled={!selectedOwnerId}
                             className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                         />
@@ -616,6 +491,7 @@ function TenantsPage() {
                         <option value="">
                             All tenant types
                         </option>
+
                         {TENANT_TYPES.map(type => (
                             <option
                                 key={type}
@@ -624,56 +500,6 @@ function TenantsPage() {
                                 {formatLabel(type)}
                             </option>
                         ))}
-                    </select>
-
-                    <select
-                        value={tenantStatus}
-                        onChange={event => {
-                            setTenantStatus(
-                                event.target.value
-                            );
-                            setPage(1);
-                        }}
-                        disabled={!selectedOwnerId}
-                        className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        <option value="">
-                            All statuses
-                        </option>
-                        {TENANT_STATUSES.map(status => (
-                            <option
-                                key={status}
-                                value={status}
-                            >
-                                {formatLabel(status)}
-                            </option>
-                        ))}
-                    </select>
-
-                    <select
-                        value={relationshipStatus}
-                        onChange={event => {
-                            setRelationshipStatus(
-                                event.target.value
-                            );
-                            setPage(1);
-                        }}
-                        disabled={!selectedOwnerId}
-                        className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        <option value="">
-                            All relationships
-                        </option>
-                        {RELATIONSHIP_STATUSES.map(
-                            status => (
-                                <option
-                                    key={status}
-                                    value={status}
-                                >
-                                    {formatLabel(status)}
-                                </option>
-                            )
-                        )}
                     </select>
 
                     <div className="flex gap-2">
@@ -711,12 +537,12 @@ function TenantsPage() {
                 <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h2 className="text-lg font-bold text-slate-950">
-                            Tenant List
+                            Deleted Tenant List
                         </h2>
                         <p className="mt-1 text-sm text-slate-500">
                             {selectedOwner
-                                ? `Current relationships for ${selectedOwner.display_name}`
-                                : "Select an owner to load tenant records."}
+                                ? `Soft-deleted tenants historically related to ${selectedOwner.display_name}`
+                                : "Select an owner to load deleted tenant records."}
                         </p>
                     </div>
 
@@ -728,7 +554,7 @@ function TenantsPage() {
                 {loading ? (
                     <div className="flex min-h-[280px] items-center justify-center gap-2 text-sm text-slate-500">
                         <RefreshCw className="h-4 w-4 animate-spin" />
-                        Loading tenants...
+                        Loading deleted tenants...
                     </div>
                 ) : !selectedOwnerId ? (
                     <div className="flex min-h-[280px] flex-col items-center justify-center px-6 text-center">
@@ -736,18 +562,15 @@ function TenantsPage() {
                         <p className="mt-3 font-semibold text-slate-800">
                             Owner context required
                         </p>
-                        <p className="mt-1 max-w-md text-sm text-slate-500">
-                            Select an authorized owner before viewing tenant records.
-                        </p>
                     </div>
                 ) : tenants.length === 0 ? (
                     <div className="flex min-h-[280px] flex-col items-center justify-center px-6 text-center">
-                        <CircleUserRound className="h-9 w-9 text-slate-300" />
+                        <ArchiveRestore className="h-9 w-9 text-slate-300" />
                         <p className="mt-3 font-semibold text-slate-800">
-                            No tenants found
+                            No deleted tenants found
                         </p>
                         <p className="mt-1 max-w-md text-sm text-slate-500">
-                            No current tenant relationships match the selected filters.
+                            There are no soft-deleted tenant profiles matching this owner and filters.
                         </p>
                     </div>
                 ) : (
@@ -755,20 +578,32 @@ function TenantsPage() {
                         <table className="min-w-full divide-y divide-slate-200">
                             <thead className="bg-slate-50">
                                 <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    <th className="px-5 py-3">Tenant</th>
-                                    <th className="px-5 py-3">Type</th>
-                                    <th className="px-5 py-3">Status</th>
-                                    <th className="px-5 py-3">Relationship</th>
-                                    <th className="px-5 py-3">Contact</th>
-                                    <th className="px-5 py-3">Location</th>
-                                    <th className="px-5 py-3 text-right">Actions</th>
+                                    <th className="px-5 py-3">
+                                        Tenant
+                                    </th>
+                                    <th className="px-5 py-3">
+                                        Type
+                                    </th>
+                                    <th className="px-5 py-3">
+                                        Deleted
+                                    </th>
+                                    <th className="px-5 py-3">
+                                        Last Relationship
+                                    </th>
+                                    <th className="px-5 py-3">
+                                        Contact
+                                    </th>
+                                    <th className="px-5 py-3 text-right">
+                                        Actions
+                                    </th>
                                 </tr>
                             </thead>
 
                             <tbody className="divide-y divide-slate-100 bg-white">
                                 {tenants.map(tenant => {
                                     const relationship =
-                                        tenant.owner_relationship || {};
+                                        tenant.owner_relationship ||
+                                        {};
 
                                     return (
                                         <tr
@@ -777,7 +612,7 @@ function TenantsPage() {
                                         >
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
                                                         <CircleUserRound className="h-4 w-4" />
                                                     </div>
 
@@ -785,10 +620,8 @@ function TenantsPage() {
                                                         <p className="font-semibold text-slate-900">
                                                             {tenant.display_name}
                                                         </p>
-                                                        <p className="mt-0.5 max-w-[240px] truncate text-xs text-slate-500">
-                                                            {tenant.email ||
-                                                                tenant.phone_number ||
-                                                                tenant.public_id}
+                                                        <p className="mt-0.5 max-w-[250px] truncate text-xs text-slate-500">
+                                                            {tenant.public_id}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -801,61 +634,53 @@ function TenantsPage() {
                                             </td>
 
                                             <td className="px-5 py-4">
-                                                <span
-                                                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${statusClassName(tenant.status)}`}
-                                                >
-                                                    {formatLabel(
-                                                        tenant.status
+                                                <p className="text-sm font-medium text-slate-700">
+                                                    {formatDateTime(
+                                                        tenant.deleted_at
                                                     )}
-                                                </span>
+                                                </p>
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    Status: {formatLabel(tenant.status)}
+                                                </p>
                                             </td>
 
                                             <td className="px-5 py-4">
-                                                <div className="space-y-1">
-                                                    <span
-                                                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${statusClassName(relationship.relationship_status)}`}
-                                                    >
-                                                        {formatLabel(
-                                                            relationship.relationship_status
-                                                        )}
-                                                    </span>
-
-                                                    {relationship.is_primary_owner_relationship && (
-                                                        <p className="text-xs font-medium text-blue-600">
-                                                            Primary owner relationship
-                                                        </p>
+                                                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-200">
+                                                    {formatLabel(
+                                                        relationship.relationship_status
                                                     )}
-                                                </div>
+                                                </span>
+
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    Ended: {formatDateTime(
+                                                        relationship.ended_at
+                                                    )}
+                                                </p>
                                             </td>
 
                                             <td className="px-5 py-4 text-sm text-slate-600">
                                                 <p>
-                                                    {tenant.phone_number || "—"}
+                                                    {tenant.phone_number ||
+                                                        "—"}
                                                 </p>
                                                 <p className="mt-0.5 text-xs text-slate-500">
-                                                    {tenant.email || "—"}
+                                                    {tenant.email ||
+                                                        "—"}
                                                 </p>
-                                            </td>
-
-                                            <td className="px-5 py-4 text-sm text-slate-600">
-                                                {[tenant.city, tenant.region, tenant.country]
-                                                    .filter(Boolean)
-                                                    .join(", ") || "—"}
                                             </td>
 
                                             <td className="px-5 py-4">
                                                 <div className="flex justify-end">
-                                                    <ActionGroup>
-                                                        <IconButton
-                                                            label="View tenant details"
-                                                            icon={Eye}
-                                                            onClick={() =>
-                                                                navigate(
-                                                                    `/tenants/${tenant.public_id}?owner_public_id=${encodeURIComponent(selectedOwnerId)}`
-                                                                )
-                                                            }
-                                                        />
-                                                    </ActionGroup>
+                                                    <IconButton
+                                                        label="Restore tenant"
+                                                        icon={RotateCcw}
+                                                        onClick={() => {
+                                                            setSuccess("");
+                                                            setRestoreTenant(
+                                                                tenant
+                                                            );
+                                                        }}
+                                                    />
                                                 </div>
                                             </td>
                                         </tr>
@@ -909,23 +734,33 @@ function TenantsPage() {
                 </div>
             </div>
 
-            <CreateTenantModal
-                open={createOpen}
+            <RestoreTenantModal
+                open={Boolean(restoreTenant)}
+                tenant={restoreTenant}
                 owner={selectedOwner}
+                ownerPublicId={selectedOwnerId}
                 onClose={() =>
-                    setCreateOpen(false)
+                    setRestoreTenant(null)
                 }
-                onCreated={async tenant => {
-                    setCreateOpen(false);
+                onRestored={async restored => {
+                    const displayName =
+                        restored?.tenant
+                            ?.display_name ||
+                        restoreTenant
+                            ?.display_name ||
+                        "Tenant";
+
+                    setRestoreTenant(null);
+
                     setSuccess(
-                        `${tenant?.display_name || "Tenant"} created successfully.`
+                        `${displayName} restored successfully. The tenant is inactive and has a fresh active owner relationship.`
                     );
-                    setPage(1);
-                    await loadTenants();
+
+                    await loadDeletedTenants();
                 }}
             />
         </div>
     );
 }
 
-export default TenantsPage;
+export default DeletedTenantsPage;

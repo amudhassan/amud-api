@@ -18,6 +18,7 @@ import UnitsPage from "./pages/units/UnitsPage";
 import DeletedUnitsPage from "./pages/units/DeletedUnitsPage";
 import UnitDetailPage from "./pages/units/UnitDetailPage";
 import TenantsPage from "./pages/tenants/TenantsPage";
+import DeletedTenantsPage from "./pages/tenants/DeletedTenantsPage";
 import TenantDetailPage from "./pages/tenants/TenantDetailPage";
 import LeasesPage from "./pages/leases/LeasesPage";
 import InvoicesPage from "./pages/invoices/InvoicesPage";
@@ -95,6 +96,11 @@ function App() {
                     <Route
                         path="tenants"
                         element={<TenantsPage />}
+                    />
+
+                    <Route
+                        path="tenants/deleted"
+                        element={<DeletedTenantsPage />}
                     />
 
                     <Route
