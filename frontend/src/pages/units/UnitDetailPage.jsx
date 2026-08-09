@@ -7,6 +7,7 @@ import {
     Layers3,
     PencilLine,
     Power,
+    Wrench,
     RefreshCw,
     Ruler,
     UserRound
@@ -24,6 +25,7 @@ import {
 import apiClient from "../../api/apiClient";
 import EditUnitModal from "./EditUnitModal";
 import ActivateUnitModal from "./ActivateUnitModal";
+import MarkUnitMaintenanceModal from "./MarkUnitMaintenanceModal";
 import {
     ActionGroup,
     Button,
@@ -215,6 +217,10 @@ function UnitDetailPage() {
         setActivateOpen
     ] = useState(false);
     const [
+        maintenanceOpen,
+        setMaintenanceOpen
+    ] = useState(false);
+    const [
         success,
         setSuccess
     ] = useState("");
@@ -280,6 +286,15 @@ function UnitDetailPage() {
             setActivateOpen(false);
             setSuccess(
                 "Unit activated successfully and is now available."
+            );
+            await loadUnit();
+        };
+
+    const handleUnitMarkedMaintenance =
+        async () => {
+            setMaintenanceOpen(false);
+            setSuccess(
+                "Unit marked as maintenance successfully."
             );
             await loadUnit();
         };
@@ -462,6 +477,31 @@ function UnitDetailPage() {
                         </Button>
                     )}
 
+                    {[
+                        "inactive",
+                        "available"
+                    ].includes(
+                        unit.operational_status
+                    ) && (
+                        <Button
+                            variant="warning"
+                            leftIcon={Wrench}
+                            disabled={
+                                property
+                                    ?.operational_status ===
+                                "sold"
+                            }
+                            onClick={() => {
+                                setSuccess("");
+                                setMaintenanceOpen(
+                                    true
+                                );
+                            }}
+                        >
+                            Mark Maintenance
+                        </Button>
+                    )}
+
                     <Button
                         leftIcon={PencilLine}
                         onClick={() => {
@@ -510,6 +550,29 @@ function UnitDetailPage() {
                         This unit cannot be activated
                         until its parent property is
                         Active.
+                    </div>
+                )}
+
+            {[
+                "inactive",
+                "available"
+            ].includes(
+                unit.operational_status
+            ) &&
+                property?.operational_status ===
+                    "sold" && (
+                    <div
+                        className="
+                            rounded-2xl
+                            border border-amber-200
+                            bg-amber-50
+                            px-4 py-3
+                            text-sm text-amber-800
+                        "
+                    >
+                        This unit cannot be marked for
+                        maintenance because its parent
+                        property is Sold.
                     </div>
                 )}
 
@@ -971,6 +1034,17 @@ function UnitDetailPage() {
                 }
                 onActivated={
                     handleUnitActivated
+                }
+            />
+            <MarkUnitMaintenanceModal
+                open={maintenanceOpen}
+                unit={unit}
+                property={property}
+                onClose={() =>
+                    setMaintenanceOpen(false)
+                }
+                onMarkedMaintenance={
+                    handleUnitMarkedMaintenance
                 }
             />
         </div>
