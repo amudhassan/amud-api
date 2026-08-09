@@ -10,6 +10,7 @@ import {
     Wrench,
     RefreshCw,
     Ruler,
+    Trash2,
     UserRound
 } from "lucide-react";
 import {
@@ -26,6 +27,7 @@ import apiClient from "../../api/apiClient";
 import EditUnitModal from "./EditUnitModal";
 import ActivateUnitModal from "./ActivateUnitModal";
 import MarkUnitMaintenanceModal from "./MarkUnitMaintenanceModal";
+import DeleteUnitModal from "./DeleteUnitModal";
 import {
     ActionGroup,
     Button,
@@ -221,6 +223,10 @@ function UnitDetailPage() {
         setMaintenanceOpen
     ] = useState(false);
     const [
+        deleteOpen,
+        setDeleteOpen
+    ] = useState(false);
+    const [
         success,
         setSuccess
     ] = useState("");
@@ -297,6 +303,12 @@ function UnitDetailPage() {
                 "Unit marked as maintenance successfully."
             );
             await loadUnit();
+        };
+
+    const handleUnitDeleted =
+        () => {
+            setDeleteOpen(false);
+            navigate("/units");
         };
 
     useEffect(() => {
@@ -450,6 +462,40 @@ function UnitDetailPage() {
                             icon={RefreshCw}
                             onClick={loadUnit}
                         />
+
+                        <IconButton
+                            label="Edit unit"
+                            icon={PencilLine}
+                            variant="secondary"
+                            onClick={() => {
+                                setSuccess("");
+                                setEditOpen(true);
+                            }}
+                        />
+
+                        {![
+                            "reserved",
+                            "occupied"
+                        ].includes(
+                            unit.operational_status
+                        ) && (
+                            <IconButton
+                                label="Delete unit"
+                                icon={Trash2}
+                                variant="danger"
+                                disabled={
+                                    property
+                                        ?.operational_status ===
+                                    "sold"
+                                }
+                                onClick={() => {
+                                    setSuccess("");
+                                    setDeleteOpen(
+                                        true
+                                    );
+                                }}
+                            />
+                        )}
                     </ActionGroup>
 
                     {[
@@ -501,16 +547,6 @@ function UnitDetailPage() {
                             Mark Maintenance
                         </Button>
                     )}
-
-                    <Button
-                        leftIcon={PencilLine}
-                        onClick={() => {
-                            setSuccess("");
-                            setEditOpen(true);
-                        }}
-                    >
-                        Edit Unit
-                    </Button>
                 </div>
             </div>
 
@@ -575,6 +611,32 @@ function UnitDetailPage() {
                         property is Sold.
                     </div>
                 )}
+
+            {[
+                "reserved",
+                "occupied"
+            ].includes(
+                unit.operational_status
+            ) && (
+                <div
+                    className="
+                        rounded-2xl
+                        border border-amber-200
+                        bg-amber-50
+                        px-4 py-3
+                        text-sm text-amber-800
+                    "
+                >
+                    This unit cannot be deleted while
+                    its status is{" "}
+                    <span className="font-semibold">
+                        {formatLabel(
+                            unit.operational_status
+                        )}
+                    </span>
+                    .
+                </div>
+            )}
 
             <div
                 className="
@@ -1045,6 +1107,17 @@ function UnitDetailPage() {
                 }
                 onMarkedMaintenance={
                     handleUnitMarkedMaintenance
+                }
+            />
+            <DeleteUnitModal
+                open={deleteOpen}
+                unit={unit}
+                property={property}
+                onClose={() =>
+                    setDeleteOpen(false)
+                }
+                onDeleted={
+                    handleUnitDeleted
                 }
             />
         </div>
