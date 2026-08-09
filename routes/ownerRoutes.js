@@ -8,7 +8,8 @@ const {
     getSingleOwnerController,
     updateOwnerController,
     softDeleteOwnerController,
-    restoreOwnerController
+    restoreOwnerController,
+    getDeletedOwnersController,
 } = require("../controllers/ownerController");
 
 const {
@@ -68,6 +69,20 @@ router.get(
     validateRequest,
     getOwnersController
 );
+/*
+ * GET /api/owners/deleted
+ *
+ * Must remain before dynamic owner routes so the literal
+ * word "deleted" is never treated as an owner public ID.
+ */
+router.get(
+    "/deleted",
+    authMiddleware,
+    getOwnersValidator,
+    validateRequest,
+    getDeletedOwnersController
+);
+
 router.get(
     "/:owner_public_id/users",
     authMiddleware,

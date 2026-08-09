@@ -7,7 +7,8 @@ const {
     getOwnerByPublicId,
     updateOwner,
     softDeleteOwner,
-    restoreOwner
+    restoreOwner,
+    getDeletedOwners,
 } = require("../services/ownerService");
 
 const createOwnerController = asyncHandler(
@@ -64,6 +65,42 @@ const getOwnersController = asyncHandler(
         return res.status(200).json({
             success: true,
             message: "Owners retrieved successfully.",
+            count: result.owners.length,
+            pagination: result.pagination,
+            data: result.owners
+        });
+    }
+);
+
+const getDeletedOwnersController = asyncHandler(
+    async (req, res, next) => {
+        if (req.user.role !== "admin") {
+            return next(
+                new AppError(
+                    "Only administrators can view deleted owners.",
+                    403
+                )
+            );
+        }
+
+        const result = await getDeletedOwners({
+            authenticatedUser: req.user,
+            filters: req.query
+        });
+
+        if (result.forbidden) {
+            return next(
+                new AppError(
+                    "Only administrators can view deleted owners.",
+                    403
+                )
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "Deleted owners retrieved successfully.",
             count: result.owners.length,
             pagination: result.pagination,
             data: result.owners
@@ -296,5 +333,6 @@ module.exports = {
     getSingleOwnerController,
     updateOwnerController,
     softDeleteOwnerController,
-    restoreOwnerController
+    restoreOwnerController,
+    getDeletedOwnersController,
 };
