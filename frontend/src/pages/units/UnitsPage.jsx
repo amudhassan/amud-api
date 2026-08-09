@@ -1,4 +1,5 @@
 import {
+    ArchiveRestore,
     Building2,
     ChevronLeft,
     ChevronRight,
@@ -494,6 +495,17 @@ function UnitsPage() {
                             loading={loading}
                             disabled={
                                 !selectedPropertyId
+                            }
+                        />
+
+                        <IconButton
+                            label="Deleted units"
+                            icon={ArchiveRestore}
+                            variant="secondary"
+                            onClick={() =>
+                                navigate(
+                                    "/units/deleted"
+                                )
                             }
                         />
                     </ActionGroup>

@@ -15,6 +15,7 @@ import OwnersPage from "./pages/owners/OwnersPage";
 import PropertiesPage from "./pages/properties/PropertiesPage";
 import PropertyDetailPage from "./pages/properties/PropertyDetailPage";
 import UnitsPage from "./pages/units/UnitsPage";
+import DeletedUnitsPage from "./pages/units/DeletedUnitsPage";
 import UnitDetailPage from "./pages/units/UnitDetailPage";
 import TenantsPage from "./pages/tenants/TenantsPage";
 import LeasesPage from "./pages/leases/LeasesPage";
@@ -78,6 +79,11 @@ function App() {
                     <Route
                         path="units"
                         element={<UnitsPage />}
+                    />
+
+                    <Route
+                        path="units/deleted"
+                        element={<DeletedUnitsPage />}
                     />
 
                     <Route
