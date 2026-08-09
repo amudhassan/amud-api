@@ -12,6 +12,10 @@ import RegisterPage from "./pages/auth/RegisterPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
+import MyProfilePage from "./pages/profile/MyProfilePage";
+import UsersPage from "./pages/users/UsersPage";
+import UserDetailPage from "./pages/users/UserDetailPage";
+import EditUserPage from "./pages/users/EditUserPage";
 import OwnersPage from "./pages/owners/OwnersPage";
 import PropertiesPage from "./pages/properties/PropertiesPage";
 import PropertyDetailPage from "./pages/properties/PropertyDetailPage";
@@ -68,6 +72,26 @@ function App() {
                     <Route
                         path="dashboard"
                         element={<DashboardPage />}
+                    />
+
+                    <Route
+                        path="profile"
+                        element={<MyProfilePage />}
+                    />
+
+                    <Route
+                        path="users"
+                        element={<UsersPage />}
+                    />
+
+                    <Route
+                        path="users/:public_id"
+                        element={<UserDetailPage />}
+                    />
+
+                    <Route
+                        path="users/:public_id/edit"
+                        element={<EditUserPage />}
                     />
 
                     <Route

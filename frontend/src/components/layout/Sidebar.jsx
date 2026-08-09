@@ -5,9 +5,12 @@ import {
     DoorOpen,
     FileText,
     LayoutDashboard,
+    PanelLeftClose,
+    PanelLeftOpen,
     ReceiptText,
     Settings,
     Users,
+    UserRoundCog,
     Wrench,
     X
 } from "lucide-react";
@@ -21,6 +24,11 @@ const navigationItems = [
         label: "Dashboard",
         path: "/dashboard",
         icon: LayoutDashboard
+    },
+    {
+        label: "Users",
+        path: "/users",
+        icon: UserRoundCog
     },
     {
         label: "Owners",
@@ -76,16 +84,23 @@ const navigationItems = [
 
 function Sidebar({
     isOpen = false,
-    onClose = () => {}
+    onClose = () => {},
+    collapsed = false,
+    onToggleCollapse = () => {}
 }) {
     const getNavigationClass = ({
         isActive
     }) => {
         return `
-            flex w-full items-center gap-3
-            rounded-xl px-3 py-3
+            flex w-full items-center
+            rounded-xl py-3
             text-sm font-medium
             transition
+            ${
+                collapsed
+                    ? "gap-0 px-2 lg:justify-center"
+                    : "gap-3 px-3"
+            }
             ${
                 isActive
                     ? "bg-blue-600 text-white shadow-sm"
@@ -110,8 +125,13 @@ function Sidebar({
                     fixed inset-y-0 left-0 z-40
                     flex w-72 flex-col
                     bg-slate-950 text-white
-                    transition-transform duration-300
+                    transition-[width,transform] duration-300
                     lg:translate-x-0
+                    ${
+                        collapsed
+                            ? "lg:w-20"
+                            : "lg:w-72"
+                    }
                     ${
                         isOpen
                             ? "translate-x-0"
@@ -119,8 +139,24 @@ function Sidebar({
                     }
                 `}
             >
-                <div className="flex h-20 items-center justify-between border-b border-slate-800 px-6">
-                    <div>
+                <div
+                    className={`
+                        flex h-20 items-center
+                        border-b border-slate-800
+                        ${
+                            collapsed
+                                ? "justify-between px-4 lg:justify-center lg:px-2"
+                                : "justify-between px-6"
+                        }
+                    `}
+                >
+                    <div
+                        className={
+                            collapsed
+                                ? "lg:hidden"
+                                : ""
+                        }
+                    >
                         <h1 className="text-lg font-bold tracking-wide">
                             Rental Manager
                         </h1>
@@ -130,17 +166,61 @@ function Sidebar({
                         </p>
                     </div>
 
+                    <div
+                        className={
+                            collapsed
+                                ? "hidden lg:flex"
+                                : "hidden"
+                        }
+                    >
+                        <div
+                            className="
+                                flex h-10 w-10
+                                items-center justify-center
+                                rounded-xl
+                                bg-blue-600
+                                text-sm font-bold
+                                tracking-wide
+                            "
+                            title="Rental Manager"
+                        >
+                            RM
+                        </div>
+                    </div>
+
                     <button
                         type="button"
                         onClick={onClose}
+                        aria-label="Close sidebar"
                         className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
                     >
                         <X size={20} />
                     </button>
                 </div>
 
-                <nav className="flex-1 overflow-y-auto px-4 py-6">
-                    <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <nav
+                    className={`
+                        flex-1 overflow-y-auto py-6
+                        ${
+                            collapsed
+                                ? "px-3"
+                                : "px-4"
+                        }
+                    `}
+                >
+                    <p
+                        className={`
+                            mb-3 px-3
+                            text-xs font-semibold
+                            uppercase tracking-wider
+                            text-slate-500
+                            ${
+                                collapsed
+                                    ? "lg:hidden"
+                                    : ""
+                            }
+                        `}
+                    >
                         Management
                     </p>
 
@@ -156,10 +236,24 @@ function Sidebar({
                                     to={path}
                                     onClick={onClose}
                                     className={getNavigationClass}
+                                    title={
+                                        collapsed
+                                            ? label
+                                            : undefined
+                                    }
                                 >
-                                    <Icon size={19} />
+                                    <Icon
+                                        size={19}
+                                        className="shrink-0"
+                                    />
 
-                                    <span>
+                                    <span
+                                        className={
+                                            collapsed
+                                                ? "lg:hidden"
+                                                : ""
+                                        }
+                                    >
                                         {label}
                                     </span>
                                 </NavLink>
@@ -168,32 +262,135 @@ function Sidebar({
                     </div>
                 </nav>
 
-                <div className="border-t border-slate-800 p-4">
+                <div
+                    className={`
+                        border-t border-slate-800
+                        ${
+                            collapsed
+                                ? "p-3"
+                                : "p-4"
+                        }
+                    `}
+                >
                     <NavLink
                         to="/settings"
                         onClick={onClose}
                         className={getNavigationClass}
+                        title={
+                            collapsed
+                                ? "Settings"
+                                : undefined
+                        }
                     >
-                        <Settings size={19} />
+                        <Settings
+                            size={19}
+                            className="shrink-0"
+                        />
 
-                        <span>
+                        <span
+                            className={
+                                collapsed
+                                    ? "lg:hidden"
+                                    : ""
+                            }
+                        >
                             Settings
                         </span>
                     </NavLink>
 
-                    <div className="mt-4 rounded-xl bg-slate-900 p-4">
-                        <p className="text-sm font-semibold">
-                            System Status
-                        </p>
+                    <div
+                        className={`
+                            mt-4 rounded-xl bg-slate-900
+                            ${
+                                collapsed
+                                    ? "p-3 lg:flex lg:justify-center"
+                                    : "p-4"
+                            }
+                        `}
+                        title={
+                            collapsed
+                                ? "Backend Connected"
+                                : undefined
+                        }
+                    >
+                        <div
+                            className={
+                                collapsed
+                                    ? "lg:hidden"
+                                    : ""
+                            }
+                        >
+                            <p className="text-sm font-semibold">
+                                System Status
+                            </p>
 
-                        <div className="mt-2 flex items-center gap-2">
-                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                            <div className="mt-2 flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
 
-                            <span className="text-xs text-slate-400">
-                                Backend Connected
-                            </span>
+                                <span className="text-xs text-slate-400">
+                                    Backend Connected
+                                </span>
+                            </div>
                         </div>
+
+                        <span
+                            className={`
+                                hidden h-2.5 w-2.5
+                                rounded-full
+                                bg-emerald-400
+                                ${
+                                    collapsed
+                                        ? "lg:block"
+                                        : ""
+                                }
+                            `}
+                        />
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={onToggleCollapse}
+                        aria-label={
+                            collapsed
+                                ? "Expand sidebar"
+                                : "Collapse sidebar"
+                        }
+                        title={
+                            collapsed
+                                ? "Expand sidebar"
+                                : "Collapse sidebar"
+                        }
+                        className="
+                            mt-3 hidden w-full
+                            items-center justify-center
+                            gap-2
+                            rounded-xl
+                            border border-slate-800
+                            px-3 py-2.5
+                            text-sm font-semibold
+                            text-slate-300
+                            transition
+                            hover:bg-slate-800
+                            hover:text-white
+                            lg:flex
+                        "
+                    >
+                        {collapsed ? (
+                            <PanelLeftOpen size={18} />
+                        ) : (
+                            <PanelLeftClose size={18} />
+                        )}
+
+                        <span
+                            className={
+                                collapsed
+                                    ? "hidden"
+                                    : ""
+                            }
+                        >
+                            Shrink Sidebar
+                        </span>
+                    </button>
                 </div>
             </aside>
         </>

@@ -9,11 +9,30 @@ import {
 import Sidebar from "../components/layout/Sidebar";
 import Topbar from "../components/layout/Topbar";
 
+const getInitialSidebarCollapsed = () => {
+    try {
+        return (
+            window.localStorage.getItem(
+                "rental_manager_sidebar_collapsed"
+            ) === "true"
+        );
+    } catch {
+        return false;
+    }
+};
+
 function MainLayout() {
     const [
         sidebarOpen,
         setSidebarOpen
     ] = useState(false);
+
+    const [
+        sidebarCollapsed,
+        setSidebarCollapsed
+    ] = useState(
+        getInitialSidebarCollapsed
+    );
 
     const openSidebar = () => {
         setSidebarOpen(true);
@@ -23,14 +42,45 @@ function MainLayout() {
         setSidebarOpen(false);
     };
 
+    const toggleSidebarCollapsed = () => {
+        setSidebarCollapsed(current => {
+            const next = !current;
+
+            try {
+                window.localStorage.setItem(
+                    "rental_manager_sidebar_collapsed",
+                    String(next)
+                );
+            } catch {
+                // The sidebar still works if localStorage is unavailable.
+            }
+
+            return next;
+        });
+    };
+
     return (
         <div className="min-h-screen bg-slate-100">
             <Sidebar
                 isOpen={sidebarOpen}
                 onClose={closeSidebar}
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={
+                    toggleSidebarCollapsed
+                }
             />
 
-            <div className="min-h-screen lg:pl-72">
+            <div
+                className={`
+                    min-h-screen
+                    transition-[padding] duration-300
+                    ${
+                        sidebarCollapsed
+                            ? "lg:pl-20"
+                            : "lg:pl-72"
+                    }
+                `}
+            >
                 <Topbar
                     onMenuClick={openSidebar}
                 />

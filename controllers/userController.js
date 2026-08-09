@@ -2,13 +2,30 @@ const pool = require("../config/db");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
 
-const getAllUsers = asyncHandler(async (req, res) => {
+const getAllUsers = asyncHandler(async (req, res, next) => {
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
 
     const search = req.query.search || "";
     const role = req.query.role || "";
+    const status =
+        req.query.status || "all";
+
+    if (
+        ![
+            "all",
+            "active",
+            "deleted"
+        ].includes(status)
+    ) {
+        return next(
+            new AppError(
+                "Status must be all, active or deleted.",
+                400
+            )
+        );
+    }
 
     const offset = (page - 1) * limit;
 
@@ -19,10 +36,22 @@ const getAllUsers = asyncHandler(async (req, res) => {
         WHERE
             (full_name ILIKE $1 OR email ILIKE $1)
             AND ($2 = '' OR role = $2)
+            AND (
+                $3 = 'all'
+                OR (
+                    $3 = 'active'
+                    AND deleted_at IS NULL
+                )
+                OR (
+                    $3 = 'deleted'
+                    AND deleted_at IS NOT NULL
+                )
+            )
         `,
         [
             `%${search}%`,
-            role
+            role,
+            status
         ]
     );
 
@@ -35,17 +64,31 @@ const getAllUsers = asyncHandler(async (req, res) => {
             full_name,
             email,
             role,
+            is_verified,
+            deleted_at,
             created_at
         FROM users
         WHERE
             (full_name ILIKE $1 OR email ILIKE $1)
             AND ($2 = '' OR role = $2)
+            AND (
+                $3 = 'all'
+                OR (
+                    $3 = 'active'
+                    AND deleted_at IS NULL
+                )
+                OR (
+                    $3 = 'deleted'
+                    AND deleted_at IS NOT NULL
+                )
+            )
         ORDER BY created_at DESC
-        LIMIT $3 OFFSET $4
+        LIMIT $4 OFFSET $5
         `,
         [
             `%${search}%`,
             role,
+            status,
             limit,
             offset
         ]
@@ -57,6 +100,7 @@ const getAllUsers = asyncHandler(async (req, res) => {
         limit,
         search,
         role,
+        status,
         totalUsers,
         totalPages: Math.ceil(totalUsers / limit),
         count: result.rows.length,
@@ -74,7 +118,11 @@ const getUserById = asyncHandler(async (req, res, next) => {
             full_name,
             email,
             role,
-            created_at
+            is_verified,
+            profile_image_url,
+            created_at,
+            updated_at,
+            deleted_at
          FROM users
          WHERE public_id = $1`,
         [public_id]
@@ -108,6 +156,7 @@ const updateUser = asyncHandler(async (req, res, next) => {
             email = $2,
             updated_at = NOW()
          WHERE public_id = $3
+           AND deleted_at IS NULL
          RETURNING
             public_id,
             full_name,
@@ -308,7 +357,7 @@ const uploadProfileImage = asyncHandler(async (req, res) => {
 
     await pool.query(
         `UPDATE users
-         SET profile_image = $1,
+         SET profile_image_url = $1,
              updated_at = NOW()
          WHERE public_id = $2`,
         [
@@ -320,7 +369,7 @@ const uploadProfileImage = asyncHandler(async (req, res) => {
     return res.status(200).json({
         success: true,
         message: "Profile image uploaded successfully",
-        profile_image: imagePath
+        profile_image_url: imagePath
     });
 
 });

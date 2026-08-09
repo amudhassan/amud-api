@@ -3,8 +3,21 @@ import {
     ChevronDown,
     LogOut,
     Menu,
-    Search
+    Search,
+    UserRound
 } from "lucide-react";
+
+import {
+    useEffect,
+    useRef,
+    useState
+} from "react";
+
+import {
+    useNavigate
+} from "react-router-dom";
+
+import apiClient from "../../api/apiClient";
 
 import {
     useAuth
@@ -27,12 +40,120 @@ function formatRole(role) {
 function Topbar({
     onMenuClick = () => {}
 }) {
+    const navigate = useNavigate();
+
     const {
         user,
         logout
     } = useAuth();
 
+    const [
+        profile,
+        setProfile
+    ] = useState(user || null);
+
+    const [
+        profileMenuOpen,
+        setProfileMenuOpen
+    ] = useState(false);
+
+    const profileMenuRef =
+        useRef(null);
+
+    useEffect(() => {
+        let active = true;
+
+        const loadProfile =
+            async () => {
+                try {
+                    const response =
+                        await apiClient.get(
+                            "/auth/profile"
+                        );
+
+                    if (
+                        active &&
+                        response?.data?.user
+                    ) {
+                        setProfile(
+                            response.data.user
+                        );
+                    }
+                } catch {
+                    /*
+                     * The topbar remains usable with the
+                     * authenticated session snapshot.
+                     */
+                }
+            };
+
+        loadProfile();
+
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        const handleProfileUpdated =
+            event => {
+                if (
+                    event?.detail &&
+                    typeof event.detail ===
+                        "object"
+                ) {
+                    setProfile(
+                        current => ({
+                            ...current,
+                            ...event.detail
+                        })
+                    );
+                }
+            };
+
+        window.addEventListener(
+            "rental-manager:profile-updated",
+            handleProfileUpdated
+        );
+
+        return () => {
+            window.removeEventListener(
+                "rental-manager:profile-updated",
+                handleProfileUpdated
+            );
+        };
+    }, []);
+
+    useEffect(() => {
+        const handlePointerDown =
+            event => {
+                if (
+                    profileMenuRef.current &&
+                    !profileMenuRef.current.contains(
+                        event.target
+                    )
+                ) {
+                    setProfileMenuOpen(
+                        false
+                    );
+                }
+            };
+
+        document.addEventListener(
+            "mousedown",
+            handlePointerDown
+        );
+
+        return () => {
+            document.removeEventListener(
+                "mousedown",
+                handlePointerDown
+            );
+        };
+    }, []);
+
     const displayName =
+        profile?.full_name ||
         user?.full_name ||
         "User";
 
@@ -45,8 +166,13 @@ function Topbar({
 
     const displayRole =
         formatRole(
+            profile?.role ||
             user?.role
         );
+
+    const profileImageUrl =
+        profile?.profile_image_url ||
+        null;
 
     return (
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -55,6 +181,7 @@ function Topbar({
                     <button
                         type="button"
                         onClick={onMenuClick}
+                        aria-label="Open navigation"
                         className="
                             rounded-xl border border-slate-200
                             p-2.5 text-slate-600
@@ -109,6 +236,7 @@ function Topbar({
 
                     <button
                         type="button"
+                        aria-label="Notifications"
                         className="
                             relative rounded-xl
                             border border-slate-200
@@ -129,45 +257,140 @@ function Topbar({
                         />
                     </button>
 
-                    <button
-                        type="button"
-                        className="
-                            flex items-center gap-3
-                            rounded-xl
-                            border border-slate-200
-                            bg-white
-                            px-2 py-1.5
-                            hover:bg-slate-50
-                        "
+                    <div
+                        ref={profileMenuRef}
+                        className="relative"
                     >
-                        <div
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setProfileMenuOpen(
+                                    current =>
+                                        !current
+                                )
+                            }
+                            aria-haspopup="menu"
+                            aria-expanded={
+                                profileMenuOpen
+                            }
                             className="
-                                flex h-9 w-9
-                                items-center justify-center
+                                flex items-center gap-3
                                 rounded-xl
-                                bg-blue-600
-                                text-sm font-bold
-                                text-white
+                                border border-slate-200
+                                bg-white
+                                px-2 py-1.5
+                                transition
+                                hover:bg-slate-50
+                                focus:outline-none
+                                focus:ring-2
+                                focus:ring-blue-100
                             "
                         >
-                            {avatarInitial}
-                        </div>
+                            <div
+                                className="
+                                    h-9 w-9
+                                    overflow-hidden
+                                    rounded-xl
+                                    bg-blue-600
+                                    text-sm font-bold
+                                    text-white
+                                    ring-1 ring-slate-200
+                                "
+                            >
+                                {profileImageUrl ? (
+                                    <img
+                                        src={
+                                            profileImageUrl
+                                        }
+                                        alt={`${displayName} profile`}
+                                        className="h-full w-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="flex h-full w-full items-center justify-center">
+                                        {
+                                            avatarInitial
+                                        }
+                                    </div>
+                                )}
+                            </div>
 
-                        <div className="hidden text-left md:block">
-                            <p className="max-w-44 truncate text-sm font-semibold text-slate-800">
-                                {displayName}
-                            </p>
+                            <div className="hidden text-left md:block">
+                                <p className="max-w-44 truncate text-sm font-semibold text-slate-800">
+                                    {displayName}
+                                </p>
 
-                            <p className="text-xs text-slate-500">
-                                {displayRole}
-                            </p>
-                        </div>
+                                <p className="text-xs text-slate-500">
+                                    {displayRole}
+                                </p>
+                            </div>
 
-                        <ChevronDown
-                            size={16}
-                            className="hidden text-slate-400 md:block"
-                        />
-                    </button>
+                            <ChevronDown
+                                size={16}
+                                className={`hidden text-slate-400 transition-transform md:block ${
+                                    profileMenuOpen
+                                        ? "rotate-180"
+                                        : ""
+                                }`}
+                            />
+                        </button>
+
+                        {profileMenuOpen && (
+                            <div
+                                role="menu"
+                                className="
+                                    absolute right-0 mt-2
+                                    w-60 overflow-hidden
+                                    rounded-2xl
+                                    border border-slate-200
+                                    bg-white
+                                    p-2
+                                    shadow-xl
+                                "
+                            >
+                                <div className="border-b border-slate-100 px-3 py-2.5">
+                                    <p className="truncate text-sm font-semibold text-slate-900">
+                                        {displayName}
+                                    </p>
+
+                                    <p className="mt-0.5 truncate text-xs text-slate-500">
+                                        {
+                                            profile?.email ||
+                                            user?.email ||
+                                            ""
+                                        }
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={() => {
+                                        setProfileMenuOpen(
+                                            false
+                                        );
+
+                                        navigate(
+                                            "/profile"
+                                        );
+                                    }}
+                                    className="
+                                        mt-1 flex w-full
+                                        items-center gap-2.5
+                                        rounded-xl
+                                        px-3 py-2.5
+                                        text-left text-sm
+                                        font-medium
+                                        text-slate-700
+                                        transition
+                                        hover:bg-slate-50
+                                    "
+                                >
+                                    <UserRound size={17} />
+                                    My Profile
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     <button
                         type="button"
