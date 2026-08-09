@@ -5,6 +5,7 @@ import {
     DoorOpen,
     Hash,
     Layers3,
+    PencilLine,
     RefreshCw,
     Ruler,
     UserRound
@@ -20,6 +21,7 @@ import {
 } from "react-router-dom";
 
 import apiClient from "../../api/apiClient";
+import EditUnitModal from "./EditUnitModal";
 import {
     ActionGroup,
     Button,
@@ -202,6 +204,14 @@ function UnitDetailPage() {
         useState(true);
     const [error, setError] =
         useState("");
+    const [
+        editOpen,
+        setEditOpen
+    ] = useState(false);
+    const [
+        success,
+        setSuccess
+    ] = useState("");
 
     const loadUnit =
         useCallback(
@@ -249,6 +259,15 @@ function UnitDetailPage() {
             },
             [unit_public_id]
         );
+
+    const handleUnitUpdated =
+        async () => {
+            setEditOpen(false);
+            setSuccess(
+                "Unit updated successfully."
+            );
+            await loadUnit();
+        };
 
     useEffect(() => {
         loadUnit();
@@ -389,14 +408,42 @@ function UnitDetailPage() {
                     </div>
                 </div>
 
-                <ActionGroup>
-                    <IconButton
-                        label="Refresh unit details"
-                        icon={RefreshCw}
-                        onClick={loadUnit}
-                    />
-                </ActionGroup>
+                <div className="flex items-center gap-2">
+                    <ActionGroup>
+                        <IconButton
+                            label="Refresh unit details"
+                            icon={RefreshCw}
+                            onClick={loadUnit}
+                        />
+                    </ActionGroup>
+
+                    <Button
+                        leftIcon={PencilLine}
+                        onClick={() => {
+                            setSuccess("");
+                            setEditOpen(true);
+                        }}
+                    >
+                        Edit Unit
+                    </Button>
+                </div>
             </div>
+
+            {success && (
+                <div
+                    role="status"
+                    className="
+                        rounded-2xl
+                        border border-emerald-200
+                        bg-emerald-50
+                        px-4 py-3
+                        text-sm font-medium
+                        text-emerald-700
+                    "
+                >
+                    {success}
+                </div>
+            )}
 
             <div
                 className="
@@ -837,6 +884,16 @@ function UnitDetailPage() {
                     </div>
                 )}
             </Section>
+            <EditUnitModal
+                open={editOpen}
+                unit={unit}
+                onClose={() =>
+                    setEditOpen(false)
+                }
+                onUpdated={
+                    handleUnitUpdated
+                }
+            />
         </div>
     );
 }
