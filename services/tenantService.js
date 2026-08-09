@@ -1509,6 +1509,409 @@ const updateTenant = async ({
         client.release();
     }
 };
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/activate
+ *
+ * Activates a current tenant profile under an active
+ * owner-tenant relationship.
+ */
+const activateTenant = async ({
+    ownerPublicId,
+    tenantPublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const ownerValues = [
+            ownerPublicId
+        ];
+
+        let ownerAccessCondition = "";
+
+        /*
+         * Regular users need current management permission
+         * through the selected owner.
+         */
+        if (authenticatedUser.role !== "admin") {
+            ownerValues.push(
+                authenticatedUser.id
+            );
+
+            ownerAccessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM owner_users AS user_access
+
+                    WHERE user_access.owner_id = o.id
+                      AND user_access.user_id = $2
+                      AND user_access.revoked_at IS NULL
+                      AND user_access.can_manage_properties = TRUE
+                      AND user_access.relationship_role IN (
+                          'owner',
+                          'representative',
+                          'manager'
+                      )
+                )
+            `;
+        }
+
+        /*
+         * Selected owner must be active, current and
+         * accessible.
+         */
+        const ownerResult = await client.query(
+            `
+            SELECT
+                o.id,
+                o.public_id,
+                o.owner_type,
+                o.display_name,
+                o.status,
+                o.created_at,
+                o.updated_at
+
+            FROM owners AS o
+
+            WHERE o.public_id = $1
+              AND o.status = 'active'
+              AND o.deleted_at IS NULL
+
+              ${ownerAccessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF o
+            `,
+            ownerValues
+        );
+
+        if (ownerResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return null;
+        }
+
+        const owner = ownerResult.rows[0];
+
+        /*
+         * Admin may activate through any current active
+         * relationship.
+         *
+         * A regular user must act through the primary
+         * owner relationship, matching tenant update rules.
+         */
+        let primaryRelationshipCondition = "";
+
+        if (authenticatedUser.role !== "admin") {
+            primaryRelationshipCondition = `
+                AND ot.is_primary_owner_relationship =
+                    TRUE
+            `;
+        }
+
+        /*
+         * Tenant must be current/non-deleted and selected
+         * owner must have a current ACTIVE relationship.
+         */
+        const tenantResult = await client.query(
+            `
+            SELECT
+                t.id,
+                t.public_id,
+                t.tenant_type,
+                t.display_name,
+                t.national_id,
+                t.passport_number,
+                t.registration_number,
+                t.tax_identification_number,
+                t.email,
+                t.phone_number,
+                t.alternative_phone,
+                t.address,
+                t.city,
+                t.region,
+                t.country,
+                t.status,
+                t.created_at,
+                t.updated_at,
+                t.deleted_at,
+
+                ot.public_id
+                    AS relationship_public_id,
+
+                ot.relationship_status,
+                ot.is_primary_owner_relationship,
+
+                ot.notes
+                    AS relationship_notes,
+
+                ot.created_at
+                    AS relationship_created_at,
+
+                ot.updated_at
+                    AS relationship_updated_at,
+
+                ot.ended_at
+
+            FROM tenants AS t
+
+            INNER JOIN owner_tenants AS ot
+                ON ot.tenant_id = t.id
+
+            WHERE t.public_id = $1
+              AND t.deleted_at IS NULL
+              AND ot.owner_id = $2
+              AND ot.relationship_status =
+                    'active'
+              AND ot.ended_at IS NULL
+
+              ${primaryRelationshipCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF t, ot
+            `,
+            [
+                tenantPublicId,
+                owner.id
+            ]
+        );
+
+        if (tenantResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                tenantNotFound: true
+            };
+        }
+
+        const tenant =
+            tenantResult.rows[0];
+
+        /*
+         * Idempotent handling for an already active tenant.
+         */
+        if (tenant.status === "active") {
+            await client.query("ROLLBACK");
+
+            delete owner.id;
+
+            return {
+                owner,
+
+                tenant: {
+                    public_id:
+                        tenant.public_id,
+
+                    tenant_type:
+                        tenant.tenant_type,
+
+                    display_name:
+                        tenant.display_name,
+
+                    national_id:
+                        tenant.national_id,
+
+                    passport_number:
+                        tenant.passport_number,
+
+                    registration_number:
+                        tenant.registration_number,
+
+                    tax_identification_number:
+                        tenant.tax_identification_number,
+
+                    email:
+                        tenant.email,
+
+                    phone_number:
+                        tenant.phone_number,
+
+                    alternative_phone:
+                        tenant.alternative_phone,
+
+                    address:
+                        tenant.address,
+
+                    city:
+                        tenant.city,
+
+                    region:
+                        tenant.region,
+
+                    country:
+                        tenant.country,
+
+                    status:
+                        tenant.status,
+
+                    created_at:
+                        tenant.created_at,
+
+                    updated_at:
+                        tenant.updated_at,
+
+                    deleted_at:
+                        tenant.deleted_at
+                },
+
+                owner_relationship: {
+                    public_id:
+                        tenant.relationship_public_id,
+
+                    relationship_status:
+                        tenant.relationship_status,
+
+                    is_primary_owner_relationship:
+                        tenant
+                            .is_primary_owner_relationship,
+
+                    notes:
+                        tenant.relationship_notes,
+
+                    created_at:
+                        tenant.relationship_created_at,
+
+                    updated_at:
+                        tenant.relationship_updated_at,
+
+                    ended_at:
+                        tenant.ended_at
+                },
+
+                alreadyActive: true
+            };
+        }
+
+        /*
+         * Controlled activation transition.
+         *
+         * prospective -> active
+         * inactive    -> active
+         *
+         * blocked is intentionally not silently unblocked.
+         */
+        const activatableStatuses = [
+            "prospective",
+            "inactive"
+        ];
+
+        if (
+            !activatableStatuses.includes(
+                tenant.status
+            )
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                invalidCurrentStatus: true,
+                current_status:
+                    tenant.status
+            };
+        }
+
+        const activatedTenantResult =
+            await client.query(
+                `
+                UPDATE tenants
+
+                SET
+                    status = 'active',
+                    updated_at =
+                        CURRENT_TIMESTAMP
+
+                WHERE id = $1
+                  AND deleted_at IS NULL
+
+                RETURNING
+                    public_id,
+                    tenant_type,
+                    display_name,
+                    national_id,
+                    passport_number,
+                    registration_number,
+                    tax_identification_number,
+                    email,
+                    phone_number,
+                    alternative_phone,
+                    address,
+                    city,
+                    region,
+                    country,
+                    status,
+                    created_at,
+                    updated_at,
+                    deleted_at
+                `,
+                [
+                    tenant.id
+                ]
+            );
+
+        /*
+         * Force deferred integrity checks before commit.
+         */
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        delete owner.id;
+
+        return {
+            owner,
+
+            tenant:
+                activatedTenantResult.rows[0],
+
+            owner_relationship: {
+                public_id:
+                    tenant.relationship_public_id,
+
+                relationship_status:
+                    tenant.relationship_status,
+
+                is_primary_owner_relationship:
+                    tenant
+                        .is_primary_owner_relationship,
+
+                notes:
+                    tenant.relationship_notes,
+
+                created_at:
+                    tenant.relationship_created_at,
+
+                updated_at:
+                    tenant.relationship_updated_at,
+
+                ended_at:
+                    tenant.ended_at
+            },
+
+            previous_status:
+                tenant.status,
+
+            current_status:
+                activatedTenantResult
+                    .rows[0]
+                    .status,
+
+            alreadyActive: false
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
 /*
  * DELETE /api/tenants/:tenant_public_id
  */
@@ -2772,6 +3175,7 @@ module.exports = {
     getDeletedTenants,
     getSingleTenant,
     updateTenant,
+    activateTenant,
     softDeleteTenant,
     restoreTenant,
     createTenant,

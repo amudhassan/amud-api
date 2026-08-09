@@ -11,6 +11,7 @@ const {
     getDeletedTenants,
     getSingleTenant,
     updateTenant,
+    activateTenant,
     softDeleteTenant,
     restoreTenant,
     createTenant,
@@ -312,7 +313,107 @@ const updateTenantController =
             });
         }
     );
-    /*
+    
+/*
+ * PATCH /api/tenants/:tenant_public_id/activate
+ */
+const activateTenantController =
+    asyncHandler(
+        async (req, res, next) => {
+            const {
+                tenant_public_id
+            } = req.params;
+
+            const {
+                owner_public_id
+            } = req.query;
+
+            try {
+                const result =
+                    await activateTenant({
+                        ownerPublicId:
+                            owner_public_id,
+
+                        tenantPublicId:
+                            tenant_public_id,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Owner not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.tenantNotFound) {
+                    return next(
+                        new AppError(
+                            "Tenant not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (
+                    result.invalidCurrentStatus
+                ) {
+                    return next(
+                        new AppError(
+                            `A tenant with status '${result.current_status}' cannot be activated directly.`,
+                            409
+                        )
+                    );
+                }
+
+                if (result.alreadyActive) {
+                    return res.status(200).json({
+                        success: true,
+
+                        message:
+                            "Tenant is already active.",
+
+                        data: result
+                    });
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Tenant activated successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "Tenant activation violates a tenant or owner relationship integrity rule.",
+                            422
+                        )
+                    );
+                }
+
+                if (error.code === "23503") {
+                    return next(
+                        new AppError(
+                            "A referenced owner, tenant or user record was not found.",
+                            404
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
+
+/*
  * DELETE /api/tenants/:tenant_public_id
  */
 const softDeleteTenantController =
@@ -685,6 +786,7 @@ module.exports = {
     getDeletedTenantsController,
     getSingleTenantController,
     updateTenantController,
+    activateTenantController,
     softDeleteTenantController,
     restoreTenantController,
     createTenantController,

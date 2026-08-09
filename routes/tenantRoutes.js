@@ -17,6 +17,7 @@ const {
     getDeletedTenantsController,
     getSingleTenantController,
     updateTenantController,
+    activateTenantController,
     softDeleteTenantController,
     restoreTenantController,
     createTenantController,
@@ -39,6 +40,7 @@ const {
     getDeletedTenantsValidator,
     getSingleTenantValidator,
     updateTenantValidator,
+    activateTenantValidator,
     softDeleteTenantValidator,
     restoreTenantValidator,
     createTenantValidator,
@@ -154,6 +156,20 @@ router.patch(
     restoreTenantValidator,
     validateRequest,
     restoreTenantController
+);
+
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/activate
+ *
+ * Must remain before the general PATCH route.
+ */
+router.patch(
+    "/:tenant_public_id/activate",
+    authMiddleware,
+    activateTenantValidator,
+    validateRequest,
+    activateTenantController
 );
 
 /*
