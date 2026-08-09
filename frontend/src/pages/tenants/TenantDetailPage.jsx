@@ -13,7 +13,8 @@ import {
     RefreshCw,
     ShieldCheck,
     ShieldOff,
-    Trash2
+    Trash2,
+    UsersRound
 } from "lucide-react";
 import {
     useCallback,
@@ -259,6 +260,22 @@ function TenantDetailPage() {
                             !tenant ||
                             !ownerPublicId ||
                             Boolean(endedRelationship)
+                        }
+                    />
+
+                    <IconButton
+                        label="Manage tenant users"
+                        icon={UsersRound}
+                        onClick={() =>
+                            navigate(
+                                `/tenants/${tenant.public_id}/users?owner_public_id=${encodeURIComponent(
+                                    ownerPublicId
+                                )}`
+                            )
+                        }
+                        disabled={
+                            !tenant ||
+                            !ownerPublicId
                         }
                     />
 
