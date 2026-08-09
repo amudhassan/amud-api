@@ -23,6 +23,8 @@ const {
     softDeleteTenantController,
     restoreTenantController,
     createTenantController,
+    blockOwnerTenantRelationshipController,
+    unblockOwnerTenantRelationshipController,
     endOwnerTenantRelationshipController
 } = require(
     "../controllers/tenantController"
@@ -48,6 +50,8 @@ const {
     softDeleteTenantValidator,
     restoreTenantValidator,
     createTenantValidator,
+    blockOwnerTenantRelationshipValidator,
+    unblockOwnerTenantRelationshipValidator,
     endOwnerTenantRelationshipValidator
 } = require(
     "../validators/tenantValidator"
@@ -137,6 +141,30 @@ router.get(
     getSingleTenantController
 );
 
+
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/relationship/block
+ */
+router.patch(
+    "/:tenant_public_id/relationship/block",
+    authMiddleware,
+    blockOwnerTenantRelationshipValidator,
+    validateRequest,
+    blockOwnerTenantRelationshipController
+);
+
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/relationship/unblock
+ */
+router.patch(
+    "/:tenant_public_id/relationship/unblock",
+    authMiddleware,
+    unblockOwnerTenantRelationshipValidator,
+    validateRequest,
+    unblockOwnerTenantRelationshipController
+);
 
 /*
  * PATCH /api/tenants/:tenant_public_id/relationship/end

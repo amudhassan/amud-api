@@ -18,6 +18,7 @@ const {
     restoreTenant,
     createTenant,
     blockOwnerTenantRelationship,
+    unblockOwnerTenantRelationship,
     endOwnerTenantRelationship
 } = require(
     "../services/tenantService"
@@ -988,6 +989,88 @@ const blockOwnerTenantRelationshipController =
         }
     );
 
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/relationship/unblock
+ */
+const unblockOwnerTenantRelationshipController =
+    asyncHandler(
+        async (req, res, next) => {
+            const {
+                tenant_public_id
+            } = req.params;
+
+            const {
+                owner_public_id
+            } = req.query;
+
+            try {
+                const result =
+                    await unblockOwnerTenantRelationship({
+                        ownerPublicId:
+                            owner_public_id,
+
+                        tenantPublicId:
+                            tenant_public_id,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Owner not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (
+                    result.relationshipNotFound
+                ) {
+                    return next(
+                        new AppError(
+                            "Current owner-tenant relationship not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.alreadyActive) {
+                    return res.status(200).json({
+                        success: true,
+
+                        message:
+                            "Owner-tenant relationship is already active.",
+
+                        data: result
+                    });
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Owner-tenant relationship unblocked successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "Owner-tenant relationship unblocking violates a lifecycle integrity rule.",
+                            409
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
+
 /*
  * PATCH /api/tenants/:tenant_public_id/relationship/end
  */
@@ -1083,5 +1166,6 @@ module.exports = {
     restoreTenantController,
     createTenantController,
     blockOwnerTenantRelationshipController,
+    unblockOwnerTenantRelationshipController,
     endOwnerTenantRelationshipController
 };
