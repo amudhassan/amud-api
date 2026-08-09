@@ -930,23 +930,21 @@ const updateTenantValidator = [
             "Region cannot exceed 100 characters."
         ),
 
-   body("country")
-    .optional()
-    .isString()
-    .withMessage(
-        "Country must be a string."
-    )
-    .trim()
-    .notEmpty()
-    .withMessage(
-        "Country cannot be empty."
-    )
-    .isLength({
-        max: 100
-    })
-    .withMessage(
-        "Country cannot exceed 100 characters."
-    )
+    body("country")
+        .optional({ nullable: true })
+        .isString()
+        .withMessage(
+            "Country must be a string or null."
+        )
+        .trim()
+        .notEmpty()
+        .withMessage(
+            "Country cannot be empty."
+        )
+        .isLength({ max: 100 })
+        .withMessage(
+            "Country cannot exceed 100 characters."
+        )
 ];
 /*
  * DELETE /api/tenants/:tenant_public_id
@@ -1036,109 +1034,6 @@ const softDeleteTenantValidator = [
     /*
      * Soft-delete operation haitumii request body.
      * Lifecycle values zinaamuliwa na system.
-     */
-    body()
-        .custom(value => {
-            const suppliedFields =
-                Object.keys(value || {});
-
-            if (suppliedFields.length > 0) {
-                throw new Error(
-                    `Request body is not allowed for this operation. Unsupported fields: ${suppliedFields.join(", ")}.`
-                );
-            }
-
-            return true;
-        })
-];
-/*
- * PATCH /api/tenants/:tenant_public_id/activate
- */
-const activateTenantValidator = [
-
-    /*
-     * owner_public_id pekee ndiyo query
-     * parameter inayokubalika.
-     */
-    query()
-        .custom(value => {
-            const allowedFields = [
-                "owner_public_id"
-            ];
-
-            const suppliedFields =
-                Object.keys(value || {});
-
-            const unsupportedFields =
-                suppliedFields.filter(
-                    field =>
-                        !allowedFields.includes(field)
-                );
-
-            if (unsupportedFields.length > 0) {
-                throw new Error(
-                    `Unsupported query parameters: ${unsupportedFields.join(", ")}.`
-                );
-            }
-
-            return true;
-        }),
-
-    param("tenant_public_id")
-        .exists({
-            checkFalsy: true
-        })
-        .withMessage(
-            "Tenant public ID is required."
-        )
-        .isString()
-        .withMessage(
-            "Tenant public ID must be a string."
-        )
-        .trim()
-        .isLength({
-            min: 8,
-            max: 50
-        })
-        .withMessage(
-            "Tenant public ID must contain between 8 and 50 characters."
-        )
-        .matches(
-            /^tenant_[A-Za-z0-9_-]+$/
-        )
-        .withMessage(
-            "Invalid tenant public ID format."
-        ),
-
-    query("owner_public_id")
-        .exists({
-            checkFalsy: true
-        })
-        .withMessage(
-            "Owner public ID is required."
-        )
-        .isString()
-        .withMessage(
-            "Owner public ID must be a string."
-        )
-        .trim()
-        .isLength({
-            min: 7,
-            max: 40
-        })
-        .withMessage(
-            "Owner public ID must contain between 7 and 40 characters."
-        )
-        .matches(
-            /^owner_[A-Za-z0-9_-]+$/
-        )
-        .withMessage(
-            "Invalid owner public ID format."
-        ),
-
-    /*
-     * Tenant activation is a controlled lifecycle
-     * transition and does not accept body fields.
      */
     body()
         .custom(value => {
@@ -1257,12 +1152,115 @@ const restoreTenantValidator = [
             return true;
         })
 ];
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/relationship/end
+ */
+const endOwnerTenantRelationshipValidator = [
+
+    /*
+     * owner_public_id is the only supported query parameter.
+     */
+    query()
+        .custom(value => {
+            const allowedFields = [
+                "owner_public_id"
+            ];
+
+            const suppliedFields =
+                Object.keys(value || {});
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported query parameters: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    param("tenant_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Tenant public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Tenant public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 8,
+            max: 50
+        })
+        .withMessage(
+            "Tenant public ID must contain between 8 and 50 characters."
+        )
+        .matches(
+            /^tenant_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid tenant public ID format."
+        ),
+
+    query("owner_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Owner public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Owner public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Owner public ID must contain between 7 and 40 characters."
+        )
+        .matches(
+            /^owner_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid owner public ID format."
+        ),
+
+    /*
+     * The lifecycle change is fully system-controlled.
+     */
+    body()
+        .custom(value => {
+            const suppliedFields =
+                Object.keys(value || {});
+
+            if (suppliedFields.length > 0) {
+                throw new Error(
+                    `Request body is not allowed for this operation. Unsupported fields: ${suppliedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        })
+];
+
 module.exports = {
     createTenantValidator,
     getTenantsValidator,
     getSingleTenantValidator,
     updateTenantValidator,
     softDeleteTenantValidator,
-    activateTenantValidator,
-    restoreTenantValidator
+    restoreTenantValidator,
+    endOwnerTenantRelationshipValidator
 };

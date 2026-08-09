@@ -17,9 +17,9 @@ const {
     getSingleTenantController,
     updateTenantController,
     softDeleteTenantController,
-    activateTenantController,
     restoreTenantController,
-    createTenantController
+    createTenantController,
+    endOwnerTenantRelationshipController
 } = require(
     "../controllers/tenantController"
 );
@@ -38,9 +38,9 @@ const {
     getSingleTenantValidator,
     updateTenantValidator,
     softDeleteTenantValidator,
-    activateTenantValidator,
     restoreTenantValidator,
-    createTenantValidator
+    createTenantValidator,
+    endOwnerTenantRelationshipValidator
 } = require(
     "../validators/tenantValidator"
 );
@@ -116,17 +116,16 @@ router.get(
     getSingleTenantController
 );
 
+
 /*
- * PATCH /api/tenants/:tenant_public_id/activate
- *
- * Must remain before the general PATCH route.
+ * PATCH /api/tenants/:tenant_public_id/relationship/end
  */
 router.patch(
-    "/:tenant_public_id/activate",
+    "/:tenant_public_id/relationship/end",
     authMiddleware,
-    activateTenantValidator,
+    endOwnerTenantRelationshipValidator,
     validateRequest,
-    activateTenantController
+    endOwnerTenantRelationshipController
 );
 
 /*
