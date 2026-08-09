@@ -8,6 +8,7 @@ const AppError = require(
 
 const {
     getPropertyUnits,
+    getDeletedUnits,
     createUnit,
     getSingleUnit,
     updateUnit,
@@ -79,6 +80,43 @@ const getPropertyUnitsController =
             });
         }
     );
+const getDeletedUnitsController =
+    asyncHandler(
+        async (req, res) => {
+            const result =
+                await getDeletedUnits({
+                    filters: {
+                        search:
+                            req.query.search,
+                        property_public_id:
+                            req.query
+                                .property_public_id,
+                        unit_type:
+                            req.query.unit_type,
+                        page:
+                            req.query.page,
+                        limit:
+                            req.query.limit
+                    },
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Deleted units retrieved successfully.",
+
+                count:
+                    result.units.length,
+
+                data: result
+            });
+        }
+    );
+
 const createUnitController =
     asyncHandler(
         async (req, res, next) => {
@@ -632,6 +670,7 @@ const createUnitController =
 );
 module.exports = {
     getPropertyUnitsController,
+    getDeletedUnitsController,
     createUnitController,
     getSingleUnitController,
     updateUnitController,

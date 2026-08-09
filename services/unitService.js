@@ -379,6 +379,265 @@ const getPropertyUnits = async ({
         }
     };
 };
+const getDeletedUnits = async ({
+    filters,
+    authenticatedUser
+}) => {
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+    const offset = (page - 1) * limit;
+
+    const values = [];
+    const conditions = [
+        "unit_record.deleted_at IS NOT NULL"
+    ];
+
+    const addValue = value => {
+        values.push(value);
+        return `$${values.length}`;
+    };
+
+    /*
+     * Restore authorization ndiyo msingi wa list hii.
+     * Admin anaona deleted units zote.
+     * Regular user anaona deleted units za properties
+     * ambazo ana ruhusa ya kuzisimamia.
+     */
+    if (authenticatedUser.role !== "admin") {
+        const userPlaceholder = addValue(
+            authenticatedUser.id
+        );
+
+        conditions.push(`
+            EXISTS (
+                SELECT 1
+
+                FROM property_owners AS po_access
+
+                INNER JOIN owner_users AS user_access
+                    ON user_access.owner_id =
+                        po_access.owner_id
+                   AND user_access.user_id =
+                        ${userPlaceholder}
+                   AND user_access.revoked_at IS NULL
+                   AND user_access.can_manage_properties = TRUE
+                   AND user_access.relationship_role IN (
+                        'owner',
+                        'representative',
+                        'manager'
+                   )
+
+                WHERE po_access.property_id =
+                        property_record.id
+                  AND po_access.effective_to IS NULL
+            )
+        `);
+    }
+
+    if (filters.property_public_id) {
+        const propertyPlaceholder = addValue(
+            filters.property_public_id
+        );
+
+        conditions.push(
+            `property_record.public_id = ${propertyPlaceholder}`
+        );
+    }
+
+    if (filters.unit_type) {
+        const typePlaceholder = addValue(
+            filters.unit_type
+        );
+
+        conditions.push(
+            `unit_record.unit_type = ${typePlaceholder}`
+        );
+    }
+
+    if (filters.search) {
+        const searchPlaceholder = addValue(
+            `%${filters.search}%`
+        );
+
+        conditions.push(`
+            (
+                unit_record.unit_code ILIKE
+                    ${searchPlaceholder}
+                OR COALESCE(
+                    unit_record.unit_name,
+                    ''
+                ) ILIKE ${searchPlaceholder}
+                OR property_record.property_code ILIKE
+                    ${searchPlaceholder}
+                OR property_record.property_name ILIKE
+                    ${searchPlaceholder}
+            )
+        `);
+    }
+
+    const whereClause =
+        conditions.join(" AND ");
+
+    const countResult = await pool.query(
+        `
+        SELECT
+            COUNT(*)::INTEGER AS total_items
+
+        FROM units AS unit_record
+
+        INNER JOIN properties AS property_record
+            ON property_record.id =
+                unit_record.property_id
+
+        WHERE ${whereClause}
+        `,
+        values
+    );
+
+    const totalItems =
+        countResult.rows[0].total_items;
+
+    const limitPlaceholder = addValue(limit);
+    const offsetPlaceholder = addValue(offset);
+
+    const result = await pool.query(
+        `
+        SELECT
+            unit_record.public_id,
+            unit_record.unit_code,
+            unit_record.unit_name,
+            unit_record.unit_type,
+            unit_record.floor_number,
+            unit_record.bedrooms,
+            unit_record.bathrooms,
+            unit_record.area_size,
+            unit_record.area_unit,
+            unit_record.description,
+            unit_record.operational_status,
+            unit_record.deleted_at,
+            unit_record.created_at,
+            unit_record.updated_at,
+
+            creator.public_id
+                AS created_by_public_id,
+
+            creator.full_name
+                AS created_by_name,
+
+            property_record.public_id
+                AS property_public_id,
+
+            property_record.property_code,
+            property_record.property_name,
+            property_record.property_type,
+            property_record.is_multi_unit,
+
+            property_record.operational_status
+                AS property_operational_status,
+
+            property_record.deleted_at
+                AS property_deleted_at
+
+        FROM units AS unit_record
+
+        INNER JOIN properties AS property_record
+            ON property_record.id =
+                unit_record.property_id
+
+        LEFT JOIN users AS creator
+            ON creator.id =
+                unit_record.created_by
+
+        WHERE ${whereClause}
+
+        ORDER BY
+            unit_record.deleted_at DESC,
+            unit_record.id DESC
+
+        LIMIT ${limitPlaceholder}
+        OFFSET ${offsetPlaceholder}
+        `,
+        values
+    );
+
+    const units = result.rows.map(row => ({
+        public_id: row.public_id,
+        unit_code: row.unit_code,
+        unit_name: row.unit_name,
+        unit_type: row.unit_type,
+        floor_number: row.floor_number,
+        bedrooms: row.bedrooms,
+        bathrooms: Number(row.bathrooms),
+        area_size:
+            row.area_size === null
+                ? null
+                : Number(row.area_size),
+        area_unit: row.area_unit,
+        description: row.description,
+        operational_status:
+            row.operational_status,
+        deleted_at: row.deleted_at,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+
+        created_by:
+            row.created_by_public_id
+                ? {
+                    public_id:
+                        row.created_by_public_id,
+                    full_name:
+                        row.created_by_name
+                }
+                : null,
+
+        property: {
+            public_id:
+                row.property_public_id,
+            property_code:
+                row.property_code,
+            property_name:
+                row.property_name,
+            property_type:
+                row.property_type,
+            is_multi_unit:
+                row.is_multi_unit,
+            operational_status:
+                row.property_operational_status,
+            deleted_at:
+                row.property_deleted_at
+        }
+    }));
+
+    const totalPages =
+        totalItems === 0
+            ? 0
+            : Math.ceil(totalItems / limit);
+
+    return {
+        units,
+
+        pagination: {
+            current_page: page,
+            per_page: limit,
+            total_items: totalItems,
+            total_pages: totalPages,
+            has_previous_page:
+                page > 1,
+            has_next_page:
+                page < totalPages
+        },
+
+        filters: {
+            search:
+                filters.search || null,
+            property_public_id:
+                filters.property_public_id || null,
+            unit_type:
+                filters.unit_type || null
+        }
+    };
+};
+
 const createUnit = async ({
     propertyPublicId,
     unitData,
@@ -2326,6 +2585,7 @@ const restoreUnit = async ({
 };
 module.exports = {
     getPropertyUnits,
+    getDeletedUnits,
     createUnit,
     getSingleUnit,
     updateUnit,

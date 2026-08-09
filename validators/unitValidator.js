@@ -26,6 +26,116 @@ const allowedUnitStatuses = [
     "maintenance"
 ];
 
+const getDeletedUnitsValidator = [
+    /*
+     * Only documented filters are accepted.
+     */
+    query().custom(value => {
+        const allowedFields = [
+            "search",
+            "property_public_id",
+            "unit_type",
+            "page",
+            "limit"
+        ];
+
+        const suppliedFields =
+            Object.keys(value || {});
+
+        const unsupportedFields =
+            suppliedFields.filter(
+                field =>
+                    !allowedFields.includes(field)
+            );
+
+        if (unsupportedFields.length > 0) {
+            throw new Error(
+                `Unsupported query parameters: ${unsupportedFields.join(", ")}.`
+            );
+        }
+
+        return true;
+    }),
+
+    /*
+     * GET request must not contain body fields.
+     */
+    body().custom(value => {
+        const suppliedFields =
+            Object.keys(value || {});
+
+        if (suppliedFields.length > 0) {
+            throw new Error(
+                "Deleted units request does not accept body fields."
+            );
+        }
+
+        return true;
+    }),
+
+    query("search")
+        .optional()
+        .isString()
+        .withMessage(
+            "Search must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 1,
+            max: 100
+        })
+        .withMessage(
+            "Search must contain between 1 and 100 characters."
+        ),
+
+    query("property_public_id")
+        .optional()
+        .isString()
+        .withMessage(
+            "Property public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 10,
+            max: 50
+        })
+        .withMessage(
+            "Property public ID must contain between 10 and 50 characters."
+        )
+        .matches(
+            /^property_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid property public ID format."
+        ),
+
+    query("unit_type")
+        .optional()
+        .isIn(allowedUnitTypes)
+        .withMessage(
+            "Invalid unit type."
+        ),
+
+    query("page")
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage(
+            "Page must be a positive integer."
+        )
+        .toInt(),
+
+    query("limit")
+        .optional()
+        .isInt({
+            min: 1,
+            max: 100
+        })
+        .withMessage(
+            "Limit must be between 1 and 100."
+        )
+        .toInt()
+];
+
 const getPropertyUnitsValidator = [
     param("property_public_id")
         .exists({ checkFalsy: true })
@@ -790,6 +900,7 @@ const restoreUnitValidator = [
     })
 ];
 module.exports = {
+    getDeletedUnitsValidator,
     getPropertyUnitsValidator,
     createUnitValidator,
     getSingleUnitValidator,

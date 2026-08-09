@@ -16,6 +16,7 @@ const validateRequest = require(
 );
 
 const {
+    getDeletedUnitsController,
     getSingleUnitController,
     updateUnitController,
     activateUnitController,
@@ -27,6 +28,7 @@ const {
 );
 
 const {
+    getDeletedUnitsValidator,
     getSingleUnitValidator,
     updateUnitValidator,
     activateUnitValidator,
@@ -37,6 +39,13 @@ const {
     "../validators/unitValidator"
 );
 
+router.get(
+    "/deleted",
+    authMiddleware,
+    getDeletedUnitsValidator,
+    validateRequest,
+    getDeletedUnitsController
+);
 router.get(
     "/:unit_public_id",
     authMiddleware,
