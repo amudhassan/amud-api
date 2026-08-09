@@ -8,6 +8,7 @@ import MainLayout from "./layouts/MainLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 import LoginPage from "./pages/auth/LoginPage";
+import RegisterPage from "./pages/auth/RegisterPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import DashboardPage from "./pages/dashboard/DashboardPage";
@@ -20,6 +21,7 @@ import UnitDetailPage from "./pages/units/UnitDetailPage";
 import TenantsPage from "./pages/tenants/TenantsPage";
 import DeletedTenantsPage from "./pages/tenants/DeletedTenantsPage";
 import TenantDetailPage from "./pages/tenants/TenantDetailPage";
+import TenantUsersPage from "./pages/tenants/TenantUsersPage";
 import LeasesPage from "./pages/leases/LeasesPage";
 import InvoicesPage from "./pages/invoices/InvoicesPage";
 import PaymentsPage from "./pages/payments/PaymentsPage";
@@ -34,6 +36,11 @@ function App() {
             <Route
                 path="/login"
                 element={<LoginPage />}
+            />
+
+            <Route
+                path="/register"
+                element={<RegisterPage />}
             />
 
             <Route
@@ -101,6 +108,11 @@ function App() {
                     <Route
                         path="tenants/deleted"
                         element={<DeletedTenantsPage />}
+                    />
+
+                    <Route
+                        path="tenants/:tenant_public_id/users"
+                        element={<TenantUsersPage />}
                     />
 
                     <Route

@@ -489,21 +489,24 @@ function LoginPage() {
                                     </label>
 
                                     <button
-    type="button"
-    onClick={() =>
-        navigate(
-            "/forgot-password"
-        )
-    }
-    className="
-        text-sm
-        font-semibold
-        text-blue-600
-        hover:text-blue-700
-    "
->
-    Forgot password?
-</button>
+                                        type="button"
+                                        onClick={() =>
+                                            navigate(
+                                                "/forgot-password"
+                                            )
+                                        }
+                                        disabled={isSubmitting}
+                                        className="
+                                            text-sm
+                                            font-semibold
+                                            text-blue-600
+                                            hover:text-blue-700
+                                            disabled:cursor-not-allowed
+                                            disabled:opacity-60
+                                        "
+                                    >
+                                        Forgot password?
+                                    </button>
                                 </div>
 
                                 <button
@@ -530,6 +533,46 @@ function LoginPage() {
                                     {isSubmitting
                                         ? "Signing In..."
                                         : "Sign In"}
+                                </button>
+
+                                <div className="flex items-center gap-3">
+                                    <div className="h-px flex-1 bg-slate-200" />
+                                    <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                        New here?
+                                    </span>
+                                    <div className="h-px flex-1 bg-slate-200" />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        navigate(
+                                            "/register"
+                                        )
+                                    }
+                                    disabled={isSubmitting}
+                                    className="
+                                        w-full
+                                        rounded-xl
+                                        border border-slate-200
+                                        bg-white
+                                        px-5 py-3
+                                        text-sm
+                                        font-semibold
+                                        text-slate-700
+                                        shadow-sm
+                                        transition
+                                        hover:border-blue-200
+                                        hover:bg-blue-50
+                                        hover:text-blue-700
+                                        focus:outline-none
+                                        focus:ring-4
+                                        focus:ring-blue-100
+                                        disabled:cursor-not-allowed
+                                        disabled:opacity-60
+                                    "
+                                >
+                                    Create Account
                                 </button>
                             </form>
                         </div>
