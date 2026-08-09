@@ -17,6 +17,7 @@ const {
     softDeleteTenant,
     restoreTenant,
     createTenant,
+    blockOwnerTenantRelationship,
     endOwnerTenantRelationship
 } = require(
     "../services/tenantService"
@@ -900,6 +901,93 @@ const createTenantController = asyncHandler(
 );
 
 
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/relationship/block
+ */
+const blockOwnerTenantRelationshipController =
+    asyncHandler(
+        async (req, res, next) => {
+            const {
+                tenant_public_id
+            } = req.params;
+
+            const {
+                owner_public_id
+            } = req.query;
+
+            try {
+                const result =
+                    await blockOwnerTenantRelationship({
+                        ownerPublicId:
+                            owner_public_id,
+
+                        tenantPublicId:
+                            tenant_public_id,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Owner not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (
+                    result.relationshipNotFound
+                ) {
+                    return next(
+                        new AppError(
+                            "Current owner-tenant relationship not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.alreadyBlocked) {
+                    return res.status(200).json({
+                        success: true,
+
+                        message:
+                            "Owner-tenant relationship is already blocked.",
+
+                        data: result
+                    });
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Owner-tenant relationship blocked successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                /*
+                 * The deferred lease-integrity trigger rejects
+                 * blocking a relationship required by a draft,
+                 * scheduled or active lease.
+                 */
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "Owner-tenant relationship cannot be blocked while a draft, scheduled or active lease depends on it.",
+                            409
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
+
 /*
  * PATCH /api/tenants/:tenant_public_id/relationship/end
  */
@@ -994,5 +1082,6 @@ module.exports = {
     softDeleteTenantController,
     restoreTenantController,
     createTenantController,
+    blockOwnerTenantRelationshipController,
     endOwnerTenantRelationshipController
 };

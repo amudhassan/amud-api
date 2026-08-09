@@ -3717,6 +3717,361 @@ const createTenant = async ({
 };
 
 
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/relationship/block
+ *
+ * Blocks the selected owner's current relationship with the
+ * tenant without blocking the tenant profile globally.
+ */
+const blockOwnerTenantRelationship = async ({
+    ownerPublicId,
+    tenantPublicId,
+    authenticatedUser
+}) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const ownerValues = [
+            ownerPublicId
+        ];
+
+        let ownerAccessCondition = "";
+
+        /*
+         * Regular users need current property-management
+         * permission for the selected owner.
+         */
+        if (authenticatedUser.role !== "admin") {
+            ownerValues.push(
+                authenticatedUser.id
+            );
+
+            ownerAccessCondition = `
+                AND EXISTS (
+                    SELECT 1
+
+                    FROM owner_users AS user_access
+
+                    WHERE user_access.owner_id = o.id
+                      AND user_access.user_id = $2
+                      AND user_access.revoked_at IS NULL
+                      AND user_access.can_manage_properties = TRUE
+                      AND user_access.relationship_role IN (
+                          'owner',
+                          'representative',
+                          'manager'
+                      )
+                )
+            `;
+        }
+
+        /*
+         * Selected owner must be active, current and accessible.
+         */
+        const ownerResult = await client.query(
+            `
+            SELECT
+                o.id,
+                o.public_id,
+                o.owner_type,
+                o.display_name,
+                o.status,
+                o.created_at,
+                o.updated_at
+
+            FROM owners AS o
+
+            WHERE o.public_id = $1
+              AND o.status = 'active'
+              AND o.deleted_at IS NULL
+
+              ${ownerAccessCondition}
+
+            LIMIT 1
+
+            FOR UPDATE OF o
+            `,
+            ownerValues
+        );
+
+        if (ownerResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return null;
+        }
+
+        const owner = ownerResult.rows[0];
+
+        /*
+         * Load and lock the selected owner's CURRENT
+         * relationship with the tenant.
+         *
+         * Both active and blocked are current relationship
+         * states because ended_at remains NULL.
+         */
+        const relationshipResult =
+            await client.query(
+                `
+                SELECT
+                    t.id
+                        AS tenant_id,
+
+                    t.public_id
+                        AS tenant_public_id,
+
+                    t.tenant_type,
+                    t.display_name,
+
+                    t.status
+                        AS tenant_status,
+
+                    ot.id
+                        AS relationship_id,
+
+                    ot.public_id
+                        AS relationship_public_id,
+
+                    ot.relationship_status,
+                    ot.is_primary_owner_relationship,
+                    ot.notes,
+                    ot.created_at,
+                    ot.updated_at,
+                    ot.ended_at
+
+                FROM tenants AS t
+
+                INNER JOIN owner_tenants AS ot
+                    ON ot.tenant_id = t.id
+
+                WHERE t.public_id = $1
+                  AND t.deleted_at IS NULL
+                  AND ot.owner_id = $2
+                  AND ot.ended_at IS NULL
+                  AND ot.relationship_status IN (
+                      'active',
+                      'blocked'
+                  )
+
+                ORDER BY
+                    ot.created_at DESC,
+                    ot.id DESC
+
+                LIMIT 1
+
+                FOR UPDATE OF t, ot
+                `,
+                [
+                    tenantPublicId,
+                    owner.id
+                ]
+            );
+
+        if (
+            relationshipResult.rows.length === 0
+        ) {
+            await client.query("ROLLBACK");
+
+            return {
+                relationshipNotFound: true
+            };
+        }
+
+        const currentRelationship =
+            relationshipResult.rows[0];
+
+        /*
+         * Idempotent block.
+         */
+        if (
+            currentRelationship
+                .relationship_status === "blocked"
+        ) {
+            await client.query("ROLLBACK");
+
+            delete owner.id;
+
+            return {
+                owner,
+
+                tenant: {
+                    public_id:
+                        currentRelationship
+                            .tenant_public_id,
+
+                    tenant_type:
+                        currentRelationship
+                            .tenant_type,
+
+                    display_name:
+                        currentRelationship
+                            .display_name,
+
+                    status:
+                        currentRelationship
+                            .tenant_status
+                },
+
+                owner_relationship: {
+                    public_id:
+                        currentRelationship
+                            .relationship_public_id,
+
+                    relationship_status:
+                        currentRelationship
+                            .relationship_status,
+
+                    is_primary_owner_relationship:
+                        currentRelationship
+                            .is_primary_owner_relationship,
+
+                    notes:
+                        currentRelationship
+                            .notes,
+
+                    created_at:
+                        currentRelationship
+                            .created_at,
+
+                    updated_at:
+                        currentRelationship
+                            .updated_at,
+
+                    ended_at:
+                        currentRelationship
+                            .ended_at
+                },
+
+                alreadyBlocked: true
+            };
+        }
+
+        /*
+         * active -> blocked
+         *
+         * A blocked relationship cannot remain primary under
+         * the database lifecycle constraint, therefore the
+         * primary flag is cleared in the same atomic update.
+         *
+         * Tenant profile status is intentionally untouched.
+         */
+        const blockedResult =
+            await client.query(
+                `
+                UPDATE owner_tenants
+
+                SET
+                    relationship_status =
+                        'blocked',
+
+                    is_primary_owner_relationship =
+                        FALSE,
+
+                    ended_at = NULL,
+
+                    updated_at =
+                        CURRENT_TIMESTAMP
+
+                WHERE id = $1
+                  AND relationship_status =
+                        'active'
+                  AND ended_at IS NULL
+
+                RETURNING
+                    public_id,
+                    relationship_status,
+                    is_primary_owner_relationship,
+                    notes,
+                    created_at,
+                    updated_at,
+                    ended_at
+                `,
+                [
+                    currentRelationship
+                        .relationship_id
+                ]
+            );
+
+        if (blockedResult.rows.length === 0) {
+            await client.query("ROLLBACK");
+
+            return {
+                relationshipNotFound: true
+            };
+        }
+
+        /*
+         * Existing deferred lease integrity requires the
+         * owner-tenant relationship to stay active while a
+         * draft, scheduled or active lease depends on it.
+         *
+         * Force those checks now so the whole transaction
+         * rolls back cleanly when such a lease exists.
+         */
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        delete owner.id;
+
+        return {
+            owner,
+
+            tenant: {
+                public_id:
+                    currentRelationship
+                        .tenant_public_id,
+
+                tenant_type:
+                    currentRelationship
+                        .tenant_type,
+
+                display_name:
+                    currentRelationship
+                        .display_name,
+
+                status:
+                    currentRelationship
+                        .tenant_status
+            },
+
+            owner_relationship:
+                blockedResult.rows[0],
+
+            blocking_summary: {
+                relationship_blocked: true,
+
+                previous_relationship_status:
+                    currentRelationship
+                        .relationship_status,
+
+                previous_primary_relationship:
+                    currentRelationship
+                        .is_primary_owner_relationship,
+
+                current_relationship_status:
+                    blockedResult.rows[0]
+                        .relationship_status,
+
+                tenant_profile_status:
+                    currentRelationship
+                        .tenant_status
+            },
+
+            alreadyBlocked: false
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
 /*
  * PATCH /api/tenants/:tenant_public_id/relationship/end
  *
@@ -3971,5 +4326,6 @@ module.exports = {
     softDeleteTenant,
     restoreTenant,
     createTenant,
+    blockOwnerTenantRelationship,
     endOwnerTenantRelationship
 };
