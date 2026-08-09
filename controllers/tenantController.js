@@ -13,6 +13,7 @@ const {
     updateTenant,
     activateTenant,
     blockTenant,
+    unblockTenant,
     softDeleteTenant,
     restoreTenant,
     createTenant,
@@ -514,6 +515,106 @@ const blockTenantController =
         }
     );
 
+
+/*
+ * PATCH /api/tenants/:tenant_public_id/unblock
+ */
+const unblockTenantController =
+    asyncHandler(
+        async (req, res, next) => {
+            const {
+                tenant_public_id
+            } = req.params;
+
+            const {
+                owner_public_id
+            } = req.query;
+
+            try {
+                const result =
+                    await unblockTenant({
+                        ownerPublicId:
+                            owner_public_id,
+
+                        tenantPublicId:
+                            tenant_public_id,
+
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (!result) {
+                    return next(
+                        new AppError(
+                            "Owner not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.tenantNotFound) {
+                    return next(
+                        new AppError(
+                            "Tenant not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (
+                    result.invalidCurrentStatus
+                ) {
+                    return next(
+                        new AppError(
+                            `A tenant with status '${result.current_status}' cannot be unblocked directly.`,
+                            409
+                        )
+                    );
+                }
+
+                if (result.alreadyActive) {
+                    return res.status(200).json({
+                        success: true,
+
+                        message:
+                            "Tenant is already active.",
+
+                        data: result
+                    });
+                }
+
+                return res.status(200).json({
+                    success: true,
+
+                    message:
+                        "Tenant unblocked successfully.",
+
+                    data: result
+                });
+            } catch (error) {
+                if (error.code === "23514") {
+                    return next(
+                        new AppError(
+                            "Tenant unblocking violates a tenant or owner relationship integrity rule.",
+                            422
+                        )
+                    );
+                }
+
+                if (error.code === "23503") {
+                    return next(
+                        new AppError(
+                            "A referenced owner, tenant or user record was not found.",
+                            404
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
+
 /*
  * DELETE /api/tenants/:tenant_public_id
  */
@@ -889,6 +990,7 @@ module.exports = {
     updateTenantController,
     activateTenantController,
     blockTenantController,
+    unblockTenantController,
     softDeleteTenantController,
     restoreTenantController,
     createTenantController,
