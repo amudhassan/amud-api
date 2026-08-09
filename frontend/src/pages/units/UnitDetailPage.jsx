@@ -6,6 +6,7 @@ import {
     Hash,
     Layers3,
     PencilLine,
+    Power,
     RefreshCw,
     Ruler,
     UserRound
@@ -22,6 +23,7 @@ import {
 
 import apiClient from "../../api/apiClient";
 import EditUnitModal from "./EditUnitModal";
+import ActivateUnitModal from "./ActivateUnitModal";
 import {
     ActionGroup,
     Button,
@@ -209,6 +211,10 @@ function UnitDetailPage() {
         setEditOpen
     ] = useState(false);
     const [
+        activateOpen,
+        setActivateOpen
+    ] = useState(false);
+    const [
         success,
         setSuccess
     ] = useState("");
@@ -265,6 +271,15 @@ function UnitDetailPage() {
             setEditOpen(false);
             setSuccess(
                 "Unit updated successfully."
+            );
+            await loadUnit();
+        };
+
+    const handleUnitActivated =
+        async () => {
+            setActivateOpen(false);
+            setSuccess(
+                "Unit activated successfully and is now available."
             );
             await loadUnit();
         };
@@ -408,7 +423,12 @@ function UnitDetailPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div
+                    className="
+                        flex flex-wrap
+                        items-center gap-2
+                    "
+                >
                     <ActionGroup>
                         <IconButton
                             label="Refresh unit details"
@@ -416,6 +436,31 @@ function UnitDetailPage() {
                             onClick={loadUnit}
                         />
                     </ActionGroup>
+
+                    {[
+                        "inactive",
+                        "maintenance"
+                    ].includes(
+                        unit.operational_status
+                    ) && (
+                        <Button
+                            variant="success"
+                            leftIcon={Power}
+                            disabled={
+                                property
+                                    ?.operational_status !==
+                                "active"
+                            }
+                            onClick={() => {
+                                setSuccess("");
+                                setActivateOpen(
+                                    true
+                                );
+                            }}
+                        >
+                            Activate Unit
+                        </Button>
+                    )}
 
                     <Button
                         leftIcon={PencilLine}
@@ -444,6 +489,29 @@ function UnitDetailPage() {
                     {success}
                 </div>
             )}
+
+            {[
+                "inactive",
+                "maintenance"
+            ].includes(
+                unit.operational_status
+            ) &&
+                property?.operational_status !==
+                    "active" && (
+                    <div
+                        className="
+                            rounded-2xl
+                            border border-amber-200
+                            bg-amber-50
+                            px-4 py-3
+                            text-sm text-amber-800
+                        "
+                    >
+                        This unit cannot be activated
+                        until its parent property is
+                        Active.
+                    </div>
+                )}
 
             <div
                 className="
@@ -892,6 +960,17 @@ function UnitDetailPage() {
                 }
                 onUpdated={
                     handleUnitUpdated
+                }
+            />
+            <ActivateUnitModal
+                open={activateOpen}
+                unit={unit}
+                property={property}
+                onClose={() =>
+                    setActivateOpen(false)
+                }
+                onActivated={
+                    handleUnitActivated
                 }
             />
         </div>
