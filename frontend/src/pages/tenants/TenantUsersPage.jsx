@@ -5,9 +5,11 @@ import {
     ChevronLeft,
     ChevronRight,
     CircleUserRound,
+    Pencil,
     RefreshCw,
     Search,
     ShieldCheck,
+    Trash2,
     UserRoundCog,
     X
 } from "lucide-react";
@@ -24,6 +26,8 @@ import {
 
 import apiClient from "../../api/apiClient";
 import AddTenantUserModal from "./AddTenantUserModal";
+import UpdateTenantUserModal from "./UpdateTenantUserModal";
+import RevokeTenantUserModal from "./RevokeTenantUserModal";
 import {
     ActionGroup,
     Button,
@@ -108,6 +112,16 @@ function TenantUsersPage() {
         useState("");
     const [addOpen, setAddOpen] =
         useState(false);
+
+    const [
+        updateTarget,
+        setUpdateTarget
+    ] = useState(null);
+
+    const [
+        revokeTarget,
+        setRevokeTarget
+    ] = useState(null);
 
     const [page, setPage] =
         useState(1);
@@ -397,7 +411,7 @@ function TenantUsersPage() {
                         </h2>
 
                         <p className="mt-1 max-w-md text-sm text-slate-500">
-                            Adjust the search or role filter, or add a tenant user in the next management phase.
+                            Adjust the search or role filter, or add a tenant user to this tenant.
                         </p>
                     </div>
                 ) : (
@@ -416,6 +430,10 @@ function TenantUsersPage() {
                                     </th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                         Account
+                                    </th>
+
+                                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Actions
                                     </th>
                                 </tr>
                             </thead>
@@ -519,6 +537,66 @@ function TenantUsersPage() {
                                                 </p>
                                             </div>
                                         </td>
+
+                                        <td className="px-4 py-4 text-right">
+                                            <div className="inline-flex items-center gap-2">
+                                                <IconButton
+                                                    label={`Edit ${user.full_name || "tenant user"}`}
+                                                    icon={Pencil}
+                                                    onClick={() => {
+                                                        setSuccess("");
+                                                        setUpdateTarget(
+                                                            user
+                                                        );
+                                                    }}
+                                                />
+
+                                                <button
+                                                    type="button"
+                                                    title={
+                                                        user.is_primary
+                                                            ? "Promote another tenant user to Primary Contact before revoking this relationship."
+                                                            : `Revoke ${user.full_name || "tenant user"}`
+                                                    }
+                                                    aria-label={
+                                                        user.is_primary
+                                                            ? "Current primary contact cannot be revoked directly"
+                                                            : `Revoke ${user.full_name || "tenant user"}`
+                                                    }
+                                                    disabled={
+                                                        user.is_primary ===
+                                                        true
+                                                    }
+                                                    onClick={() => {
+                                                        setSuccess("");
+                                                        setRevokeTarget(
+                                                            user
+                                                        );
+                                                    }}
+                                                    className="
+                                                        inline-flex h-9 w-9
+                                                        items-center justify-center
+                                                        rounded-xl
+                                                        border border-rose-200
+                                                        bg-white
+                                                        text-rose-600
+                                                        transition
+                                                        hover:bg-rose-50
+                                                        hover:text-rose-700
+                                                        focus:outline-none
+                                                        focus:ring-4
+                                                        focus:ring-rose-100
+                                                        disabled:cursor-not-allowed
+                                                        disabled:border-slate-200
+                                                        disabled:bg-slate-50
+                                                        disabled:text-slate-300
+                                                        disabled:opacity-70
+                                                    "
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -584,6 +662,68 @@ function TenantUsersPage() {
                         `${addedUser?.full_name || "Tenant user"} added successfully.`
                     );
                     setPage(1);
+                    await loadUsers();
+                }}
+            />
+
+            <UpdateTenantUserModal
+                open={Boolean(
+                    updateTarget
+                )}
+                tenantPublicId={
+                    tenant_public_id
+                }
+                user={
+                    updateTarget
+                }
+                onClose={() =>
+                    setUpdateTarget(
+                        null
+                    )
+                }
+                onUpdated={async (
+                    _result,
+                    updatedUser
+                ) => {
+                    setUpdateTarget(
+                        null
+                    );
+
+                    setSuccess(
+                        `${updatedUser?.full_name || "Tenant user"} updated successfully.`
+                    );
+
+                    await loadUsers();
+                }}
+            />
+
+            <RevokeTenantUserModal
+                open={Boolean(
+                    revokeTarget
+                )}
+                tenantPublicId={
+                    tenant_public_id
+                }
+                user={
+                    revokeTarget
+                }
+                onClose={() =>
+                    setRevokeTarget(
+                        null
+                    )
+                }
+                onRevoked={async (
+                    _result,
+                    revokedUser
+                ) => {
+                    setRevokeTarget(
+                        null
+                    );
+
+                    setSuccess(
+                        `${revokedUser?.full_name || "Tenant user"} access revoked successfully.`
+                    );
+
                     await loadUsers();
                 }}
             />
