@@ -3,6 +3,7 @@ import {
     ChevronLeft,
     ChevronRight,
     DoorOpen,
+    Eye,
     Gauge,
     Home,
     Plus,
@@ -16,6 +17,10 @@ import {
     useMemo,
     useState
 } from "react";
+
+import {
+    useNavigate
+} from "react-router-dom";
 
 import apiClient from "../../api/apiClient";
 import CreateUnitModal from "./CreateUnitModal";
@@ -98,6 +103,8 @@ const statusClassName = status => {
 };
 
 function UnitsPage() {
+    const navigate = useNavigate();
+
     const [properties, setProperties] =
         useState([]);
     const [
@@ -1198,6 +1205,14 @@ function UnitsPage() {
                                     <th className="px-5 py-3.5">
                                         Status
                                     </th>
+                                    <th
+                                        className="
+                                            px-5 py-3.5
+                                            text-right
+                                        "
+                                    >
+                                        Actions
+                                    </th>
                                 </tr>
                             </thead>
 
@@ -1346,6 +1361,29 @@ function UnitsPage() {
                                                         unit.operational_status
                                                     )}
                                                 </span>
+                                            </td>
+                                            <td
+                                                className="
+                                                    px-5 py-4
+                                                    text-right
+                                                "
+                                            >
+                                                <div
+                                                    className="
+                                                        flex
+                                                        justify-end
+                                                    "
+                                                >
+                                                    <IconButton
+                                                        label="View unit details"
+                                                        icon={Eye}
+                                                        onClick={() =>
+                                                            navigate(
+                                                                `/units/${unit.public_id}`
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
                                             </td>
                                         </tr>
                                     )

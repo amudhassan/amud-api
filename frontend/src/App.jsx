@@ -15,6 +15,7 @@ import OwnersPage from "./pages/owners/OwnersPage";
 import PropertiesPage from "./pages/properties/PropertiesPage";
 import PropertyDetailPage from "./pages/properties/PropertyDetailPage";
 import UnitsPage from "./pages/units/UnitsPage";
+import UnitDetailPage from "./pages/units/UnitDetailPage";
 import TenantsPage from "./pages/tenants/TenantsPage";
 import LeasesPage from "./pages/leases/LeasesPage";
 import InvoicesPage from "./pages/invoices/InvoicesPage";
@@ -77,6 +78,11 @@ function App() {
                     <Route
                         path="units"
                         element={<UnitsPage />}
+                    />
+
+                    <Route
+                        path="units/:unit_public_id"
+                        element={<UnitDetailPage />}
                     />
 
                     <Route
