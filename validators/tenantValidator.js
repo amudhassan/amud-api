@@ -512,6 +512,139 @@ const getTenantsValidator = [
         )
         .toInt()
 ];
+
+/*
+ * GET /api/tenants/deleted
+ */
+const getDeletedTenantsValidator = [
+
+    query()
+        .custom(value => {
+            const allowedFields = [
+                "owner_public_id",
+                "search",
+                "tenant_type",
+                "page",
+                "limit"
+            ];
+
+            const suppliedFields =
+                Object.keys(value || {});
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported query parameters: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    /*
+     * GET request does not accept body fields.
+     */
+    body()
+        .custom(value => {
+            const suppliedFields =
+                Object.keys(value || {});
+
+            if (suppliedFields.length > 0) {
+                throw new Error(
+                    "Deleted tenants request does not accept body fields."
+                );
+            }
+
+            return true;
+        }),
+
+    query("owner_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Owner public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Owner public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Owner public ID must contain between 7 and 40 characters."
+        )
+        .matches(
+            /^owner_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid owner public ID format."
+        ),
+
+    query("search")
+        .optional()
+        .isString()
+        .withMessage(
+            "Search must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 1,
+            max: 200
+        })
+        .withMessage(
+            "Search must contain between 1 and 200 characters."
+        ),
+
+    query("tenant_type")
+        .optional()
+        .isString()
+        .withMessage(
+            "Tenant type must be a string."
+        )
+        .trim()
+        .toLowerCase()
+        .isIn([
+            "individual",
+            "company",
+            "government",
+            "organization",
+            "partnership"
+        ])
+        .withMessage(
+            "Invalid tenant type."
+        ),
+
+    query("page")
+        .optional()
+        .isInt({
+            min: 1
+        })
+        .withMessage(
+            "Page must be a positive integer."
+        )
+        .toInt(),
+
+    query("limit")
+        .optional()
+        .isInt({
+            min: 1,
+            max: 100
+        })
+        .withMessage(
+            "Limit must be between 1 and 100."
+        )
+        .toInt()
+];
+
 /*
  * GET /api/tenants/:tenant_public_id
  */
@@ -1258,6 +1391,7 @@ const endOwnerTenantRelationshipValidator = [
 module.exports = {
     createTenantValidator,
     getTenantsValidator,
+    getDeletedTenantsValidator,
     getSingleTenantValidator,
     updateTenantValidator,
     softDeleteTenantValidator,

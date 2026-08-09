@@ -478,6 +478,424 @@ const getTenants = async ({
         }
     };
 };
+
+/*
+ * GET /api/tenants/deleted
+ *
+ * Lists soft-deleted tenants that have historical relationship
+ * with the selected owner and are eligible to be considered
+ * for restore under that same owner context.
+ */
+const getDeletedTenants = async ({
+    ownerPublicId,
+    filters,
+    authenticatedUser
+}) => {
+    const ownerValues = [
+        ownerPublicId
+    ];
+
+    let accessCondition = "";
+
+    /*
+     * Restore-capable list:
+     * regular users need owner management permission.
+     */
+    if (authenticatedUser.role !== "admin") {
+        ownerValues.push(
+            authenticatedUser.id
+        );
+
+        accessCondition = `
+            AND EXISTS (
+                SELECT 1
+
+                FROM owner_users AS user_access
+
+                WHERE user_access.owner_id = o.id
+                  AND user_access.user_id = $2
+                  AND user_access.revoked_at IS NULL
+                  AND user_access
+                        .can_manage_properties = TRUE
+                  AND user_access.relationship_role IN (
+                      'owner',
+                      'representative',
+                      'manager'
+                  )
+            )
+        `;
+    }
+
+    /*
+     * Restore service requires an active current owner,
+     * so the discovery endpoint uses the same scope.
+     */
+    const ownerResult = await pool.query(
+        `
+        SELECT
+            o.id,
+            o.public_id,
+            o.owner_type,
+            o.display_name,
+            o.status,
+            o.created_at,
+            o.updated_at
+
+        FROM owners AS o
+
+        WHERE o.public_id = $1
+          AND o.status = 'active'
+          AND o.deleted_at IS NULL
+
+          ${accessCondition}
+
+        LIMIT 1
+        `,
+        ownerValues
+    );
+
+    if (ownerResult.rows.length === 0) {
+        return null;
+    }
+
+    const owner = ownerResult.rows[0];
+
+    const page =
+        filters.page || 1;
+
+    const limit =
+        filters.limit || 20;
+
+    const offset =
+        (page - 1) * limit;
+
+    const queryValues = [
+        owner.id
+    ];
+
+    const whereConditions = [
+        "t.deleted_at IS NOT NULL",
+        `
+        EXISTS (
+            SELECT 1
+
+            FROM owner_tenants AS relationship_scope
+
+            WHERE relationship_scope.tenant_id =
+                    t.id
+              AND relationship_scope.owner_id = $1
+        )
+        `
+    ];
+
+    const addQueryValue = value => {
+        queryValues.push(value);
+        return `$${queryValues.length}`;
+    };
+
+    if (filters.search) {
+        const placeholder =
+            addQueryValue(
+                `%${filters.search}%`
+            );
+
+        whereConditions.push(`
+            (
+                t.display_name
+                    ILIKE ${placeholder}
+
+                OR COALESCE(
+                    t.national_id,
+                    ''
+                ) ILIKE ${placeholder}
+
+                OR COALESCE(
+                    t.passport_number,
+                    ''
+                ) ILIKE ${placeholder}
+
+                OR COALESCE(
+                    t.registration_number,
+                    ''
+                ) ILIKE ${placeholder}
+
+                OR COALESCE(
+                    t.tax_identification_number,
+                    ''
+                ) ILIKE ${placeholder}
+
+                OR COALESCE(
+                    t.email,
+                    ''
+                ) ILIKE ${placeholder}
+
+                OR COALESCE(
+                    t.phone_number,
+                    ''
+                ) ILIKE ${placeholder}
+            )
+        `);
+    }
+
+    if (filters.tenant_type) {
+        const placeholder =
+            addQueryValue(
+                filters.tenant_type
+            );
+
+        whereConditions.push(
+            `t.tenant_type = ${placeholder}`
+        );
+    }
+
+    const whereClause =
+        whereConditions.join(" AND ");
+
+    const countResult = await pool.query(
+        `
+        SELECT
+            COUNT(*)::INTEGER
+                AS total_items
+
+        FROM tenants AS t
+
+        WHERE ${whereClause}
+        `,
+        queryValues
+    );
+
+    const totalItems =
+        countResult.rows[0].total_items;
+
+    const limitPlaceholder =
+        addQueryValue(limit);
+
+    const offsetPlaceholder =
+        addQueryValue(offset);
+
+    const tenantsResult = await pool.query(
+        `
+        SELECT
+            t.public_id,
+            t.tenant_type,
+            t.display_name,
+            t.national_id,
+            t.passport_number,
+            t.registration_number,
+            t.tax_identification_number,
+            t.email,
+            t.phone_number,
+            t.alternative_phone,
+            t.address,
+            t.city,
+            t.region,
+            t.country,
+            t.status,
+            t.created_at,
+            t.updated_at,
+            t.deleted_at,
+
+            creator.public_id
+                AS created_by_public_id,
+
+            creator.full_name
+                AS created_by_name,
+
+            creator.email
+                AS created_by_email,
+
+            last_relationship.public_id
+                AS relationship_public_id,
+
+            last_relationship.relationship_status,
+            last_relationship
+                .is_primary_owner_relationship,
+
+            last_relationship.notes
+                AS relationship_notes,
+
+            last_relationship.created_at
+                AS relationship_created_at,
+
+            last_relationship.updated_at
+                AS relationship_updated_at,
+
+            last_relationship.ended_at
+
+        FROM tenants AS t
+
+        LEFT JOIN users AS creator
+            ON creator.id = t.created_by
+
+        INNER JOIN LATERAL (
+            SELECT
+                ot.public_id,
+                ot.relationship_status,
+                ot.is_primary_owner_relationship,
+                ot.notes,
+                ot.created_at,
+                ot.updated_at,
+                ot.ended_at
+
+            FROM owner_tenants AS ot
+
+            WHERE ot.tenant_id = t.id
+              AND ot.owner_id = $1
+
+            ORDER BY
+                ot.created_at DESC,
+                ot.id DESC
+
+            LIMIT 1
+        ) AS last_relationship
+            ON TRUE
+
+        WHERE ${whereClause}
+
+        ORDER BY
+            t.deleted_at DESC,
+            t.id DESC
+
+        LIMIT ${limitPlaceholder}
+        OFFSET ${offsetPlaceholder}
+        `,
+        queryValues
+    );
+
+    const tenants =
+        tenantsResult.rows.map(
+            row => ({
+                public_id:
+                    row.public_id,
+
+                tenant_type:
+                    row.tenant_type,
+
+                display_name:
+                    row.display_name,
+
+                national_id:
+                    row.national_id,
+
+                passport_number:
+                    row.passport_number,
+
+                registration_number:
+                    row.registration_number,
+
+                tax_identification_number:
+                    row.tax_identification_number,
+
+                email:
+                    row.email,
+
+                phone_number:
+                    row.phone_number,
+
+                alternative_phone:
+                    row.alternative_phone,
+
+                address:
+                    row.address,
+
+                city:
+                    row.city,
+
+                region:
+                    row.region,
+
+                country:
+                    row.country,
+
+                status:
+                    row.status,
+
+                deleted_at:
+                    row.deleted_at,
+
+                created_at:
+                    row.created_at,
+
+                updated_at:
+                    row.updated_at,
+
+                owner_relationship: {
+                    public_id:
+                        row.relationship_public_id,
+
+                    relationship_status:
+                        row.relationship_status,
+
+                    is_primary_owner_relationship:
+                        row
+                            .is_primary_owner_relationship,
+
+                    notes:
+                        row.relationship_notes,
+
+                    created_at:
+                        row
+                            .relationship_created_at,
+
+                    updated_at:
+                        row
+                            .relationship_updated_at,
+
+                    ended_at:
+                        row.ended_at
+                },
+
+                created_by:
+                    row.created_by_public_id
+                        ? {
+                            public_id:
+                                row.created_by_public_id,
+
+                            full_name:
+                                row.created_by_name,
+
+                            email:
+                                row.created_by_email
+                        }
+                        : null
+            })
+        );
+
+    const totalPages =
+        totalItems === 0
+            ? 0
+            : Math.ceil(
+                totalItems / limit
+            );
+
+    delete owner.id;
+
+    return {
+        owner,
+
+        tenants,
+
+        pagination: {
+            current_page: page,
+            per_page: limit,
+            total_items: totalItems,
+            total_pages: totalPages,
+            has_previous_page:
+                page > 1,
+            has_next_page:
+                page < totalPages
+        },
+
+        filters: {
+            search:
+                filters.search || null,
+
+            tenant_type:
+                filters.tenant_type || null
+        }
+    };
+};
+
 /*
  * GET /api/tenants/:tenant_public_id
  */
@@ -2237,6 +2655,7 @@ const endOwnerTenantRelationship = async ({
 
 module.exports = {
     getTenants,
+    getDeletedTenants,
     getSingleTenant,
     updateTenant,
     softDeleteTenant,

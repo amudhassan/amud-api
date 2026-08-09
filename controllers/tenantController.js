@@ -8,6 +8,7 @@ const AppError = require(
 
 const {
     getTenants,
+    getDeletedTenants,
     getSingleTenant,
     updateTenant,
     softDeleteTenant,
@@ -78,6 +79,64 @@ const getTenantsController = asyncHandler(
         });
     }
 );
+
+/*
+ * GET /api/tenants/deleted
+ */
+const getDeletedTenantsController =
+    asyncHandler(
+        async (req, res, next) => {
+            const {
+                owner_public_id,
+                search,
+                tenant_type,
+                page,
+                limit
+            } = req.query;
+
+            const result =
+                await getDeletedTenants({
+                    ownerPublicId:
+                        owner_public_id,
+
+                    filters: {
+                        search,
+                        tenant_type,
+                        page,
+                        limit
+                    },
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            /*
+             * Missing, inactive, deleted or inaccessible
+             * owner is intentionally hidden behind 404.
+             */
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Owner not found.",
+                        404
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Deleted tenants retrieved successfully.",
+
+                count:
+                    result.tenants.length,
+
+                data: result
+            });
+        }
+    );
+
 /*
  * GET /api/tenants/:tenant_public_id
  */
@@ -607,6 +666,7 @@ const endOwnerTenantRelationshipController =
 
 module.exports = {
     getTenantsController,
+    getDeletedTenantsController,
     getSingleTenantController,
     updateTenantController,
     softDeleteTenantController,

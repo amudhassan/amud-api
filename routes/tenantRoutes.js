@@ -14,6 +14,7 @@ const validateRequest = require(
 
 const {
     getTenantsController,
+    getDeletedTenantsController,
     getSingleTenantController,
     updateTenantController,
     softDeleteTenantController,
@@ -35,6 +36,7 @@ const {
 
 const {
     getTenantsValidator,
+    getDeletedTenantsValidator,
     getSingleTenantValidator,
     updateTenantValidator,
     softDeleteTenantValidator,
@@ -63,6 +65,19 @@ router.get(
     getTenantsValidator,
     validateRequest,
     getTenantsController
+);
+
+/*
+ * GET /api/tenants/deleted
+ *
+ * Must remain before GET /:tenant_public_id.
+ */
+router.get(
+    "/deleted",
+    authMiddleware,
+    getDeletedTenantsValidator,
+    validateRequest,
+    getDeletedTenantsController
 );
 /*
  * GET /api/tenants/:tenant_public_id/users
