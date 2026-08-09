@@ -18,6 +18,7 @@ import UnitsPage from "./pages/units/UnitsPage";
 import DeletedUnitsPage from "./pages/units/DeletedUnitsPage";
 import UnitDetailPage from "./pages/units/UnitDetailPage";
 import TenantsPage from "./pages/tenants/TenantsPage";
+import TenantDetailPage from "./pages/tenants/TenantDetailPage";
 import LeasesPage from "./pages/leases/LeasesPage";
 import InvoicesPage from "./pages/invoices/InvoicesPage";
 import PaymentsPage from "./pages/payments/PaymentsPage";
@@ -94,6 +95,11 @@ function App() {
                     <Route
                         path="tenants"
                         element={<TenantsPage />}
+                    />
+
+                    <Route
+                        path="tenants/:tenant_public_id"
+                        element={<TenantDetailPage />}
                     />
 
                     <Route
