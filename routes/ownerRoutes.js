@@ -28,7 +28,8 @@ const {
     getOwnerUsersController,
     addOwnerUserController,
     updateOwnerUserController,
-    revokeOwnerUserController
+    revokeOwnerUserController,
+    getEligibleOwnerUsersController
 } = require("../controllers/ownerUserController");
 
 const {
@@ -81,6 +82,21 @@ router.get(
     getOwnersValidator,
     validateRequest,
     getDeletedOwnersController
+);
+
+/*
+ * GET /api/owners/:owner_public_id/users/eligible
+ *
+ * Used by the Add Owner User selector. It returns only
+ * verified, non-deleted users who are not currently linked
+ * to the selected owner.
+ */
+router.get(
+    "/:owner_public_id/users/eligible",
+    authMiddleware,
+    getOwnerUsersValidator,
+    validateRequest,
+    getEligibleOwnerUsersController
 );
 
 router.get(

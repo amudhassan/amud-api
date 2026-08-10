@@ -948,9 +948,113 @@ const revokeOwnerUser = async ({
     }
 };
 
+const getEligibleOwnerUsers = async ({
+    ownerPublicId,
+    authenticatedUser
+}) => {
+    const accessValues = [ownerPublicId];
+
+    let accessJoin = "";
+
+    /*
+     * Match the same management authority used by
+     * Add Owner User. Admin is global; a regular user
+     * must be an active primary owner-side representative.
+     */
+    if (authenticatedUser.role !== "admin") {
+        accessValues.push(authenticatedUser.id);
+
+        accessJoin = `
+            INNER JOIN owner_users AS requester_link
+                ON requester_link.owner_id = o.id
+               AND requester_link.user_id = $2
+               AND requester_link.revoked_at IS NULL
+               AND requester_link.is_primary = TRUE
+               AND requester_link.relationship_role IN (
+                   'owner',
+                   'representative',
+                   'manager'
+               )
+        `;
+    }
+
+    const ownerResult = await pool.query(
+        `
+        SELECT
+            o.id,
+            o.public_id,
+            o.owner_type,
+            o.display_name,
+            o.status
+        FROM owners AS o
+
+        ${accessJoin}
+
+        WHERE o.public_id = $1
+          AND o.deleted_at IS NULL
+
+        LIMIT 1
+        `,
+        accessValues
+    );
+
+    /*
+     * Missing and inaccessible owners intentionally
+     * share the same result to protect owner isolation.
+     */
+    if (ownerResult.rows.length === 0) {
+        return null;
+    }
+
+    const owner = ownerResult.rows[0];
+
+    /*
+     * Only verified, non-deleted login accounts that do
+     * not already have an active relationship with this
+     * owner are eligible for the selector.
+     *
+     * The endpoint never exposes internal numeric IDs.
+     */
+    const usersResult = await pool.query(
+        `
+        SELECT
+            u.public_id,
+            u.full_name,
+            u.email,
+            u.role,
+            u.is_verified,
+            u.profile_image_url
+        FROM users AS u
+        WHERE u.deleted_at IS NULL
+          AND u.is_verified = TRUE
+          AND NOT EXISTS (
+              SELECT 1
+              FROM owner_users AS existing_link
+              WHERE existing_link.owner_id = $1
+                AND existing_link.user_id = u.id
+                AND existing_link.revoked_at IS NULL
+          )
+        ORDER BY
+            u.full_name ASC,
+            u.email ASC,
+            u.id ASC
+        LIMIT 100
+        `,
+        [owner.id]
+    );
+
+    delete owner.id;
+
+    return {
+        owner,
+        users: usersResult.rows
+    };
+};
+
 module.exports = {
-    getOwnerUsers,
+getOwnerUsers,
     addOwnerUser,
     updateOwnerUser,
-    revokeOwnerUser
+    revokeOwnerUser,
+    getEligibleOwnerUsers
 };

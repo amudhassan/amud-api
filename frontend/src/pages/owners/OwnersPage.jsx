@@ -10,7 +10,8 @@ import {
     Search,
     SlidersHorizontal,
     Trash2,
-    UserRound
+    UserRound,
+    UsersRound
 } from "lucide-react";
 
 import {
@@ -32,6 +33,7 @@ import DeleteOwnerModal from "./DeleteOwnerModal";
 import DeletedOwnersModal from "./DeletedOwnersModal";
 import EditOwnerModal from "./EditOwnerModal";
 import OwnerDetailModal from "./OwnerDetailModal";
+import OwnerUsersModal from "./OwnerUsersModal";
 
 import {
     useAuth
@@ -139,6 +141,11 @@ function OwnersPage() {
         deletedOwnersOpen,
         setDeletedOwnersOpen
     ] = useState(false);
+
+    const [
+        ownerUsersOwner,
+        setOwnerUsersOwner
+    ] = useState(null);
 
     const [
         success,
@@ -843,6 +850,16 @@ function OwnersPage() {
                                                         }
                                                     />
 
+                                                    <IconButton
+                                                        label={`Users of ${owner.display_name}`}
+                                                        icon={UsersRound}
+                                                        onClick={() =>
+                                                            setOwnerUsersOwner(
+                                                                owner
+                                                            )
+                                                        }
+                                                    />
+
                                                     {canEditOwner(owner) && (
                                                         <IconButton
                                                             label={`Edit ${owner.display_name}`}
@@ -954,6 +971,19 @@ function OwnersPage() {
                                             View Detail
                                         </button>
 
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setOwnerUsersOwner(
+                                                    owner
+                                                )
+                                            }
+                                            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                                        >
+                                            <UsersRound className="h-4 w-4" />
+                                            Owner Users
+                                        </button>
+
                                         {canEditOwner(owner) && (
                                             <button
                                                 type="button"
@@ -1053,6 +1083,13 @@ function OwnersPage() {
                     }}
                 />
             )}
+
+            <OwnerUsersModal
+                owner={ownerUsersOwner}
+                onClose={() =>
+                    setOwnerUsersOwner(null)
+                }
+            />
 
             <OwnerDetailModal
                 ownerPublicId={selectedOwnerPublicId}

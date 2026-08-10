@@ -5,7 +5,8 @@ const {
     getOwnerUsers,
     addOwnerUser,
     updateOwnerUser,
-    revokeOwnerUser
+    revokeOwnerUser,
+    getEligibleOwnerUsers
 } = require("../services/ownerUserService");
 
 const getOwnerUsersController = asyncHandler(
@@ -286,9 +287,49 @@ const revokeOwnerUserController = asyncHandler(
     }
 );
 
+/*
+ * GET /api/owners/:owner_public_id/users/eligible
+ */
+const getEligibleOwnerUsersController = asyncHandler(
+    async (req, res, next) => {
+        const result = await getEligibleOwnerUsers({
+            ownerPublicId:
+                req.params.owner_public_id,
+
+            authenticatedUser:
+                req.user
+        });
+
+        /*
+         * Missing owner and insufficient owner scope use
+         * the same response to avoid identifier disclosure.
+         */
+        if (!result) {
+            return next(
+                new AppError(
+                    "Owner not found.",
+                    404
+                )
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "Eligible owner users retrieved successfully.",
+            count: result.users.length,
+            data: {
+                owner: result.owner,
+                users: result.users
+            }
+        });
+    }
+);
+
 module.exports = {
-    getOwnerUsersController,
+getOwnerUsersController,
     addOwnerUserController,
     updateOwnerUserController,
-    revokeOwnerUserController
+    revokeOwnerUserController,
+    getEligibleOwnerUsersController
 };
