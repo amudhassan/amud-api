@@ -189,6 +189,165 @@ const getOwnerShareholders = async ({
     };
 };
 
+/**
+ * Retrieve active owner records that can be selected as shareholders
+ * for a company or partnership.
+ *
+ * The selector intentionally uses the target company context rather than
+ * GET /api/owners so a regular finance-authorized owner user can search
+ * valid shareholder candidates without receiving unrelated owner data.
+ */
+const getEligibleOwnerShareholders = async ({
+    companyPublicId,
+    authenticatedUser
+}) => {
+    const accessValues = [companyPublicId];
+
+    let accessJoin = "";
+
+    /*
+     * Match the mutation authority used by Add Shareholder.
+     */
+    if (authenticatedUser.role !== "admin") {
+        accessValues.push(authenticatedUser.id);
+
+        accessJoin = `
+            INNER JOIN owner_users AS requester_link
+                ON requester_link.owner_id = company.id
+               AND requester_link.user_id = $2
+               AND requester_link.revoked_at IS NULL
+               AND requester_link.can_manage_finances = TRUE
+               AND requester_link.relationship_role IN (
+                   'owner',
+                   'representative',
+                   'manager',
+                   'accountant'
+               )
+        `;
+    }
+
+    const companyResult = await pool.query(
+        `
+        SELECT
+            company.id,
+            company.public_id,
+            company.owner_type,
+            company.display_name,
+            company.registration_number,
+            company.tax_identification_number,
+            company.country,
+            company.status
+        FROM owners AS company
+
+        ${accessJoin}
+
+        WHERE company.public_id = $1
+          AND company.deleted_at IS NULL
+
+        LIMIT 1
+        `,
+        accessValues
+    );
+
+    if (companyResult.rows.length === 0) {
+        return null;
+    }
+
+    const company = companyResult.rows[0];
+
+    if (
+        ![
+            "company",
+            "partnership"
+        ].includes(company.owner_type)
+    ) {
+        return {
+            invalidCompanyType: true,
+            company
+        };
+    }
+
+    if (company.status !== "active") {
+        return {
+            inactiveCompany: true,
+            company
+        };
+    }
+
+    /*
+     * A shareholder is itself another active owner record. The company
+     * cannot own shares in itself. Existing active shareholder types are
+     * returned so the frontend can prevent selecting a duplicate type
+     * while still allowing a different valid share class for the same
+     * shareholder, which the mutation service supports.
+     */
+    const eligibleResult = await pool.query(
+        `
+        SELECT
+            shareholder.public_id,
+            shareholder.owner_type,
+            shareholder.display_name,
+            shareholder.registration_number,
+            shareholder.tax_identification_number,
+            shareholder.email,
+            shareholder.phone_number,
+            shareholder.country,
+            shareholder.status,
+
+            COALESCE(
+                ARRAY_AGG(
+                    DISTINCT active_shareholding.shareholder_type
+                ) FILTER (
+                    WHERE active_shareholding.id IS NOT NULL
+                ),
+                ARRAY[]::VARCHAR[]
+            ) AS active_shareholder_types
+
+        FROM owners AS shareholder
+
+        LEFT JOIN owner_shareholders AS active_shareholding
+            ON active_shareholding.company_owner_id = $1
+           AND active_shareholding.shareholder_owner_id =
+                shareholder.id
+           AND active_shareholding.is_active = TRUE
+           AND active_shareholding.effective_to IS NULL
+
+        WHERE shareholder.deleted_at IS NULL
+          AND shareholder.status = 'active'
+          AND shareholder.id <> $1
+
+        GROUP BY
+            shareholder.id,
+            shareholder.public_id,
+            shareholder.owner_type,
+            shareholder.display_name,
+            shareholder.registration_number,
+            shareholder.tax_identification_number,
+            shareholder.email,
+            shareholder.phone_number,
+            shareholder.country,
+            shareholder.status
+
+        ORDER BY
+            LOWER(shareholder.display_name),
+            shareholder.public_id
+
+        LIMIT 100
+        `,
+        [company.id]
+    );
+
+    delete company.id;
+
+    return {
+        invalidCompanyType: false,
+        inactiveCompany: false,
+        company,
+        eligible_shareholders:
+            eligibleResult.rows
+    };
+};
+
 const addOwnerShareholder = async ({
     companyPublicId,
     shareholderData,
@@ -1350,6 +1509,7 @@ const closeOwnerShareholder = async ({
 
 module.exports = {
     getOwnerShareholders,
+    getEligibleOwnerShareholders,
     addOwnerShareholder,
     updateOwnerShareholder,
     closeOwnerShareholder

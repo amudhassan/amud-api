@@ -4,6 +4,7 @@ import {
     ChevronRight,
     Eye,
     Pencil,
+    PieChart,
     Plus,
     RefreshCw,
     RotateCcw,
@@ -33,6 +34,7 @@ import DeleteOwnerModal from "./DeleteOwnerModal";
 import DeletedOwnersModal from "./DeletedOwnersModal";
 import EditOwnerModal from "./EditOwnerModal";
 import OwnerDetailModal from "./OwnerDetailModal";
+import OwnerShareholdersModal from "./OwnerShareholdersModal";
 import OwnerUsersModal from "./OwnerUsersModal";
 
 import {
@@ -145,6 +147,11 @@ function OwnersPage() {
     const [
         ownerUsersOwner,
         setOwnerUsersOwner
+    ] = useState(null);
+
+    const [
+        ownerShareholdersOwner,
+        setOwnerShareholdersOwner
     ] = useState(null);
 
     const [
@@ -379,6 +386,26 @@ function OwnersPage() {
 
     const canDeleteOwner = owner =>
         canEditOwner(owner);
+
+    const canViewShareholders = owner => {
+        if (
+            ![
+                "company",
+                "partnership"
+            ].includes(
+                owner?.owner_type
+            )
+        ) {
+            return false;
+        }
+
+        if (user?.role === "admin") {
+            return true;
+        }
+
+        return owner?.can_manage_finances ===
+            true;
+    };
 
     return (
         <div className="space-y-6">
@@ -860,6 +887,18 @@ function OwnersPage() {
                                                         }
                                                     />
 
+                                                    {canViewShareholders(owner) && (
+                                                        <IconButton
+                                                            label={`Shareholders of ${owner.display_name}`}
+                                                            icon={PieChart}
+                                                            onClick={() =>
+                                                                setOwnerShareholdersOwner(
+                                                                    owner
+                                                                )
+                                                            }
+                                                        />
+                                                    )}
+
                                                     {canEditOwner(owner) && (
                                                         <IconButton
                                                             label={`Edit ${owner.display_name}`}
@@ -984,6 +1023,21 @@ function OwnersPage() {
                                             Owner Users
                                         </button>
 
+                                        {canViewShareholders(owner) && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setOwnerShareholdersOwner(
+                                                        owner
+                                                    )
+                                                }
+                                                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
+                                            >
+                                                <PieChart className="h-4 w-4" />
+                                                Shareholders
+                                            </button>
+                                        )}
+
                                         {canEditOwner(owner) && (
                                             <button
                                                 type="button"
@@ -1083,6 +1137,13 @@ function OwnersPage() {
                     }}
                 />
             )}
+
+            <OwnerShareholdersModal
+                owner={ownerShareholdersOwner}
+                onClose={() =>
+                    setOwnerShareholdersOwner(null)
+                }
+            />
 
             <OwnerUsersModal
                 owner={ownerUsersOwner}

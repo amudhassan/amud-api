@@ -6,6 +6,7 @@ const AppError =
 
 const {
     getOwnerShareholders,
+    getEligibleOwnerShareholders,
     addOwnerShareholder,
     updateOwnerShareholder,
     closeOwnerShareholder
@@ -61,6 +62,65 @@ const getOwnerShareholdersController =
 
                     shareholders:
                         result.shareholders
+                }
+            });
+        }
+    );
+
+const getEligibleOwnerShareholdersController =
+    asyncHandler(
+        async (req, res, next) => {
+            const result =
+                await getEligibleOwnerShareholders({
+                    companyPublicId:
+                        req.params.company_public_id,
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            if (!result) {
+                return next(
+                    new AppError(
+                        "Company owner not found.",
+                        404
+                    )
+                );
+            }
+
+            if (result.invalidCompanyType) {
+                return next(
+                    new AppError(
+                        "Shareholders can only be managed for company or partnership owners.",
+                        422
+                    )
+                );
+            }
+
+            if (result.inactiveCompany) {
+                return next(
+                    new AppError(
+                        "Shareholders cannot be added while the company owner is inactive.",
+                        409
+                    )
+                );
+            }
+
+            return res.status(200).json({
+                success: true,
+
+                message:
+                    "Eligible shareholder owners retrieved successfully.",
+
+                count:
+                    result.eligible_shareholders.length,
+
+                data: {
+                    company:
+                        result.company,
+
+                    eligible_shareholders:
+                        result.eligible_shareholders
                 }
             });
         }
@@ -394,6 +454,7 @@ const closeOwnerShareholderController =
     );
 module.exports = {
     getOwnerShareholdersController,
+    getEligibleOwnerShareholdersController,
     addOwnerShareholderController,
     updateOwnerShareholderController,
     closeOwnerShareholderController

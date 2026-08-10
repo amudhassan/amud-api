@@ -40,6 +40,7 @@ const {
 } = require("../validators/ownerUserValidator");
 const {
     getOwnerShareholdersController,
+    getEligibleOwnerShareholdersController,
     addOwnerShareholderController,
     updateOwnerShareholderController,
     closeOwnerShareholderController
@@ -49,6 +50,7 @@ const {
 
 const {
     getOwnerShareholdersValidator,
+    getEligibleOwnerShareholdersValidator,
     addOwnerShareholderValidator,
     updateOwnerShareholderValidator,
     closeOwnerShareholderValidator
@@ -113,6 +115,19 @@ router.post(
     validateRequest,
     addOwnerUserController
 );
+/*
+ * GET /api/owners/:company_public_id/shareholders/eligible
+ *
+ * Company-scoped selector used by Add Shareholder.
+ */
+router.get(
+    "/:company_public_id/shareholders/eligible",
+    authMiddleware,
+    getEligibleOwnerShareholdersValidator,
+    validateRequest,
+    getEligibleOwnerShareholdersController
+);
+
 router.get(
     "/:company_public_id/shareholders",
     authMiddleware,

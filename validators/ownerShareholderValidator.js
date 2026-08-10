@@ -32,6 +32,35 @@ const getOwnerShareholdersValidator = [
             "Invalid company owner public ID format."
         )
 ];
+/*
+ * GET /api/owners/:company_public_id/shareholders/eligible
+ */
+const getEligibleOwnerShareholdersValidator = [
+    param("company_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Company owner public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Company owner public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 7,
+            max: 40
+        })
+        .withMessage(
+            "Company owner public ID must contain between 7 and 40 characters."
+        )
+        .matches(
+            /^owner_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid company owner public ID format."
+        )
+];
+
 const addOwnerShareholderValidator = [
     param("company_public_id")
         .exists({ checkFalsy: true })
@@ -350,6 +379,7 @@ const closeOwnerShareholderValidator = [
 ];
 module.exports = {
     getOwnerShareholdersValidator,
+    getEligibleOwnerShareholdersValidator,
     addOwnerShareholderValidator,
     updateOwnerShareholderValidator,
     closeOwnerShareholderValidator
