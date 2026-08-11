@@ -839,6 +839,89 @@ const getSingleLeaseValidator = [
         )
 ];
 /*
+ * GET /api/leases/:lease_public_id/pdf
+ *
+ * Supported PDF languages:
+ * - en: English (default)
+ * - sw: Kiswahili
+ */
+const downloadLeasePdfValidator = [
+
+    query()
+        .custom(value => {
+            const suppliedFields =
+                Object.keys(value || {});
+
+            const allowedFields = [
+                "language"
+            ];
+
+            const unsupportedFields =
+                suppliedFields.filter(
+                    field =>
+                        !allowedFields.includes(
+                            field
+                        )
+                );
+
+            if (
+                unsupportedFields.length > 0
+            ) {
+                throw new Error(
+                    `Unsupported query parameters: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    query("language")
+        .optional()
+        .isString()
+        .withMessage(
+            "PDF language must be a string."
+        )
+        .trim()
+        .isIn([
+            "en",
+            "sw"
+        ])
+        .withMessage(
+            "PDF language must be either en or sw."
+        ),
+
+    param("lease_public_id")
+        .exists({
+            checkFalsy: true
+        })
+        .withMessage(
+            "Lease public ID is required."
+        )
+
+        .isString()
+        .withMessage(
+            "Lease public ID must be a string."
+        )
+
+        .trim()
+
+        .isLength({
+            min: 7,
+            max: 50
+        })
+        .withMessage(
+            "Lease public ID must contain between 7 and 50 characters."
+        )
+
+        .matches(
+            /^lease_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid lease public ID format."
+        )
+];
+
+/*
  * PATCH /api/leases/:lease_public_id
  */
 const updateDraftLeaseValidator = [
@@ -2123,15 +2206,388 @@ const renewLeaseValidator = [
             "Notes cannot exceed 2000 characters."
         )
 ];
+
+/*
+ * Supported contractual clause categories.
+ */
+const leaseClauseCategories = [
+    "pets",
+    "subletting",
+    "utilities",
+    "maintenance",
+    "occupancy",
+    "property_use",
+    "alterations",
+    "notice",
+    "termination",
+    "deposit",
+    "access_inspection",
+    "smoking",
+    "noise",
+    "parking",
+    "insurance_liability",
+    "custom"
+];
+
+/*
+ * Shared lease public-ID validator.
+ */
+const leaseClauseLeaseParamValidator =
+    param("lease_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Lease public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Lease public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 7,
+            max: 50
+        })
+        .withMessage(
+            "Lease public ID must contain between 7 and 50 characters."
+        )
+        .matches(
+            /^lease_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid lease public ID format."
+        );
+
+/*
+ * Shared clause public-ID validator.
+ */
+const leaseClauseParamValidator =
+    param("clause_public_id")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Lease clause public ID is required."
+        )
+        .isString()
+        .withMessage(
+            "Lease clause public ID must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 14,
+            max: 70
+        })
+        .withMessage(
+            "Lease clause public ID must contain between 14 and 70 characters."
+        )
+        .matches(
+            /^lease_clause_[A-Za-z0-9_-]+$/
+        )
+        .withMessage(
+            "Invalid lease clause public ID format."
+        );
+
+/*
+ * Shared strict-query validator.
+ */
+const leaseClauseEmptyQueryValidator =
+    query()
+        .custom(value => {
+            const fields =
+                Object.keys(value || {});
+
+            if (fields.length > 0) {
+                throw new Error(
+                    `Unsupported query parameters: ${fields.join(", ")}.`
+                );
+            }
+
+            return true;
+        });
+
+/*
+ * GET /api/leases/:lease_public_id/clauses
+ */
+const getLeaseClausesValidator = [
+    leaseClauseEmptyQueryValidator,
+    leaseClauseLeaseParamValidator
+];
+
+/*
+ * POST /api/leases/:lease_public_id/clauses
+ */
+const createLeaseClauseValidator = [
+    leaseClauseEmptyQueryValidator,
+    leaseClauseLeaseParamValidator,
+
+    body()
+        .custom(value => {
+            if (
+                value === null ||
+                typeof value !== "object" ||
+                Array.isArray(value)
+            ) {
+                throw new Error(
+                    "Request body must be a JSON object."
+                );
+            }
+
+            const allowedFields = [
+                "clause_category",
+                "title",
+                "clause_text",
+                "is_mandatory",
+                "display_order"
+            ];
+
+            const fields =
+                Object.keys(value);
+
+            const unsupportedFields =
+                fields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported fields: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            return true;
+        }),
+
+    body("clause_category")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Clause category is required."
+        )
+        .isString()
+        .withMessage(
+            "Clause category must be a string."
+        )
+        .trim()
+        .isIn(leaseClauseCategories)
+        .withMessage(
+            "Invalid lease clause category."
+        ),
+
+    body("title")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Clause title is required."
+        )
+        .isString()
+        .withMessage(
+            "Clause title must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 1,
+            max: 200
+        })
+        .withMessage(
+            "Clause title must contain between 1 and 200 characters."
+        ),
+
+    body("clause_text")
+        .exists({ checkFalsy: true })
+        .withMessage(
+            "Clause text is required."
+        )
+        .isString()
+        .withMessage(
+            "Clause text must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 1,
+            max: 10000
+        })
+        .withMessage(
+            "Clause text must contain between 1 and 10000 characters."
+        ),
+
+    body("is_mandatory")
+        .optional()
+        .isBoolean()
+        .withMessage(
+            "is_mandatory must be a boolean."
+        ),
+
+    body("display_order")
+        .optional()
+        .isInt({
+            min: 1,
+            max: 10000
+        })
+        .withMessage(
+            "Display order must be an integer between 1 and 10000."
+        )
+        .toInt()
+];
+
+/*
+ * PATCH
+ * /api/leases/:lease_public_id/clauses/:clause_public_id
+ */
+const updateLeaseClauseValidator = [
+    leaseClauseEmptyQueryValidator,
+    leaseClauseLeaseParamValidator,
+    leaseClauseParamValidator,
+
+    body()
+        .custom(value => {
+            if (
+                value === null ||
+                typeof value !== "object" ||
+                Array.isArray(value)
+            ) {
+                throw new Error(
+                    "Request body must be a JSON object."
+                );
+            }
+
+            const allowedFields = [
+                "clause_category",
+                "title",
+                "clause_text",
+                "is_mandatory",
+                "display_order"
+            ];
+
+            const fields =
+                Object.keys(value);
+
+            const unsupportedFields =
+                fields.filter(
+                    field =>
+                        !allowedFields.includes(field)
+                );
+
+            if (unsupportedFields.length > 0) {
+                throw new Error(
+                    `Unsupported fields: ${unsupportedFields.join(", ")}.`
+                );
+            }
+
+            if (fields.length === 0) {
+                throw new Error(
+                    "At least one lease clause field is required."
+                );
+            }
+
+            return true;
+        }),
+
+    body("clause_category")
+        .optional()
+        .isString()
+        .withMessage(
+            "Clause category must be a string."
+        )
+        .trim()
+        .isIn(leaseClauseCategories)
+        .withMessage(
+            "Invalid lease clause category."
+        ),
+
+    body("title")
+        .optional()
+        .isString()
+        .withMessage(
+            "Clause title must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 1,
+            max: 200
+        })
+        .withMessage(
+            "Clause title must contain between 1 and 200 characters."
+        ),
+
+    body("clause_text")
+        .optional()
+        .isString()
+        .withMessage(
+            "Clause text must be a string."
+        )
+        .trim()
+        .isLength({
+            min: 1,
+            max: 10000
+        })
+        .withMessage(
+            "Clause text must contain between 1 and 10000 characters."
+        ),
+
+    body("is_mandatory")
+        .optional()
+        .isBoolean()
+        .withMessage(
+            "is_mandatory must be a boolean."
+        ),
+
+    body("display_order")
+        .optional()
+        .isInt({
+            min: 1,
+            max: 10000
+        })
+        .withMessage(
+            "Display order must be an integer between 1 and 10000."
+        )
+        .toInt()
+];
+
+/*
+ * DELETE
+ * /api/leases/:lease_public_id/clauses/:clause_public_id
+ *
+ * This performs a soft delete in the service.
+ */
+const deleteLeaseClauseValidator = [
+    leaseClauseEmptyQueryValidator,
+    leaseClauseLeaseParamValidator,
+    leaseClauseParamValidator,
+
+    body()
+        .custom(value => {
+            if (
+                value === undefined ||
+                value === null
+            ) {
+                return true;
+            }
+
+            if (
+                typeof value !== "object" ||
+                Array.isArray(value) ||
+                Object.keys(value).length > 0
+            ) {
+                throw new Error(
+                    "Request body is not allowed for this operation."
+                );
+            }
+
+            return true;
+        })
+];
+
 module.exports = {
     createDraftLeaseValidator,
     getLeasesValidator,
     getSingleLeaseValidator,
+    downloadLeasePdfValidator,
     updateDraftLeaseValidator,
     scheduleLeaseValidator,
     activateLeaseValidator,
     cancelLeaseValidator,
     terminateLeaseValidator,
     expireLeaseValidator,
-    renewLeaseValidator
+    renewLeaseValidator,
+    getLeaseClausesValidator,
+    createLeaseClauseValidator,
+    updateLeaseClauseValidator,
+    deleteLeaseClauseValidator
 };

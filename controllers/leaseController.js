@@ -16,9 +16,21 @@ const {
     cancelLease,
     terminateLease,
     expireLease,
-    renewLease
+    renewLease,
+    getLeaseClauses,
+    createLeaseClause,
+    updateLeaseClause,
+    deleteLeaseClause
 } = require(
     "../services/leaseService"
+);
+
+
+const {
+    getLeasePdfData,
+    generateLeasePdf
+} = require(
+    "../services/leasePdfService"
 );
 
 /*
@@ -310,6 +322,106 @@ const getSingleLeaseController =
         }
     );
     /*
+ * GET /api/leases/:lease_public_id/pdf
+ *
+ * Download the authorized lease agreement PDF.
+ */
+const downloadLeasePdfController =
+    asyncHandler(
+        async (req, res, next) => {
+            const result =
+                await getLeasePdfData({
+                    leasePublicId:
+                        req.params
+                            .lease_public_id,
+
+                    authenticatedUser:
+                        req.user
+                });
+
+            /*
+             * Missing and inaccessible leases use
+             * the same response for security.
+             */
+            if (result.leaseNotFound) {
+                return next(
+                    new AppError(
+                        "Lease not found.",
+                        404
+                    )
+                );
+            }
+
+            /*
+             * Lease agreement contains financial
+             * contractual terms, so financial
+             * visibility is required.
+             */
+            if (result.forbidden) {
+                return next(
+                    new AppError(
+                        "You are not authorized to download the financial lease agreement.",
+                        403
+                    )
+                );
+            }
+
+            const pdfLanguage =
+                req.query.language === "sw"
+                    ? "sw"
+                    : "en";
+
+            const pdfBuffer =
+                await generateLeasePdf({
+                    lease:
+                        result.lease,
+                    clauses:
+                        result.clauses,
+                    language:
+                        pdfLanguage
+                });
+
+            const safeLeaseNumber =
+                String(
+                    result.lease
+                        .lease_number ||
+                    "lease-agreement"
+                )
+                    .replace(
+                        /[^A-Za-z0-9._-]/g,
+                        "_"
+                    );
+
+            const fileName =
+                `${safeLeaseNumber}-lease-agreement-${pdfLanguage}.pdf`;
+
+            res.setHeader(
+                "Content-Type",
+                "application/pdf"
+            );
+
+            res.setHeader(
+                "Content-Disposition",
+                `attachment; filename="${fileName}"`
+            );
+
+            res.setHeader(
+                "Content-Length",
+                pdfBuffer.length
+            );
+
+            res.setHeader(
+                "Cache-Control",
+                "private, no-store, max-age=0"
+            );
+
+            return res
+                .status(200)
+                .send(pdfBuffer);
+        }
+    );
+
+/*
  * PATCH /api/leases/:lease_public_id
  */
 const updateDraftLeaseController =
@@ -1399,15 +1511,334 @@ const expireLeaseController =
         }
     }
 );
+
+/*
+ * GET /api/leases/:lease_public_id/clauses
+ */
+const getLeaseClausesController =
+    asyncHandler(
+        async (req, res, next) => {
+            const result =
+                await getLeaseClauses({
+                    leasePublicId:
+                        req.params
+                            .lease_public_id,
+                    authenticatedUser:
+                        req.user
+                });
+
+            if (result.leaseNotFound) {
+                return next(
+                    new AppError(
+                        "Lease not found.",
+                        404
+                    )
+                );
+            }
+
+            return res
+                .status(200)
+                .json({
+                    success: true,
+                    message:
+                        "Lease clauses retrieved successfully.",
+                    data: result
+                });
+        }
+    );
+
+/*
+ * POST /api/leases/:lease_public_id/clauses
+ */
+const createLeaseClauseController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await createLeaseClause({
+                        leasePublicId:
+                            req.params
+                                .lease_public_id,
+                        clauseData:
+                            req.body,
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (result.leaseNotFound) {
+                    return next(
+                        new AppError(
+                            "Lease not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.notDraft) {
+                    return next(
+                        new AppError(
+                            "Lease clauses can only be changed while the lease is in draft status.",
+                            409
+                        )
+                    );
+                }
+
+                if (result.forbidden) {
+                    return next(
+                        new AppError(
+                            "You are not authorized to manage clauses for this lease.",
+                            403
+                        )
+                    );
+                }
+
+                return res
+                    .status(201)
+                    .json({
+                        success: true,
+                        message:
+                            "Lease clause created successfully.",
+                        data: result
+                    });
+            } catch (error) {
+                if (error.code === "23505") {
+                    return next(
+                        new AppError(
+                            "The generated lease clause identifier conflicts with an existing clause. Please try again.",
+                            409
+                        )
+                    );
+                }
+
+                if (
+                    error.code === "23514" ||
+                    error.code === "P0001"
+                ) {
+                    return next(
+                        new AppError(
+                            error.message ||
+                                "The lease clause violates a contractual integrity rule.",
+                            422
+                        )
+                    );
+                }
+
+                if (error.code === "23503") {
+                    return next(
+                        new AppError(
+                            "The lease clause references a related record that is no longer available.",
+                            409
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
+
+/*
+ * PATCH
+ * /api/leases/:lease_public_id/clauses/:clause_public_id
+ */
+const updateLeaseClauseController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await updateLeaseClause({
+                        leasePublicId:
+                            req.params
+                                .lease_public_id,
+                        clausePublicId:
+                            req.params
+                                .clause_public_id,
+                        clauseData:
+                            req.body,
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (result.leaseNotFound) {
+                    return next(
+                        new AppError(
+                            "Lease not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.notDraft) {
+                    return next(
+                        new AppError(
+                            "Lease clauses can only be changed while the lease is in draft status.",
+                            409
+                        )
+                    );
+                }
+
+                if (result.forbidden) {
+                    return next(
+                        new AppError(
+                            "You are not authorized to manage clauses for this lease.",
+                            403
+                        )
+                    );
+                }
+
+                if (result.clauseNotFound) {
+                    return next(
+                        new AppError(
+                            "Lease clause not found.",
+                            404
+                        )
+                    );
+                }
+
+                return res
+                    .status(200)
+                    .json({
+                        success: true,
+                        message:
+                            "Lease clause updated successfully.",
+                        data: result
+                    });
+            } catch (error) {
+                if (
+                    error.code === "23514" ||
+                    error.code === "P0001"
+                ) {
+                    return next(
+                        new AppError(
+                            error.message ||
+                                "The lease clause violates a contractual integrity rule.",
+                            422
+                        )
+                    );
+                }
+
+                if (error.code === "23503") {
+                    return next(
+                        new AppError(
+                            "The lease clause references a related record that is no longer available.",
+                            409
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
+
+/*
+ * DELETE
+ * /api/leases/:lease_public_id/clauses/:clause_public_id
+ *
+ * Service performs a soft delete.
+ */
+const deleteLeaseClauseController =
+    asyncHandler(
+        async (req, res, next) => {
+            try {
+                const result =
+                    await deleteLeaseClause({
+                        leasePublicId:
+                            req.params
+                                .lease_public_id,
+                        clausePublicId:
+                            req.params
+                                .clause_public_id,
+                        authenticatedUser:
+                            req.user
+                    });
+
+                if (result.leaseNotFound) {
+                    return next(
+                        new AppError(
+                            "Lease not found.",
+                            404
+                        )
+                    );
+                }
+
+                if (result.notDraft) {
+                    return next(
+                        new AppError(
+                            "Lease clauses can only be changed while the lease is in draft status.",
+                            409
+                        )
+                    );
+                }
+
+                if (result.forbidden) {
+                    return next(
+                        new AppError(
+                            "You are not authorized to manage clauses for this lease.",
+                            403
+                        )
+                    );
+                }
+
+                if (result.clauseNotFound) {
+                    return next(
+                        new AppError(
+                            "Lease clause not found.",
+                            404
+                        )
+                    );
+                }
+
+                return res
+                    .status(200)
+                    .json({
+                        success: true,
+                        message:
+                            "Lease clause removed successfully.",
+                        data: result
+                    });
+            } catch (error) {
+                if (
+                    error.code === "23514" ||
+                    error.code === "P0001"
+                ) {
+                    return next(
+                        new AppError(
+                            error.message ||
+                                "The lease clause violates a contractual integrity rule.",
+                            422
+                        )
+                    );
+                }
+
+                if (error.code === "23503") {
+                    return next(
+                        new AppError(
+                            "The lease clause references a related record that is no longer available.",
+                            409
+                        )
+                    );
+                }
+
+                return next(error);
+            }
+        }
+    );
+
 module.exports = {
     createDraftLeaseController,
     getLeasesController,
     getSingleLeaseController,
+    downloadLeasePdfController,
     updateDraftLeaseController,
     scheduleLeaseController,
     activateLeaseController,
     cancelLeaseController,
     terminateLeaseController,
     expireLeaseController,
-    renewLeaseController
+    renewLeaseController,
+    getLeaseClausesController,
+    createLeaseClauseController,
+    updateLeaseClauseController,
+    deleteLeaseClauseController
 };

@@ -13,16 +13,33 @@ const validateRequest = require(
 );
 
 const {
+    applyLeaseClauseTemplateValidator
+} = require(
+    "../validators/leaseClauseTemplateValidator"
+);
+
+const {
+    applyLeaseClauseTemplateController
+} = require(
+    "../controllers/leaseClauseTemplateController"
+);
+
+const {
     createDraftLeaseController,
     getLeasesController,
     getSingleLeaseController,
+    downloadLeasePdfController,
     updateDraftLeaseController,
     scheduleLeaseController,
     activateLeaseController,
     cancelLeaseController,
     terminateLeaseController,
     expireLeaseController,
-    renewLeaseController
+    renewLeaseController,
+    getLeaseClausesController,
+    createLeaseClauseController,
+    updateLeaseClauseController,
+    deleteLeaseClauseController
 } = require(
     "../controllers/leaseController"
 );
@@ -31,13 +48,18 @@ const {
     createDraftLeaseValidator,
     getLeasesValidator,
     getSingleLeaseValidator,
+    downloadLeasePdfValidator,
     updateDraftLeaseValidator,
     scheduleLeaseValidator,
     activateLeaseValidator,
     cancelLeaseValidator,
     terminateLeaseValidator,
     expireLeaseValidator,
-    renewLeaseValidator
+    renewLeaseValidator,
+    getLeaseClausesValidator,
+    createLeaseClauseValidator,
+    updateLeaseClauseValidator,
+    deleteLeaseClauseValidator
 } = require(
     "../validators/leaseValidator"
 );
@@ -53,6 +75,90 @@ router.get(
     getLeasesValidator,
     validateRequest,
     getLeasesController
+);
+
+
+/*
+ * GET /api/leases/:lease_public_id/clauses
+ *
+ * Retrieve active contractual clauses for an
+ * authorized lease.
+ */
+router.get(
+    "/:lease_public_id/clauses",
+    authMiddleware,
+    getLeaseClausesValidator,
+    validateRequest,
+    getLeaseClausesController
+);
+
+/*
+ * POST /api/leases/:lease_public_id/clauses
+ *
+ * Add a contractual clause to a Draft lease.
+ */
+router.post(
+    "/:lease_public_id/clauses",
+    authMiddleware,
+    createLeaseClauseValidator,
+    validateRequest,
+    createLeaseClauseController
+);
+
+/*
+ * PATCH
+ * /api/leases/:lease_public_id/clauses/:clause_public_id
+ *
+ * Update a contractual clause on a Draft lease.
+ */
+router.patch(
+    "/:lease_public_id/clauses/:clause_public_id",
+    authMiddleware,
+    updateLeaseClauseValidator,
+    validateRequest,
+    updateLeaseClauseController
+);
+
+/*
+ * DELETE
+ * /api/leases/:lease_public_id/clauses/:clause_public_id
+ *
+ * Soft delete a contractual clause from a Draft lease.
+ */
+router.delete(
+    "/:lease_public_id/clauses/:clause_public_id",
+    authMiddleware,
+    deleteLeaseClauseValidator,
+    validateRequest,
+    deleteLeaseClauseController
+);
+
+/*
+ * POST /api/leases/:lease_public_id/apply-clause-template
+ *
+ * Copy one active owner template into a Draft lease.
+ * The copied clauses become an independent lease snapshot.
+ */
+router.post(
+    "/:lease_public_id/apply-clause-template",
+    authMiddleware,
+    applyLeaseClauseTemplateValidator,
+    validateRequest,
+    applyLeaseClauseTemplateController
+);
+
+/*
+ * GET /api/leases/:lease_public_id/pdf
+ *
+ * Download the authorized lease agreement PDF.
+ * Optional query: language=en|sw
+ */
+router.get(
+    "/:lease_public_id/pdf",
+    authMiddleware,
+    downloadLeasePdfValidator,
+    validateRequest,
+    downloadLeasePdfController
 );
 
 /*

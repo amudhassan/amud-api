@@ -32,6 +32,10 @@ const leaseRoutes = require(
     "./routes/leaseRoutes"
 );
 
+const leaseClauseTemplateRoutes = require(
+    "./routes/leaseClauseTemplateRoutes"
+);
+
 const invoiceRoutes = require(
     "./routes/invoiceRoutes"
 );
@@ -138,6 +142,11 @@ app.use(
 app.use(
     "/api/leases",
     leaseRoutes
+);
+
+app.use(
+    "/api/lease-clause-templates",
+    leaseClauseTemplateRoutes
 );
 
 app.use(

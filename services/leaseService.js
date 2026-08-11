@@ -2656,7 +2656,6 @@ const scheduleLease = async ({
         );
 
         await client.query("COMMIT");
-
         return {
             lease:
                 scheduledLeaseResult.rows[0],
@@ -4408,6 +4407,7 @@ if (
                     $19
                 )
                 RETURNING
+                    id,
                     public_id,
                     lease_number,
                     status,
@@ -4449,6 +4449,80 @@ if (
             );
 
         /*
+         * 14. Copy the active contractual clause snapshot.
+         *
+         * Soft-deleted source clauses are intentionally not
+         * inherited. The new copies belong independently to
+         * the renewal Draft and can be edited before scheduling.
+         */
+        const sourceClausesResult =
+            await client.query(
+                `
+                SELECT
+                    clause_category,
+                    title,
+                    clause_text,
+                    is_mandatory,
+                    display_order
+                FROM lease_clauses
+                WHERE lease_id = $1
+                  AND deleted_at IS NULL
+                ORDER BY
+                    display_order ASC,
+                    id ASC
+                `,
+                [
+                    sourceLease.id
+                ]
+            );
+
+        const renewalLeaseId =
+            renewalResult.rows[0].id;
+
+        for (
+            const sourceClause
+            of sourceClausesResult.rows
+        ) {
+            await client.query(
+                `
+                INSERT INTO lease_clauses (
+                    public_id,
+                    lease_id,
+                    clause_category,
+                    title,
+                    clause_text,
+                    is_mandatory,
+                    display_order,
+                    created_by
+                )
+                VALUES (
+                    $1,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8
+                )
+                `,
+                [
+                    `lease_clause_${nanoid(24)}`,
+                    renewalLeaseId,
+                    sourceClause
+                        .clause_category,
+                    sourceClause.title,
+                    sourceClause.clause_text,
+                    sourceClause
+                        .is_mandatory,
+                    sourceClause
+                        .display_order,
+                    authenticatedUser.id
+                ]
+            );
+        }
+
+        /*
          * Force all deferred integrity checks
          * before committing.
          */
@@ -4457,6 +4531,12 @@ if (
         );
 
         await client.query("COMMIT");
+
+        const renewalLeaseResponse = {
+            ...renewalResult.rows[0]
+        };
+
+        delete renewalLeaseResponse.id;
 
         return {
             source_lease: {
@@ -4471,7 +4551,7 @@ if (
             },
 
             renewal_lease: {
-                ...renewalResult.rows[0],
+                ...renewalLeaseResponse,
 
                 owner_public_id:
                     sourceLease.owner_public_id,
@@ -4496,6 +4576,742 @@ if (
         client.release();
     }
 };
+
+/**
+ * Get active contractual clauses for one authorized lease.
+ *
+ * Admin:
+ * - Can read all leases.
+ *
+ * Owner-side user:
+ * - Requires an active owner_users relationship and either
+ *   property-management or financial-management capability.
+ *
+ * Tenant-side user:
+ * - Requires can_view_leases = TRUE.
+ * - Draft leases remain hidden from tenant-side users.
+ */
+const getLeaseClauses = async ({
+    leasePublicId,
+    authenticatedUser
+}) => {
+    const values = [
+        leasePublicId
+    ];
+
+    let authorizationCondition = "";
+
+    if (authenticatedUser.role !== "admin") {
+        values.push(
+            authenticatedUser.id
+        );
+
+        const userPosition =
+            values.length;
+
+        authorizationCondition = `
+            AND (
+                EXISTS (
+                    SELECT 1
+                    FROM owner_users AS ou
+                    WHERE ou.owner_id = l.owner_id
+                      AND ou.user_id =
+                            $${userPosition}
+                      AND ou.revoked_at IS NULL
+                      AND (
+                            ou.can_manage_properties =
+                                TRUE
+                            OR
+                            ou.can_manage_finances =
+                                TRUE
+                      )
+                )
+                OR
+                (
+                    l.status <> 'draft'
+                    AND EXISTS (
+                        SELECT 1
+                        FROM tenant_users AS tu
+                        WHERE tu.tenant_id =
+                                l.tenant_id
+                          AND tu.user_id =
+                                $${userPosition}
+                          AND tu.revoked_at IS NULL
+                          AND tu.can_view_leases =
+                                TRUE
+                    )
+                )
+            )
+        `;
+    }
+
+    const leaseResult =
+        await pool.query(
+            `
+            SELECT
+                l.id,
+                l.public_id,
+                l.lease_number,
+                l.status
+            FROM leases AS l
+            WHERE l.public_id = $1
+            ${authorizationCondition}
+            LIMIT 1
+            `,
+            values
+        );
+
+    if (
+        leaseResult.rows.length === 0
+    ) {
+        return {
+            leaseNotFound: true
+        };
+    }
+
+    const lease =
+        leaseResult.rows[0];
+
+    const clausesResult =
+        await pool.query(
+            `
+            SELECT
+                public_id,
+                clause_category,
+                title,
+                clause_text,
+                is_mandatory,
+                display_order,
+                created_at,
+                updated_at
+            FROM lease_clauses
+            WHERE lease_id = $1
+              AND deleted_at IS NULL
+            ORDER BY
+                display_order ASC,
+                id ASC
+            `,
+            [
+                lease.id
+            ]
+        );
+
+    return {
+        lease: {
+            public_id:
+                lease.public_id,
+            lease_number:
+                lease.lease_number,
+            status:
+                lease.status
+        },
+        clauses:
+            clausesResult.rows
+    };
+};
+
+/**
+ * Create a contractual clause on a Draft lease.
+ */
+const createLeaseClause = async ({
+    leasePublicId,
+    clauseData,
+    authenticatedUser
+}) => {
+    const client =
+        await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const leaseResult =
+            await client.query(
+                `
+                SELECT
+                    id,
+                    public_id,
+                    lease_number,
+                    owner_id,
+                    status
+                FROM leases
+                WHERE public_id = $1
+                LIMIT 1
+                FOR UPDATE
+                `,
+                [
+                    leasePublicId
+                ]
+            );
+
+        if (
+            leaseResult.rows.length === 0
+        ) {
+            await client.query(
+                "ROLLBACK"
+            );
+
+            return {
+                leaseNotFound: true
+            };
+        }
+
+        const lease =
+            leaseResult.rows[0];
+
+        if (lease.status !== "draft") {
+            await client.query(
+                "ROLLBACK"
+            );
+
+            return {
+                notDraft: true
+            };
+        }
+
+        if (
+            authenticatedUser.role !==
+                "admin"
+        ) {
+            const authorizationResult =
+                await client.query(
+                    `
+                    SELECT id
+                    FROM owner_users
+                    WHERE owner_id = $1
+                      AND user_id = $2
+                      AND revoked_at IS NULL
+                      AND can_manage_properties =
+                            TRUE
+                      AND can_manage_finances =
+                            TRUE
+                    LIMIT 1
+                    FOR UPDATE
+                    `,
+                    [
+                        lease.owner_id,
+                        authenticatedUser.id
+                    ]
+                );
+
+            if (
+                authorizationResult
+                    .rows.length === 0
+            ) {
+                await client.query(
+                    "ROLLBACK"
+                );
+
+                return {
+                    forbidden: true
+                };
+            }
+        }
+
+        const clausePublicId =
+            `lease_clause_${nanoid(24)}`;
+
+        const clauseResult =
+            await client.query(
+                `
+                INSERT INTO lease_clauses (
+                    public_id,
+                    lease_id,
+                    clause_category,
+                    title,
+                    clause_text,
+                    is_mandatory,
+                    display_order,
+                    created_by
+                )
+                VALUES (
+                    $1,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8
+                )
+                RETURNING
+                    public_id,
+                    clause_category,
+                    title,
+                    clause_text,
+                    is_mandatory,
+                    display_order,
+                    created_at,
+                    updated_at
+                `,
+                [
+                    clausePublicId,
+                    lease.id,
+                    clauseData
+                        .clause_category,
+                    clauseData.title,
+                    clauseData.clause_text,
+                    Object.prototype
+                        .hasOwnProperty.call(
+                            clauseData,
+                            "is_mandatory"
+                        )
+                        ? clauseData
+                            .is_mandatory
+                        : true,
+                    Object.prototype
+                        .hasOwnProperty.call(
+                            clauseData,
+                            "display_order"
+                        )
+                        ? clauseData
+                            .display_order
+                        : 1,
+                    authenticatedUser.id
+                ]
+            );
+
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        return {
+            lease: {
+                public_id:
+                    lease.public_id,
+                lease_number:
+                    lease.lease_number,
+                status:
+                    lease.status
+            },
+            clause:
+                clauseResult.rows[0]
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+/**
+ * Update one active clause on a Draft lease.
+ */
+const updateLeaseClause = async ({
+    leasePublicId,
+    clausePublicId,
+    clauseData,
+    authenticatedUser
+}) => {
+    const client =
+        await pool.connect();
+
+    const hasField = field =>
+        Object.prototype.hasOwnProperty.call(
+            clauseData,
+            field
+        );
+
+    try {
+        await client.query("BEGIN");
+
+        const leaseResult =
+            await client.query(
+                `
+                SELECT
+                    id,
+                    public_id,
+                    lease_number,
+                    owner_id,
+                    status
+                FROM leases
+                WHERE public_id = $1
+                LIMIT 1
+                FOR UPDATE
+                `,
+                [
+                    leasePublicId
+                ]
+            );
+
+        if (
+            leaseResult.rows.length === 0
+        ) {
+            await client.query(
+                "ROLLBACK"
+            );
+
+            return {
+                leaseNotFound: true
+            };
+        }
+
+        const lease =
+            leaseResult.rows[0];
+
+        if (lease.status !== "draft") {
+            await client.query(
+                "ROLLBACK"
+            );
+
+            return {
+                notDraft: true
+            };
+        }
+
+        if (
+            authenticatedUser.role !==
+                "admin"
+        ) {
+            const authorizationResult =
+                await client.query(
+                    `
+                    SELECT id
+                    FROM owner_users
+                    WHERE owner_id = $1
+                      AND user_id = $2
+                      AND revoked_at IS NULL
+                      AND can_manage_properties =
+                            TRUE
+                      AND can_manage_finances =
+                            TRUE
+                    LIMIT 1
+                    FOR UPDATE
+                    `,
+                    [
+                        lease.owner_id,
+                        authenticatedUser.id
+                    ]
+                );
+
+            if (
+                authorizationResult
+                    .rows.length === 0
+            ) {
+                await client.query(
+                    "ROLLBACK"
+                );
+
+                return {
+                    forbidden: true
+                };
+            }
+        }
+
+        const clauseResult =
+            await client.query(
+                `
+                SELECT
+                    id,
+                    public_id,
+                    clause_category,
+                    title,
+                    clause_text,
+                    is_mandatory,
+                    display_order
+                FROM lease_clauses
+                WHERE public_id = $1
+                  AND lease_id = $2
+                  AND deleted_at IS NULL
+                LIMIT 1
+                FOR UPDATE
+                `,
+                [
+                    clausePublicId,
+                    lease.id
+                ]
+            );
+
+        if (
+            clauseResult.rows.length === 0
+        ) {
+            await client.query(
+                "ROLLBACK"
+            );
+
+            return {
+                clauseNotFound: true
+            };
+        }
+
+        const currentClause =
+            clauseResult.rows[0];
+
+        const finalCategory =
+            hasField("clause_category")
+                ? clauseData.clause_category
+                : currentClause
+                    .clause_category;
+
+        const finalTitle =
+            hasField("title")
+                ? clauseData.title
+                : currentClause.title;
+
+        const finalText =
+            hasField("clause_text")
+                ? clauseData.clause_text
+                : currentClause
+                    .clause_text;
+
+        const finalMandatory =
+            hasField("is_mandatory")
+                ? clauseData.is_mandatory
+                : currentClause
+                    .is_mandatory;
+
+        const finalDisplayOrder =
+            hasField("display_order")
+                ? clauseData.display_order
+                : currentClause
+                    .display_order;
+
+        const updatedClauseResult =
+            await client.query(
+                `
+                UPDATE lease_clauses
+                SET
+                    clause_category = $1,
+                    title = $2,
+                    clause_text = $3,
+                    is_mandatory = $4,
+                    display_order = $5,
+                    updated_by = $6,
+                    updated_at =
+                        CURRENT_TIMESTAMP
+                WHERE id = $7
+                RETURNING
+                    public_id,
+                    clause_category,
+                    title,
+                    clause_text,
+                    is_mandatory,
+                    display_order,
+                    created_at,
+                    updated_at
+                `,
+                [
+                    finalCategory,
+                    finalTitle,
+                    finalText,
+                    finalMandatory,
+                    finalDisplayOrder,
+                    authenticatedUser.id,
+                    currentClause.id
+                ]
+            );
+
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        return {
+            lease: {
+                public_id:
+                    lease.public_id,
+                lease_number:
+                    lease.lease_number,
+                status:
+                    lease.status
+            },
+            clause:
+                updatedClauseResult
+                    .rows[0]
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+/**
+ * Soft delete one active clause on a Draft lease.
+ */
+const deleteLeaseClause = async ({
+    leasePublicId,
+    clausePublicId,
+    authenticatedUser
+}) => {
+    const client =
+        await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const leaseResult =
+            await client.query(
+                `
+                SELECT
+                    id,
+                    public_id,
+                    lease_number,
+                    owner_id,
+                    status
+                FROM leases
+                WHERE public_id = $1
+                LIMIT 1
+                FOR UPDATE
+                `,
+                [
+                    leasePublicId
+                ]
+            );
+
+        if (
+            leaseResult.rows.length === 0
+        ) {
+            await client.query(
+                "ROLLBACK"
+            );
+
+            return {
+                leaseNotFound: true
+            };
+        }
+
+        const lease =
+            leaseResult.rows[0];
+
+        if (lease.status !== "draft") {
+            await client.query(
+                "ROLLBACK"
+            );
+
+            return {
+                notDraft: true
+            };
+        }
+
+        if (
+            authenticatedUser.role !==
+                "admin"
+        ) {
+            const authorizationResult =
+                await client.query(
+                    `
+                    SELECT id
+                    FROM owner_users
+                    WHERE owner_id = $1
+                      AND user_id = $2
+                      AND revoked_at IS NULL
+                      AND can_manage_properties =
+                            TRUE
+                      AND can_manage_finances =
+                            TRUE
+                    LIMIT 1
+                    FOR UPDATE
+                    `,
+                    [
+                        lease.owner_id,
+                        authenticatedUser.id
+                    ]
+                );
+
+            if (
+                authorizationResult
+                    .rows.length === 0
+            ) {
+                await client.query(
+                    "ROLLBACK"
+                );
+
+                return {
+                    forbidden: true
+                };
+            }
+        }
+
+        const clauseResult =
+            await client.query(
+                `
+                SELECT
+                    id,
+                    public_id
+                FROM lease_clauses
+                WHERE public_id = $1
+                  AND lease_id = $2
+                  AND deleted_at IS NULL
+                LIMIT 1
+                FOR UPDATE
+                `,
+                [
+                    clausePublicId,
+                    lease.id
+                ]
+            );
+
+        if (
+            clauseResult.rows.length === 0
+        ) {
+            await client.query(
+                "ROLLBACK"
+            );
+
+            return {
+                clauseNotFound: true
+            };
+        }
+
+        const deletedClauseResult =
+            await client.query(
+                `
+                UPDATE lease_clauses
+                SET
+                    deleted_at =
+                        CURRENT_TIMESTAMP,
+                    deleted_by = $1,
+                    updated_by = $1,
+                    updated_at =
+                        CURRENT_TIMESTAMP
+                WHERE id = $2
+                RETURNING
+                    public_id,
+                    clause_category,
+                    title,
+                    clause_text,
+                    is_mandatory,
+                    display_order,
+                    deleted_at
+                `,
+                [
+                    authenticatedUser.id,
+                    clauseResult.rows[0].id
+                ]
+            );
+
+        await client.query(
+            "SET CONSTRAINTS ALL IMMEDIATE"
+        );
+
+        await client.query("COMMIT");
+
+        return {
+            lease: {
+                public_id:
+                    lease.public_id,
+                lease_number:
+                    lease.lease_number,
+                status:
+                    lease.status
+            },
+            clause:
+                deletedClauseResult
+                    .rows[0]
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
 module.exports = {
     createDraftLease,
     getLeases,
@@ -4506,5 +5322,9 @@ module.exports = {
     cancelLease,
     terminateLease,
     expireLease,
-    renewLease
+    renewLease,
+    getLeaseClauses,
+    createLeaseClause,
+    updateLeaseClause,
+    deleteLeaseClause
 };
