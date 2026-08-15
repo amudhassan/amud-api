@@ -30,31 +30,32 @@ const createDraftRentInvoice = async ({
          * 1. Find and lock the source lease.
          */
         const leaseResult =
-            await client.query(
-                `
-                SELECT
-                    id,
-                    public_id,
-                    lease_number,
-                    owner_id,
-                    property_id,
-                    unit_id,
-                    tenant_id,
-                    status,
-                    start_date,
-                    end_date,
-                    currency_code
-                FROM leases
-                WHERE public_id = $1
-                LIMIT 1
-                FOR UPDATE
-                `,
-                [
-                    invoiceData
-                        .lease_public_id
-                ]
-            );
-
+    await client.query(
+        `
+        SELECT
+            id,
+            public_id,
+            lease_number,
+            owner_id,
+            property_id,
+            unit_id,
+            tenant_id,
+            status,
+            start_date::text
+                AS start_date,
+            end_date::text
+                AS end_date,
+            currency_code
+        FROM leases
+        WHERE public_id = $1
+        LIMIT 1
+        FOR UPDATE
+        `,
+        [
+            invoiceData
+                .lease_public_id
+        ]
+    );
         if (leaseResult.rows.length === 0) {
             await client.query("ROLLBACK");
 
@@ -294,6 +295,7 @@ const createDraftRentInvoice = async ({
         const dueDate =
             invoiceData.due_date;
 
+           
         if (
             billingPeriodEnd <
             billingPeriodStart
