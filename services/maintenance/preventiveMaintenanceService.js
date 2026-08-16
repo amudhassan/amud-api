@@ -199,6 +199,22 @@ const runRepeatableRead = async callback => {
     }
 };
 
+/*
+ * PostgreSQL BIGINT values are commonly returned by node-postgres
+ * as decimal strings. Keep the original value for SQL parameters,
+ * but accept either a positive integer number or a positive integer
+ * string as a valid authenticated database user ID.
+ */
+const isValidDatabaseId = value =>
+    (
+        Number.isInteger(value) &&
+        value > 0
+    ) ||
+    (
+        typeof value === "string" &&
+        /^[1-9]\d*$/.test(value.trim())
+    );
+
 const resolveAccessContext = ({
     authenticatedUser,
     requestedAccessContext,
@@ -206,7 +222,7 @@ const resolveAccessContext = ({
 }) => {
     if (
         !authenticatedUser ||
-        !Number.isInteger(authenticatedUser.id)
+        !isValidDatabaseId(authenticatedUser.id)
     ) {
         return null;
     }
