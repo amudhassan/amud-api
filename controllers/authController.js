@@ -202,53 +202,21 @@ return res.status(200).json({
         public_id: user.public_id,
         full_name: user.full_name,
         email: user.email,
-        role: user.role,
-        profile_image_url:
-            user.profile_image_url || null
+        role: user.role
     }
 });
 
 });
 
-const getProfile = asyncHandler(async (req, res, next) => {
-
-    const result = await pool.query(
-        `
-        SELECT
-            public_id,
-            full_name,
-            email,
-            role,
-            is_verified,
-            profile_image_url,
-            created_at,
-            updated_at
-        FROM users
-        WHERE public_id = $1
-          AND deleted_at IS NULL
-        LIMIT 1
-        `,
-        [
-            req.user.public_id
-        ]
-    );
-
-    if (result.rows.length === 0) {
-        return next(
-            new AppError(
-                "User not found",
-                404
-            )
-        );
-    }
+const getProfile = async (req, res) => {
 
     return res.status(200).json({
         success: true,
         message: "Profile loaded successfully",
-        user: result.rows[0]
+        user: req.user
     });
 
-});
+};
 
 const updateProfile = asyncHandler(async (req, res, next) => {
 
@@ -256,20 +224,14 @@ const updateProfile = asyncHandler(async (req, res, next) => {
 
     const result = await pool.query(
         `UPDATE users
-         SET
-            full_name = $1,
-            updated_at = NOW()
+         SET full_name = $1
          WHERE public_id = $2
-           AND deleted_at IS NULL
          RETURNING
             public_id,
             full_name,
             email,
             role,
-            is_verified,
-            profile_image_url,
-            created_at,
-            updated_at`,
+            is_verified`,
         [
             full_name,
             req.user.public_id
@@ -335,20 +297,15 @@ const uploadProfilePicture = asyncHandler(async (req, res, next) => {
 
     const result = await pool.query(
         `UPDATE users
-         SET
-            profile_image_url = $1,
-            updated_at = NOW()
+         SET profile_image_url = $1
          WHERE public_id = $2
-           AND deleted_at IS NULL
          RETURNING
             public_id,
             full_name,
             email,
             role,
             is_verified,
-            profile_image_url,
-            created_at,
-            updated_at`,
+            profile_image_url`,
         [
             uploadedImage.secure_url,
             req.user.public_id
@@ -719,9 +676,7 @@ const restoreAccount = async (req, res, next) => {
         const result = await pool.query(
             `
             UPDATE users
-            SET
-                deleted_at = NULL,
-                updated_at = NOW()
+            SET deleted_at = NULL
             WHERE public_id = $1
             AND deleted_at IS NOT NULL
             RETURNING
@@ -730,9 +685,6 @@ const restoreAccount = async (req, res, next) => {
                 email,
                 role,
                 is_verified,
-                profile_image_url,
-                created_at,
-                updated_at,
                 deleted_at
             `,
             [public_id]
@@ -774,6 +726,7 @@ const getActiveSessions = asyncHandler(async (req, res, next) => {
         FROM user_sessions
         WHERE user_id = $1
           AND revoked_at IS NULL
+          AND expires_at > NOW()
         ORDER BY last_used_at DESC
         `,
         [req.user.id]

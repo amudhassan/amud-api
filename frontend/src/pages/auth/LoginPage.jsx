@@ -129,7 +129,9 @@ function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-100">
+        <div
+                    data-login-hero="real-estate-background"
+                    className="min-h-screen bg-slate-100">
             <div className="grid min-h-screen lg:grid-cols-2">
                 <div
                     className="
@@ -140,7 +142,17 @@ function LoginPage() {
                         lg:flex
                         lg:flex-col
                         lg:justify-between
-                    "
+
+                        bg-cover bg-center"
+                    style={{
+                        backgroundImage: [
+                            "linear-gradient(90deg, rgba(2, 6, 23, 0.94) 0%, rgba(2, 6, 23, 0.86) 36%, rgba(2, 6, 23, 0.62) 68%, rgba(2, 6, 23, 0.42) 100%)",
+                            "url('/images/real-estate-login-background.png')"
+                        ].join(", "),
+                        backgroundSize: "cover",
+                        backgroundPosition: "center right",
+                        backgroundRepeat: "no-repeat"
+                    }}
                 >
                     <div className="flex items-center gap-3">
                         <div
@@ -210,15 +222,20 @@ function LoginPage() {
                 </div>
 
                 <div
-                    className="
-                        flex items-center
-                        justify-center
-                        px-5 py-12
-                        sm:px-8
-                    "
+                    data-login-session="real-estate-background"
+                    className="flex items-center justify-center px-5 py-12 sm:px-8 relative bg-slate-950 bg-cover bg-center"
+                    style={{
+                        backgroundImage: [
+                            "linear-gradient(135deg, rgba(2, 6, 23, 0.72) 0%, rgba(8, 47, 107, 0.48) 48%, rgba(2, 6, 23, 0.68) 100%)",
+                            "url('/images/real-estate-login-background.png')"
+                        ].join(", "),
+                        backgroundSize: "cover",
+                        backgroundPosition: "center right",
+                        backgroundRepeat: "no-repeat"
+                    }}
                 >
                     <div className="w-full max-w-md">
-                        <div className="mb-8 lg:hidden">
+                        <div className="mb-8 rounded-2xl border border-white/20 bg-slate-950/45 p-4 text-white shadow-lg backdrop-blur-md lg:hidden">
                             <div className="flex items-center gap-3">
                                 <div
                                     className="
@@ -233,11 +250,11 @@ function LoginPage() {
                                 </div>
 
                                 <div>
-                                    <h1 className="font-bold text-slate-900">
+                                    <h1 className="font-bold text-white">
                                         Rental Manager
                                     </h1>
 
-                                    <p className="text-xs text-slate-500">
+                                    <p className="text-xs text-slate-200">
                                         Property Management
                                     </p>
                                 </div>
@@ -245,14 +262,7 @@ function LoginPage() {
                         </div>
 
                         <div
-                            className="
-                                rounded-3xl
-                                border border-slate-200
-                                bg-white
-                                p-7
-                                shadow-sm
-                                sm:p-9
-                            "
+                            className="rounded-3xl border border-white/70 bg-white/95 p-7 shadow-2xl sm:p-9 shadow-slate-950/25 backdrop-blur-xl"
                         >
                             <div>
                                 <h2
@@ -578,12 +588,7 @@ function LoginPage() {
                         </div>
 
                         <p
-                            className="
-                                mt-6
-                                text-center
-                                text-xs
-                                text-slate-400
-                            "
+                            className="mt-6 text-center text-xs text-white/85 font-medium drop-shadow"
                         >
                             Protected access to the Real Estate
                             Management System
