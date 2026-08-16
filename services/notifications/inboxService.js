@@ -136,13 +136,17 @@ const notificationSelect = `
         ON actor.id = n.actor_user_id
 `;
 
-const activeVisibilityCondition = `
-    n.is_archived = FALSE
-    AND n.available_at <= CURRENT_TIMESTAMP
+const temporalVisibilityCondition = `
+    n.available_at <= CURRENT_TIMESTAMP
     AND (
         n.expires_at IS NULL
         OR n.expires_at > CURRENT_TIMESTAMP
     )
+`;
+
+const activeVisibilityCondition = `
+    n.is_archived = FALSE
+    AND ${temporalVisibilityCondition}
 `;
 
 const selectNotificationByInternalId = async ({
@@ -193,7 +197,7 @@ const getNotifications = async ({
 
         const conditions = [
             "n.recipient_user_id = $1::BIGINT",
-            activeVisibilityCondition
+            temporalVisibilityCondition
         ];
 
         const addCondition = (
@@ -206,6 +210,22 @@ const getNotifications = async ({
                 sqlBuilder(values.length)
             );
         };
+
+        const archiveState =
+            filters.archive_state ||
+            "active";
+
+        if (archiveState === "active") {
+            conditions.push(
+                "n.is_archived = FALSE"
+            );
+        } else if (
+            archiveState === "archived"
+        ) {
+            conditions.push(
+                "n.is_archived = TRUE"
+            );
+        }
 
         if (filters.search) {
             addCondition(
@@ -417,7 +437,7 @@ const getSingleNotification = async ({
         ${notificationSelect}
         WHERE n.public_id = $1
           AND n.recipient_user_id = $2::BIGINT
-          AND ${activeVisibilityCondition}
+          AND ${temporalVisibilityCondition}
         LIMIT 1
         `,
         [

@@ -23,6 +23,28 @@ import {
     useAuth
 } from "../../contexts/AuthContext";
 
+const extractUnreadNotificationCount = response => {
+    const root = response?.data || {};
+    const data = root?.data || {};
+
+    const candidates = [
+        data.unread_count,
+        data.count,
+        root.unread_count,
+        root.count
+    ];
+
+    for (const candidate of candidates) {
+        const parsed = Number(candidate);
+
+        if (Number.isFinite(parsed)) {
+            return Math.max(0, parsed);
+        }
+    }
+
+    return 0;
+};
+
 function formatRole(role) {
     if (!role) {
         return "Authenticated User";
@@ -56,6 +78,11 @@ function Topbar({
         profileMenuOpen,
         setProfileMenuOpen
     ] = useState(false);
+
+    const [
+        unreadNotificationCount,
+        setUnreadNotificationCount
+    ] = useState(0);
 
     const profileMenuRef =
         useRef(null);
@@ -120,6 +147,95 @@ function Topbar({
             window.removeEventListener(
                 "rental-manager:profile-updated",
                 handleProfileUpdated
+            );
+        };
+    }, []);
+
+    useEffect(() => {
+        let active = true;
+
+        const loadUnreadNotificationCount =
+            async () => {
+                try {
+                    const response =
+                        await apiClient.get(
+                            "/notifications/unread-count"
+                        );
+
+                    if (active) {
+                        setUnreadNotificationCount(
+                            extractUnreadNotificationCount(
+                                response
+                            )
+                        );
+                    }
+                } catch {
+                    /*
+                     * Notification count must never block the
+                     * rest of the topbar when the request fails.
+                     */
+                }
+            };
+
+        const handleWindowFocus = () => {
+            loadUnreadNotificationCount();
+        };
+
+        const handleUnreadCountUpdated = event => {
+            const suppliedCount = Number(
+                event?.detail?.unread_count ??
+                event?.detail
+            );
+
+            if (
+                Number.isFinite(suppliedCount) &&
+                suppliedCount >= 0
+            ) {
+                if (active) {
+                    setUnreadNotificationCount(
+                        suppliedCount
+                    );
+                }
+
+                return;
+            }
+
+            loadUnreadNotificationCount();
+        };
+
+        loadUnreadNotificationCount();
+
+        const refreshTimer =
+            window.setInterval(
+                loadUnreadNotificationCount,
+                30000
+            );
+
+        window.addEventListener(
+            "focus",
+            handleWindowFocus
+        );
+
+        window.addEventListener(
+            "rental-manager:notification-unread-count",
+            handleUnreadCountUpdated
+        );
+
+        return () => {
+            active = false;
+
+            window.clearInterval(
+                refreshTimer
+            );
+
+            window.removeEventListener(
+                "focus",
+                handleWindowFocus
+            );
+
+            window.removeEventListener(
+                "rental-manager:notification-unread-count",
+                handleUnreadCountUpdated
             );
         };
     }, []);
@@ -236,7 +352,13 @@ function Topbar({
 
                     <button
                         type="button"
+                        onClick={() =>
+                            navigate(
+                                "/notifications"
+                            )
+                        }
                         aria-label="Notifications"
+                        title="Open notifications"
                         className="
                             relative rounded-xl
                             border border-slate-200
@@ -246,15 +368,25 @@ function Topbar({
                     >
                         <Bell size={20} />
 
-                        <span
-                            className="
-                                absolute right-2 top-2
-                                h-2.5 w-2.5
-                                rounded-full
-                                border-2 border-white
-                                bg-red-500
-                            "
-                        />
+                        {unreadNotificationCount > 0 && (
+                            <span
+                                className="
+                                    absolute -right-2 -top-2
+                                    flex h-5 min-w-5
+                                    items-center justify-center
+                                    rounded-full
+                                    border-2 border-white
+                                    bg-red-500 px-1
+                                    text-[10px] font-bold
+                                    leading-none text-white
+                                "
+                                aria-label={`${unreadNotificationCount} unread notifications`}
+                            >
+                                {unreadNotificationCount > 99
+                                    ? "99+"
+                                    : unreadNotificationCount}
+                            </span>
+                        )}
                     </button>
 
                     <div

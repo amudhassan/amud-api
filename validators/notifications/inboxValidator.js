@@ -43,6 +43,12 @@ const notificationSortFields = [
     "priority"
 ];
 
+const notificationArchiveStates = [
+    "active",
+    "archived",
+    "all"
+];
+
 const isFullIsoTimestamp = value => {
     if (typeof value !== "string") {
         return false;
@@ -122,6 +128,7 @@ const getNotificationsValidator = [
         "notification_type",
         "source_module",
         "is_read",
+        "archive_state",
         "created_from",
         "created_to",
         "sort_by",
@@ -220,6 +227,18 @@ const getNotificationsValidator = [
         )
         .customSanitizer(
             value => value === "true"
+        ),
+
+    query("archive_state")
+        .optional()
+        .isString()
+        .withMessage(
+            "Archive state must be a string."
+        )
+        .trim()
+        .isIn(notificationArchiveStates)
+        .withMessage(
+            "Archive state must be active, archived or all."
         ),
 
     query("created_from")
