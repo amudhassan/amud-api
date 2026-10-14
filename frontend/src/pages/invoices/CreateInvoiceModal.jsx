@@ -9,6 +9,7 @@ import {
     useCallback,
     useEffect,
     useMemo,
+    useRef,
     useState
 } from "react";
 
@@ -92,8 +93,10 @@ function FieldLabel({
 function CreateInvoiceModal({
     open,
     onClose,
-    onCreated
+    onCreated,
+    initialLeasePublicId = ""
 }) {
+    const leaseRequestVersion = useRef(0);
     const [
         form,
         setForm
@@ -145,9 +148,25 @@ function CreateInvoiceModal({
                     return;
                 }
 
+                const requestVersion = ++leaseRequestVersion.current;
                 try {
                     setLoadingLeases(true);
                     setError("");
+
+                    if (initialLeasePublicId) {
+                        const response = await apiClient.get(`/leases/${encodeURIComponent(initialLeasePublicId)}`);
+                        if (requestVersion !== leaseRequestVersion.current) return;
+                        const detail = response?.data?.data?.lease;
+                        const lease = detail ? { ...detail, ...detail.financial_terms } : null;
+                        if (!lease || !ELIGIBLE_LEASE_STATUSES.includes(lease.status)) {
+                            setLeases([]);
+                            setError("This lease is not ready for billing. Confirm its signed agreement first.");
+                            return;
+                        }
+                        setLeases([lease]);
+                        setForm(current => ({ ...current, lease_public_id: lease.public_id, currency_code: current.currency_code || lease.currency_code || "" }));
+                        return;
+                    }
 
                     const search =
                         leaseSearch.trim();
@@ -174,6 +193,7 @@ function CreateInvoiceModal({
                             )
                         );
 
+                    if (requestVersion !== leaseRequestVersion.current) return;
                     const byPublicId =
                         new Map();
 
@@ -255,6 +275,7 @@ function CreateInvoiceModal({
                 } catch (
                     requestError
                 ) {
+                    if (requestVersion !== leaseRequestVersion.current) return;
                     setLeases([]);
                     setError(
                         errorMessage(
@@ -262,28 +283,28 @@ function CreateInvoiceModal({
                         )
                     );
                 } finally {
-                    setLoadingLeases(
-                        false
-                    );
+                    if (requestVersion === leaseRequestVersion.current) setLoadingLeases(false);
                 }
             },
             [
                 open,
                 leaseSearch,
-                form.lease_public_id
+                form.lease_public_id,
+                initialLeasePublicId
             ]
         );
 
     useEffect(() => {
         if (open) {
             setForm(
-                emptyForm()
+                { ...emptyForm(), lease_public_id: initialLeasePublicId }
             );
             setLeaseSearch("");
             setLeases([]);
             setError("");
         }
-    }, [open]);
+        return () => { leaseRequestVersion.current += 1; };
+    }, [open, initialLeasePublicId]);
 
     useEffect(() => {
         if (open) {

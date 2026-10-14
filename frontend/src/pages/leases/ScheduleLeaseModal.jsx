@@ -116,10 +116,13 @@ function ScheduleLeaseModal({
     open,
     lease,
     onClose,
-    onScheduled
+    onScheduled,
+    allowExistingRegistration = false
 }) {
     const [leaseDetail, setLeaseDetail] =
         useState(null);
+    const [registerExisting, setRegisterExisting] = useState(false);
+    const [registrationReason, setRegistrationReason] = useState("");
     const [signedAt, setSignedAt] =
         useState("");
     const [loading, setLoading] =
@@ -142,6 +145,8 @@ function ScheduleLeaseModal({
                 setError("");
                 setLeaseDetail(null);
                 setSignedAt("");
+                setRegisterExisting(false);
+                setRegistrationReason("");
 
                 const response =
                     await apiClient.get(
@@ -223,6 +228,14 @@ function ScheduleLeaseModal({
                 ?.signed_at || null;
 
         const payload = {};
+        if (registerExisting) {
+            if (!allowExistingRegistration || registrationReason.trim().length < 10) {
+                setError("An administrator must provide a reason of at least 10 characters to register an existing tenancy.");
+                return;
+            }
+            payload.register_existing_tenancy = true;
+            payload.registration_reason = registrationReason.trim();
+        }
 
         if (signedAt) {
             const normalizedSignedAt =
@@ -562,6 +575,18 @@ function ScheduleLeaseModal({
                                     )}
                                 </p>
                             </div>
+
+                            {allowExistingRegistration && <div className="rounded-2xl border border-slate-200 p-4">
+                                <label className="flex items-start gap-3 text-sm font-semibold text-slate-700">
+                                    <input type="checkbox" checked={registerExisting} disabled={submitting} onChange={event => setRegisterExisting(event.target.checked)} className="mt-1" />
+                                    The tenant already moved in before today (administrator registration)
+                                </label>
+                                {registerExisting && <div className="mt-3 space-y-2">
+                                    <label htmlFor="registration_reason" className="block text-sm text-slate-700">Reason for recording this tenancy now</label>
+                                    <textarea id="registration_reason" value={registrationReason} onChange={event => setRegistrationReason(event.target.value)} minLength={10} maxLength={1000} required disabled={submitting} className="w-full rounded-xl border border-slate-200 p-3 text-sm" />
+                                    <p className="text-xs text-slate-600">Original rental dates are preserved. The reason and current registration date are stored with the lease. Review previous invoices and payments separately; this does not create historical charges.</p>
+                                </div>}
+                            </div>}
 
                             <div
                                 className="

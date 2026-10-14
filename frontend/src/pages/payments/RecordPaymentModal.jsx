@@ -194,7 +194,8 @@ const normalizeInvoices = response => {
 function RecordPaymentModal({
     open,
     onClose,
-    onRecorded
+    onRecorded,
+    initialInvoicePublicId = ""
 }) {
     const [
         invoices,
@@ -295,6 +296,21 @@ function RecordPaymentModal({
                     );
                     setLoadError("");
                     setSubmitError("");
+
+                    if (initialInvoicePublicId) {
+                        const response = await apiClient.get(`/invoices/${encodeURIComponent(initialInvoicePublicId)}`);
+                        if (!active) return;
+                        const invoice = response?.data?.data?.invoice;
+                        if (!invoice || !ELIGIBLE_STATUSES.includes(invoice.status) || invoiceBalance(invoice) <= 0) {
+                            setInvoices([]);
+                            setInvoicePublicId("");
+                            setLoadError("This invoice is not payable. Issue it first and check its outstanding balance.");
+                            return;
+                        }
+                        setInvoices([invoice]);
+                        setInvoicePublicId(invoice.public_id);
+                        return;
+                    }
 
                     const responses =
                         await Promise.all(
@@ -435,7 +451,8 @@ function RecordPaymentModal({
             active = false;
         };
     }, [
-        open
+        open,
+        initialInvoicePublicId
     ]);
 
     useEffect(() => {
@@ -485,6 +502,7 @@ function RecordPaymentModal({
     const handleSubmit =
         async event => {
             event.preventDefault();
+            if (submitting || loadingInvoices) return;
             setSubmitError("");
 
             if (!selectedInvoice) {
@@ -671,7 +689,7 @@ function RecordPaymentModal({
         };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+        <div role="dialog" aria-modal="true" aria-labelledby="record-payment-title" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
             <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
                 <div className="flex shrink-0 items-start justify-between border-b border-slate-200 px-6 py-5">
                     <div className="flex items-start gap-3">
@@ -680,7 +698,7 @@ function RecordPaymentModal({
                         </div>
 
                         <div>
-                            <h2 className="text-xl font-bold text-slate-950">
+                            <h2 id="record-payment-title" className="text-xl font-bold text-slate-950">
                                 Record Rent Payment
                             </h2>
 
@@ -1088,7 +1106,7 @@ function RecordPaymentModal({
                             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
 
                             <p>
-                                Successful submission creates a completed payment, receipt number and invoice allocation. The invoice balance/status is synchronized by the backend.
+                                Confirm the amount actually received. Saving records the payment, updates the outstanding balance and creates a receipt.
                             </p>
                         </div>
                     </div>

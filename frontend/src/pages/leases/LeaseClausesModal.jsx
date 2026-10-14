@@ -119,7 +119,8 @@ function FieldLabel({
 function LeaseClausesModal({
     open,
     lease,
-    onClose
+    onClose,
+    onContinue
 }) {
     const [clauses, setClauses] =
         useState([]);
@@ -609,7 +610,7 @@ function LeaseClausesModal({
             aria-labelledby="lease-clauses-title"
         >
             <div className="max-h-[94vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 shadow-2xl">
-                <div className="sticky top-0 z-20 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-6 py-5">
+                <div className="sticky top-0 z-20 flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 bg-white px-6 py-5">
                     <div className="flex items-start gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                             <FileText className="h-5 w-5" />
@@ -631,6 +632,13 @@ function LeaseClausesModal({
                             </p>
                         </div>
                     </div>
+
+                    {onContinue && lease.status === "draft" && <div className="order-3 flex w-full flex-col items-end gap-2 sm:order-none sm:w-auto">
+                        <Button onClick={onContinue} disabled={loading || submitting || applyingTemplate || Boolean(deletingId) || Boolean(form.title.trim() || form.clause_text.trim())}>
+                            Continue to signed agreement
+                        </Button>
+                        {(form.title.trim() || form.clause_text.trim()) && <p className="max-w-xs text-xs text-amber-700">Save or clear the clause you are editing before continuing.</p>}
+                    </div>}
 
                     <IconButton
                         label="Close terms and conditions"
