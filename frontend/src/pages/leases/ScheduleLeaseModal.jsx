@@ -13,10 +13,13 @@ import {
     IconButton
 } from "../../components/ui/Button";
 
-const getErrorMessage = error =>
-    error?.response?.data?.message ||
-    error?.message ||
-    "Unable to schedule lease.";
+const getErrorMessage = error => {
+    const message = error?.response?.data?.message || error?.message;
+    if (message === "A lease with a past start date cannot be scheduled.") {
+        return "The start date has already passed. If the tenant has not moved in, edit the lease to use the correct start date. If the tenant already moved in, contact your administrator to record the existing tenancy with its original dates.";
+    }
+    return message || "Unable to confirm the agreement.";
+};
 
 const toDateTimeLocal = value => {
     if (!value) {
@@ -331,7 +334,7 @@ function ScheduleLeaseModal({
                                 text-slate-950
                             "
                         >
-                            Schedule Lease
+                            Confirm Signed Agreement
                         </h2>
 
                         <p
@@ -340,13 +343,13 @@ function ScheduleLeaseModal({
                                 text-slate-500
                             "
                         >
-                            Move{" "}
+                            Confirm agreement{" "}
                             <span className="font-medium">
                                 {
                                     lease.lease_number
                                 }
                             </span>{" "}
-                            from Draft to Scheduled.
+                            and reserve its room.
                         </p>
                     </div>
 
@@ -373,13 +376,8 @@ function ScheduleLeaseModal({
                             text-sm text-violet-800
                         "
                     >
-                        Scheduling is a controlled
-                        lifecycle action. The backend
-                        will re-check owner, property,
-                        unit, tenant relationship,
-                        signature, start date and lease
-                        conflicts before changing the
-                        status.
+                        Check the lease details and enter when the agreement was signed.
+                        This confirms the agreement; the tenancy starts in a separate step.
                     </div>
 
                     {error && (
@@ -527,7 +525,7 @@ function ScheduleLeaseModal({
                                         text-slate-700
                                     "
                                 >
-                                    Signed At{" "}
+                                    Agreement Signed On{" "}
                                     <span className="text-rose-500">
                                         *
                                     </span>
@@ -575,12 +573,8 @@ function ScheduleLeaseModal({
                                     text-amber-800
                                 "
                             >
-                                If the selected unit is
-                                currently Available, a
-                                successful schedule action
-                                will reserve it. Existing
-                                Reserved or Occupied status
-                                is preserved by the backend.
+                                An available room will be reserved for this agreement.
+                                It will be marked occupied when you start the tenancy.
                             </div>
                         </div>
                     ) : null}
@@ -620,7 +614,7 @@ function ScheduleLeaseModal({
                                 !leaseDetail
                             }
                         >
-                            Schedule Lease
+                            Confirm Signed Agreement
                         </Button>
                     </div>
                 </form>

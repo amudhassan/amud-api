@@ -735,7 +735,7 @@ function CreateLeaseModal({
                             id="create-lease-title"
                             className="text-xl font-bold text-slate-950"
                         >
-                            Create Draft Lease
+                            Save Lease Details
                         </h2>
 
                         <p className="mt-1 text-sm text-slate-500">
@@ -760,11 +760,8 @@ function CreateLeaseModal({
                     <div
                         className="mb-6 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm text-blue-800"
                     >
-                        New leases start in{" "}
-                        <strong>Draft</strong>{" "}
-                        status. Scheduling and
-                        activation remain separate
-                        controlled lifecycle actions.
+                        Enter the tenant, room, dates and rent. Saving these
+                        details does not start the tenancy or mark the room as occupied.
                     </div>
 
                     <div
@@ -773,11 +770,8 @@ function CreateLeaseModal({
                         <strong>
                             Contract Terms &amp; Conditions:
                         </strong>{" "}
-                        after this Draft is created,
-                        the Terms &amp; Conditions manager
-                        opens automatically so contractual
-                        clauses can be completed before
-                        scheduling.
+                        After saving, review the contract terms. Then confirm
+                        the signed agreement and start the tenancy when it is due.
                     </div>
 
                     {error && (
@@ -1376,7 +1370,7 @@ function CreateLeaseModal({
                     <div className="mt-4 text-xs text-slate-400">
                         {contextLoading
                             ? "Loading owner lease context..."
-                            : "Only backend-authorized records are selectable. Final lease integrity is enforced by the server."}
+                            : "Choose the owner, tenant and room for this agreement."}
                     </div>
 
                     <div className="mt-7 flex flex-col-reverse gap-2 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
@@ -1399,7 +1393,7 @@ function CreateLeaseModal({
                                 unitsLoading
                             }
                         >
-                            Create Draft Lease
+                            Save Lease Details
                         </Button>
                     </div>
                 </form>

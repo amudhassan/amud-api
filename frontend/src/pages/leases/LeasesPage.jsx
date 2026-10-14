@@ -48,6 +48,15 @@ const LEASE_STATUSES = [
     "cancelled"
 ];
 
+const leaseStatusLabel = status => ({
+    draft: "Needs confirmation",
+    scheduled: "Confirmed — awaiting start",
+    active: "Tenancy in progress",
+    expired: "Ended",
+    terminated: "Ended early",
+    cancelled: "Cancelled"
+}[status] || status);
+
 const LEASE_PDF_LANGUAGES = [
     {
         value: "en",
@@ -340,8 +349,8 @@ function LeasesPage() {
         setRenewSuccess("");
         setCreateSuccess(
             createdLease?.lease_number
-                ? `Draft lease ${createdLease.lease_number} created successfully. Add or review its Terms & Conditions before scheduling.`
-                : "Draft lease created successfully. Add or review its Terms & Conditions before scheduling."
+                ? `Lease ${createdLease.lease_number} saved. Review the contract terms, then confirm the signed agreement.`
+                : "Lease details saved. Review the contract terms, then confirm the signed agreement."
         );
 
         if (createdLease?.public_id) {
@@ -745,7 +754,7 @@ function LeasesPage() {
                         }}
                         leftIcon={Plus}
                     >
-                        Add Draft Lease
+                        Add Lease
                     </Button>
                 </div>
             </div>
@@ -856,7 +865,7 @@ function LeasesPage() {
                 >
                     <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-slate-500">
-                            Active on Page
+                            Tenancies in Progress on Page
                         </p>
                         <ShieldCheck className="h-5 w-5 text-blue-600" />
                     </div>
@@ -874,7 +883,7 @@ function LeasesPage() {
                 >
                     <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-slate-500">
-                            Scheduled on Page
+                            Awaiting Start on Page
                         </p>
                         <CalendarDays className="h-5 w-5 text-blue-600" />
                     </div>
@@ -983,7 +992,7 @@ function LeasesPage() {
                                     key={leaseStatus}
                                     value={leaseStatus}
                                 >
-                                    {formatLabel(
+                                    {leaseStatusLabel(
                                         leaseStatus
                                     )}
                                 </option>
@@ -1300,7 +1309,7 @@ function LeasesPage() {
                                                         )}
                                                     `}
                                                 >
-                                                    {formatLabel(lease.status)}
+                                                    {leaseStatusLabel(lease.status)}
                                                 </span>
                                             </td>
 
@@ -1365,9 +1374,9 @@ function LeasesPage() {
                                                                 }}
                                                             />
 
-                                                            <IconButton
-                                                                label={`Schedule ${lease.lease_number}`}
-                                                                icon={CalendarDays}
+                                                            <Button
+                                                                aria-label={`Confirm agreement ${lease.lease_number}`}
+                                                                leftIcon={CalendarDays}
                                                                 variant="secondary"
                                                                 onClick={() => {
                                                                     setCreateSuccess("");
@@ -1379,7 +1388,7 @@ function LeasesPage() {
                                                                     setRenewSuccess("");
                                                                     setScheduleLease(lease);
                                                                 }}
-                                                            />
+                                                            >Confirm agreement</Button>
 
                                                             <IconButton
                                                                 label={`Cancel ${lease.lease_number}`}
@@ -1399,9 +1408,9 @@ function LeasesPage() {
                                                         </>
                                                     ) : lease.status === "scheduled" ? (
                                                         <>
-                                                            <IconButton
-                                                                label={`Activate ${lease.lease_number}`}
-                                                                icon={ShieldCheck}
+                                                            <Button
+                                                                aria-label={`Start tenancy ${lease.lease_number}`}
+                                                                leftIcon={ShieldCheck}
                                                                 onClick={() => {
                                                                     setCreateSuccess("");
                                                                     setEditSuccess("");
@@ -1412,7 +1421,7 @@ function LeasesPage() {
                                                                     setRenewSuccess("");
                                                                     setActivateLease(lease);
                                                                 }}
-                                                            />
+                                                            >Start tenancy</Button>
 
                                                             <IconButton
                                                                 label={`Cancel ${lease.lease_number}`}

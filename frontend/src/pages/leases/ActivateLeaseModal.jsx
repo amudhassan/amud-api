@@ -238,7 +238,7 @@ function ActivateLeaseModal({
                                 text-slate-950
                             "
                         >
-                            Activate Lease
+                            Start Tenancy
                         </h2>
 
                         <p
@@ -247,11 +247,11 @@ function ActivateLeaseModal({
                                 text-slate-500
                             "
                         >
-                            Move{" "}
+                            Start tenancy for{" "}
                             <span className="font-medium">
                                 {lease.lease_number}
                             </span>{" "}
-                            from Scheduled to Active.
+                            and mark the room as occupied.
                         </p>
                     </div>
 
@@ -276,13 +276,8 @@ function ActivateLeaseModal({
                             text-sm text-emerald-800
                         "
                     >
-                        Activation is a controlled
-                        lifecycle action. The backend
-                        will re-check the scheduled
-                        lease, related records,
-                        permissions, start date and
-                        conflict rules before making
-                        the lease active.
+                        Confirm that this tenancy is ready to begin.
+                        Check the tenant, room and rental dates before continuing.
                     </div>
 
                     {error && (
@@ -434,13 +429,8 @@ function ActivateLeaseModal({
                                     text-amber-800
                                 "
                             >
-                                Activation succeeds only
-                                when the backend date has
-                                reached the lease start
-                                date and the lease period
-                                has not ended. A successful
-                                activation marks the unit
-                                as Occupied.
+                                You can start the tenancy on or after its start date,
+                                while the lease is still valid. The room will be marked occupied.
                             </div>
                         </div>
                     ) : null}
@@ -474,7 +464,7 @@ function ActivateLeaseModal({
                                 !leaseDetail
                             }
                         >
-                            Activate Lease
+                            Start Tenancy
                         </Button>
                     </div>
                 </form>
