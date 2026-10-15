@@ -92,6 +92,7 @@ async function main(afterChecks) {
        VALUES('owner_tenant_acceptance',1,1,1);
       INSERT INTO owner_users(public_id,owner_id,user_id,can_manage_properties,can_manage_finances)
        VALUES('owner_user_acceptance',1,2,true,true);
+      SELECT setval(pg_get_serial_sequence('tenants','id'),(SELECT max(id) FROM tenants));
       COMMIT;`);
     const dates = (await db.query(`SELECT (CURRENT_DATE-12)::text AS start, (CURRENT_DATE+90)::text AS finish,
       (CURRENT_DATE+17)::text AS period_end, CURRENT_DATE::text AS today,

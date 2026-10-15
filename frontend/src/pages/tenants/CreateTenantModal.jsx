@@ -148,7 +148,8 @@ function CreateTenantModal({
                 response?.data?.data || {};
 
             onCreated?.(
-                result.tenant || result
+                result.tenant || result,
+                result
             );
         } catch (requestError) {
             setError(

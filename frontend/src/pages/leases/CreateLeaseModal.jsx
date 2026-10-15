@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import apiClient from "../../api/apiClient";
 import CreateTenantModal from "../tenants/CreateTenantModal";
+import ActivateTenantModal from "../tenants/ActivateTenantModal";
 import { Button, IconButton } from "../../components/ui/Button";
 
 const BILLING_FREQUENCIES = ["monthly", "quarterly", "semi_annual", "annual"];
@@ -68,6 +69,7 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
     const dialogRef = useRef(null);
     const [step, setStep] = useState(0);
     const [tenantCreateOpen, setTenantCreateOpen] = useState(false);
+    const [tenantActivationOpen, setTenantActivationOpen] = useState(false);
     const [reviewConfirmed, setReviewConfirmed] = useState(false);
 
     const [form, setForm] = useState(emptyForm);
@@ -84,13 +86,17 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
 
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
+    const selectedTenant = useMemo(
+        () => tenants.find(tenant => tenant.public_id === form.tenant_public_id) || null,
+        [tenants, form.tenant_public_id],
+    );
 
     useEffect(() => {
-        if (open && !tenantCreateOpen) {
+        if (open && !tenantCreateOpen && !tenantActivationOpen) {
             dialogRef.current?.scrollTo({ top: 0 });
             titleRef.current?.focus();
         }
-    }, [open, step, tenantCreateOpen]);
+    }, [open, step, tenantCreateOpen, tenantActivationOpen]);
 
     const selectedOwner = useMemo(
         () =>
@@ -114,6 +120,7 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
 
         setStep(0);
         setTenantCreateOpen(false);
+        setTenantActivationOpen(false);
         setReviewConfirmed(false);
         let cancelled = false;
 
@@ -192,7 +199,6 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
                         apiClient.get("/tenants", {
                             params: {
                                 owner_public_id: form.owner_public_id,
-                                status: "active",
                                 relationship_status: "active",
                                 page: 1,
                                 limit: 100,
@@ -226,7 +232,7 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
                 setTenants(
                     tenantRows.filter(
                         (tenant) =>
-                            tenant.status === "active" &&
+                            ["active", "prospective"].includes(tenant.status) &&
                             tenant.owner_relationship?.relationship_status ===
                                 "active",
                     ),
@@ -357,6 +363,10 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
             setError("Select an owner and tenant before continuing.");
             return;
         }
+        if (step === 0 && selectedTenant?.status !== "active") {
+            setError("Activate the selected tenant before continuing with the lease.");
+            return;
+        }
         if (step === 1 && (!form.property_public_id || !form.unit_public_id)) {
             setError("Select a property and room before continuing.");
             return;
@@ -371,7 +381,7 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
             ownersLoading ||
             contextLoading ||
             unitsLoading ||
-            tenantCreateOpen
+            tenantCreateOpen || tenantActivationOpen
         )
             return;
         if (step < 2) {
@@ -396,6 +406,11 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
 
         if (!form.tenant_public_id) {
             setError("Tenant is required.");
+            return;
+        }
+        if (selectedTenant?.status !== "active") {
+            setError("Activate the selected tenant before saving the lease.");
+            setStep(0);
             return;
         }
 
@@ -539,7 +554,7 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
     return (
         <>
             <div
-                style={tenantCreateOpen ? { display: "none" } : undefined}
+                style={tenantCreateOpen || tenantActivationOpen ? { display: "none" } : undefined}
                 className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
                 role="dialog"
                 aria-modal="true"
@@ -682,7 +697,7 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
                                                 key={tenant.public_id}
                                                 value={tenant.public_id}
                                             >
-                                                {tenant.display_name}
+                                                {tenant.display_name}{tenant.status !== "active" ? " — needs activation" : ""}
                                                 {tenant.tenant_type
                                                     ? ` — ${humanize(tenant.tenant_type)}`
                                                     : ""}
@@ -704,6 +719,11 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
                                     >
                                         Add new tenant
                                     </Button>
+                                    {selectedTenant?.status === "prospective" && <Button
+                                        type="button" variant="secondary"
+                                        onClick={() => setTenantActivationOpen(true)}
+                                        disabled={submitting || tenantsLoading}
+                                    >Activate selected tenant</Button>}
                                     <p className="mt-2 text-xs text-slate-500">
                                         The new tenant is saved immediately.
                                         Cancelling this lease keeps their tenant
@@ -1268,7 +1288,7 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
                     open={tenantCreateOpen}
                     owner={selectedOwner}
                     onClose={() => setTenantCreateOpen(false)}
-                    onCreated={(tenant) => {
+                    onCreated={(tenant, result) => {
                         if (!tenant?.public_id) {
                             setError(
                                 "Tenant saved, but its details could not be loaded. Select it from the tenant list after reopening this form.",
@@ -1278,14 +1298,33 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
                                 ...current.filter(
                                     (row) => row.public_id !== tenant.public_id,
                                 ),
-                                tenant,
+                                { ...tenant, owner_relationship: result?.owner_relationship || tenant.owner_relationship },
                             ]);
                             update("tenant_public_id", tenant.public_id);
+                            if (tenant.status === "prospective") setTenantActivationOpen(true);
                         }
                         setTenantCreateOpen(false);
                     }}
                 />
             )}
+            {tenantActivationOpen && selectedTenant && selectedOwner && <ActivateTenantModal
+                open={tenantActivationOpen}
+                tenant={selectedTenant}
+                owner={selectedOwner}
+                ownerPublicId={selectedOwner.public_id}
+                relationship={selectedTenant.owner_relationship}
+                onClose={() => setTenantActivationOpen(false)}
+                onActivated={tenant => {
+                    if (!tenant || tenant.public_id !== selectedTenant.public_id || tenant.status !== "active") {
+                        setError("Tenant activation could not be confirmed. Reload the tenant list before continuing.");
+                    } else {
+                        setTenants(current => current.map(row => row.public_id === tenant.public_id
+                            ? { ...row, ...tenant } : row));
+                        setError("");
+                    }
+                    setTenantActivationOpen(false);
+                }}
+            />}
         </>
     );
 }

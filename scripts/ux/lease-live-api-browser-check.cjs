@@ -49,7 +49,26 @@ run(async ({db,app,auth,dates}) => {
             try {
                 await page.getByRole('button',{name:'Add Lease',exact:true}).click();
                 await page.locator('#lease_owner').selectOption('owner_acceptance');
-                await page.locator('#lease_tenant').selectOption('tenant_acceptance');
+                if(viewport.width===390) {
+                    await page.getByRole('button',{name:'Add new tenant',exact:true}).click();
+                    await page.locator('input[name="display_name"]').fill('New inline browser tenant');
+                    const tenantCreated=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/tenants'&&r.request().method()==='POST');
+                    await page.getByRole('button',{name:'Add Tenant',exact:true}).click();
+                    const tenantResponse=await tenantCreated;
+                    assert.equal(tenantResponse.status(),201,await tenantResponse.text());
+                    assert.equal((await tenantResponse.json()).data.tenant.status,'prospective');
+                    const activation=page.getByRole('dialog',{name:'Activate Tenant',exact:true});
+                    await activation.getByRole('button',{name:'Cancel',exact:true}).click();
+                    await page.getByRole('button',{name:'Continue',exact:true}).click();
+                    await page.getByText('Activate the selected tenant before continuing with the lease.',{exact:true}).waitFor();
+                    await page.getByRole('button',{name:'Activate selected tenant',exact:true}).click();
+                    const activatedTenant=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/activate')&&r.request().method()==='PATCH');
+                    await activation.getByRole('button',{name:'Activate Tenant',exact:true}).click();
+                    const activatedResponse=await activatedTenant;
+                    assert.equal(activatedResponse.status(),200,await activatedResponse.text());
+                    assert.equal((await activatedResponse.json()).data.tenant.status,'active');
+                    await activation.waitFor({state:'hidden'});
+                } else await page.locator('#lease_tenant').selectOption('tenant_acceptance');
                 await page.getByRole('button',{name:'Continue',exact:true}).click();
                 await page.locator('#lease_property').selectOption('property_acceptance');
                 await page.locator('#lease_unit').selectOption(unit);
