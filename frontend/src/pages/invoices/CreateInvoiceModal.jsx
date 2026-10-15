@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     FilePlus2,
     RefreshCw,
@@ -502,6 +503,7 @@ function CreateInvoiceModal({
         };
 
     return (
+        <ModalPortal>
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
             role="dialog"
@@ -957,6 +959,7 @@ function CreateInvoiceModal({
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

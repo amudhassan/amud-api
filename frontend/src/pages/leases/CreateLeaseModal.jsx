@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import { FilePlus2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -552,6 +553,7 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
     const contextLoading = propertiesLoading || tenantsLoading;
 
     return (
+        <ModalPortal>
         <>
             <div
                 style={tenantCreateOpen || tenantActivationOpen ? { display: "none" } : undefined}
@@ -1326,6 +1328,7 @@ function CreateLeaseModal({ open, onClose, onCreated }) {
                 }}
             />}
         </>
+        </ModalPortal>
     );
 }
 

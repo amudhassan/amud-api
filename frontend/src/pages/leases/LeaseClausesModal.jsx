@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     PencilLine,
     Plus,
@@ -603,6 +604,7 @@ function LeaseClausesModal({
     };
 
     return (
+        <ModalPortal>
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
             role="dialog"
@@ -1114,6 +1116,7 @@ function LeaseClausesModal({
                 </div>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

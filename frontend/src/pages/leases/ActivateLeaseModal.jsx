@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     ShieldCheck,
     X
@@ -198,6 +199,7 @@ function ActivateLeaseModal({
         leaseDetail?.tenant || null;
 
     return (
+        <ModalPortal>
         <div
             className="
                 fixed inset-0 z-50
@@ -474,6 +476,7 @@ function ActivateLeaseModal({
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

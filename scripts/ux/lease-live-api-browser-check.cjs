@@ -29,7 +29,7 @@ run(async ({db,app,auth,dates}) => {
         await vite.listen();
         const url=`http://127.0.0.1:${vite.httpServer.address().port}`;
         browser=await chromium.launch({headless:true,...(process.env.UX_CHROMIUM_EXECUTABLE?{executablePath:process.env.UX_CHROMIUM_EXECUTABLE}:{})});
-        for(const viewport of [{width:1440,height:1000},{width:390,height:844}]) {
+        for(const viewport of [{width:1440,height:1000},{width:390,height:844},{width:1280,height:640}]) {
             const unit=`unit_browser_${viewport.width}`;
             await db.query(`INSERT INTO units(id,public_id,property_id,unit_code,unit_type,operational_status,created_by)
                 VALUES($1,$2,1,$3,'room','available',1)`,[viewport.width,unit,`B${viewport.width}`]);
@@ -49,9 +49,28 @@ run(async ({db,app,auth,dates}) => {
             try {
                 await page.getByRole('button',{name:'Clause Templates',exact:true}).click();
                 const templatesDialog=page.getByRole('dialog',{name:'Owner Clause Templates',exact:true});
+                const ownerLabel=templatesDialog.locator('label[for="lease_template_owner"]');
+                await ownerLabel.waitFor();
+                await ownerLabel.scrollIntoViewIfNeeded();
+                assert.equal(await ownerLabel.evaluate(element=>{
+                    const box=element.getBoundingClientRect();
+                    const hit=document.elementFromPoint(box.left+Math.min(12,box.width/2),box.top+box.height/2);
+                    return element===hit||element.contains(hit);
+                }),true,'Owner label is visible above the sidebar, including its left edge');
+                assert.equal(await page.evaluate(()=>document.body.style.overflow),'hidden','Background scrolling is locked');
                 await templatesDialog.locator('#lease_template_owner').selectOption('owner_acceptance');
                 await templatesDialog.getByText('Preview 20 clauses and review checklist',{exact:true}).click();
                 await templatesDialog.getByRole('heading',{name:'Kabla ya kusaini',exact:true}).waitFor();
+                const panel=templatesDialog.locator(':scope > div');
+                await panel.evaluate(element=>{element.scrollTop=element.scrollHeight;});
+                const closeButton=templatesDialog.getByRole('button',{name:'Close clause templates',exact:true});
+                assert.equal(await closeButton.evaluate(element=>{
+                    const box=element.getBoundingClientRect();
+                    return element.contains(document.elementFromPoint(box.left+box.width/2,box.top+box.height/2));
+                }),true,'Close button stays visible after scrolling the long preview');
+                await panel.evaluate(element=>{element.scrollTop=0;});
+                if(viewport.width===1440) await page.screenshot({path:'/tmp/template-dialog-desktop.png'});
+                if(viewport.width===390) await page.screenshot({path:'/tmp/template-dialog-mobile.png'});
                 const presetInstalled=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/lease-clause-templates/defaults/residential-mainland'&&r.request().method()==='POST');
                 await templatesDialog.getByRole('button',{name:'Add / open mainland residential template',exact:true}).click();
                 const presetResponse=await presetInstalled;
@@ -63,6 +82,7 @@ run(async ({db,app,auth,dates}) => {
                 assert.equal(defaultItems.rows[0].count,20);
                 assert.equal(await templatesDialog.evaluate(element=>element.scrollWidth<=element.clientWidth),true,'Template preview fits viewport');
                 await templatesDialog.getByRole('button',{name:'Close clause templates',exact:true}).click();
+                assert.equal(await page.evaluate(()=>document.body.style.overflow),'','Background scroll is restored after closing');
                 console.log(`PASS: ${viewport.width}px default preview and owner installation/reopen`);
                 await page.getByRole('button',{name:'Add Lease',exact:true}).click();
                 await page.locator('#lease_owner').selectOption('owner_acceptance');
@@ -76,6 +96,7 @@ run(async ({db,app,auth,dates}) => {
                     assert.equal((await tenantResponse.json()).data.tenant.status,'prospective');
                     const activation=page.getByRole('dialog',{name:'Activate Tenant',exact:true});
                     await activation.getByRole('button',{name:'Cancel',exact:true}).click();
+                    assert.equal(await page.evaluate(()=>document.body.style.overflow),'hidden','Closing a child dialog keeps the parent scroll lock');
                     await page.getByRole('button',{name:'Continue',exact:true}).click();
                     await page.getByText('Activate the selected tenant before continuing with the lease.',{exact:true}).waitFor();
                     await page.getByRole('button',{name:'Activate selected tenant',exact:true}).click();

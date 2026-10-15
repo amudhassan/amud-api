@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     CalendarDays,
     X
@@ -307,6 +308,7 @@ function ScheduleLeaseModal({
         leaseDetail?.tenant || null;
 
     return (
+        <ModalPortal>
         <div
             className="
                 fixed inset-0 z-50
@@ -649,6 +651,7 @@ function ScheduleLeaseModal({
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

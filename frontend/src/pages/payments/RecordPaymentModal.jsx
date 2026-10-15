@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     AlertCircle,
     CheckCircle2,
@@ -691,6 +692,7 @@ function RecordPaymentModal({
         };
 
     return (
+        <ModalPortal>
         <div role="dialog" aria-modal="true" aria-labelledby="record-payment-title" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
             <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
                 <div className="flex shrink-0 items-start justify-between border-b border-slate-200 px-6 py-5">
@@ -1143,6 +1145,7 @@ function RecordPaymentModal({
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

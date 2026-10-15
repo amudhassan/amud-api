@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     AlertCircle,
     Building2,
@@ -527,6 +528,7 @@ function InvoiceDetailModal({
             : [];
 
     return (
+        <ModalPortal>
         <>
         <div style={recordPaymentOpen || receiptNumber ? { display: "none" } : undefined} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 backdrop-blur-[1px] sm:p-5">
             <div
@@ -1170,6 +1172,7 @@ function InvoiceDetailModal({
             onDeleted={handleItemDeleted}
         />
         </>
+        </ModalPortal>
     );
 }
 
