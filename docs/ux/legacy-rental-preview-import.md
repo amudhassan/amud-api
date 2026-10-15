@@ -13,3 +13,9 @@ This command does not transfer accounting balances, issue contracts, import logi
 Keep private source files and credentials outside version control. Test with synthetic input by running `scripts/ux/legacy-rental-preview-import-check.cjs` through the existing isolated acceptance test setup. An optional `--source-dir` permits local source verification without bundling those files in the repository.
 
 A passing isolated test does not mean the user's local preview has been imported. Verify the local dry-run result, apply to the authorized preview, then inspect records through the existing application.
+
+## Confirmed ownership effective dates
+
+`scripts/ux/preview-ownership-date.cjs` accepts `--namespace` and a confirmed `--effective-from` in YYYY-MM-DD form. Default mode is read-only; `--apply` corrects the entire imported ownership set atomically. Preview identity markers, the completed import journal, exact property mappings and expected property count are required. The correction accepts only an import-generated administrative date or an already-correct value; an independently edited value requires review. Future dates and dates that conflict with existing lease starts are rejected.
+
+Property and ownership `created_at` timestamps are preserved. Changed ownership rows receive a current `updated_at`; a preview-only audit records the previous/new effective dates, actor and correction time. Repeating the same correction is a no-op. Transaction-failure and repeat tests verify row/audit rollback and preservation of rental/financial records.

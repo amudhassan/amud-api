@@ -122,6 +122,39 @@ async function checkImport({db,pool,auth}) {
         await assert.rejects(importPlan({pool,plan,apply:true}),/not the guarded/);
         await db.query("UPDATE users SET email='admin@example.invalid' WHERE public_id='user_acceptance_admin'");
         console.log('PASS: importer refuses a database without the preview identity marker');
+
+        const {correctOwnershipDate}=require('./preview-ownership-date.cjs');
+        const ownershipRows=async()=>(await db.query(`SELECT po.public_id,po.effective_from::text,po.created_at::text,
+            po.updated_at::text,p.created_at::text AS property_created_at FROM property_owners po
+            JOIN properties p ON p.id=po.property_id JOIN owners o ON o.id=po.owner_id
+            WHERE o.public_id='owner_mkutasidu_legacy' ORDER BY po.public_id`)).rows;
+        const originalOwnership=await ownershipRows();
+        const correction={pool,namespace:plan.summary.source_namespace,effectiveFrom:'2025-08-16'};
+        assert.equal((await correctOwnershipDate(correction)).mode,'dry-run');
+        assert.deepEqual(await ownershipRows(),originalOwnership);
+        await db.exec(`CREATE FUNCTION acceptance_date_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN IF NEW.public_id LIKE 'ownership_mkut_%' THEN RAISE EXCEPTION 'Synthetic date failure'; END IF; RETURN NEW; END $$;
+            CREATE TRIGGER acceptance_date_failure BEFORE UPDATE ON property_owners FOR EACH ROW EXECUTE FUNCTION acceptance_date_failure();`);
+        await assert.rejects(correctOwnershipDate({...correction,apply:true}),/Synthetic date failure/);
+        assert.deepEqual(await ownershipRows(),originalOwnership);
+        assert.equal((await db.query("SELECT to_regclass('preview_ownership_date_changes') AS name")).rows[0].name,null);
+        await db.exec('DROP TRIGGER acceptance_date_failure ON property_owners; DROP FUNCTION acceptance_date_failure();');
+        const corrected=await correctOwnershipDate({...correction,apply:true});
+        assert.equal(corrected.changed,plan.properties.length);
+        const correctedRows=await ownershipRows();
+        correctedRows.forEach((row,index)=>{
+            assert.equal(row.effective_from,'2025-08-16');
+            assert.equal(row.created_at,originalOwnership[index].created_at);
+            assert.equal(row.property_created_at,originalOwnership[index].property_created_at);
+        });
+        assert.equal((await db.query('SELECT count(*)::int AS count FROM preview_ownership_date_changes')).rows[0].count,plan.properties.length);
+        assert.equal((await correctOwnershipDate({...correction,apply:true})).mode,'already-correct');
+        assert.equal((await db.query('SELECT count(*)::int AS count FROM preview_ownership_date_changes')).rows[0].count,plan.properties.length);
+        await assert.rejects(correctOwnershipDate({...correction,effectiveFrom:'2025-02-30',apply:true}),/real YYYY-MM-DD/);
+        await assert.rejects(correctOwnershipDate({...correction,effectiveFrom:'2099-01-01',apply:true}),/future date/);
+        await assert.rejects(correctOwnershipDate({...correction,effectiveFrom:'2025-07-01',apply:true}),/already edited/);
+        assert.deepEqual(await existingCounts(),after);
+        console.log('PASS: confirmed ownership-date correction is atomic, audited and repeat-safe; property/ownership creation times and rental records preserved');
     } finally {if(option<0)fs.rmSync(directory,{recursive:true,force:true});}
 }
 module.exports={checkImport};
