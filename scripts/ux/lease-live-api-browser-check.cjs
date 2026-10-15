@@ -47,6 +47,23 @@ run(async ({db,app,auth,dates}) => {
             await page.addInitScript(token=>localStorage.setItem('access_token',token),auth);
             await page.goto(`${url}/leases`);
             try {
+                await page.getByRole('button',{name:'Clause Templates',exact:true}).click();
+                const templatesDialog=page.getByRole('dialog',{name:'Owner Clause Templates',exact:true});
+                await templatesDialog.locator('#lease_template_owner').selectOption('owner_acceptance');
+                await templatesDialog.getByText('Preview 20 clauses and review checklist',{exact:true}).click();
+                await templatesDialog.getByRole('heading',{name:'Kabla ya kusaini',exact:true}).waitFor();
+                const presetInstalled=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/lease-clause-templates/defaults/residential-mainland'&&r.request().method()==='POST');
+                await templatesDialog.getByRole('button',{name:'Add / open mainland residential template',exact:true}).click();
+                const presetResponse=await presetInstalled;
+                assert.equal(presetResponse.status(),viewport.width===1440?201:200,await presetResponse.text());
+                await templatesDialog.getByRole('status').waitFor();
+                const defaultId=(await presetResponse.json()).data.template.public_id;
+                const defaultItems=await db.query(`SELECT count(*)::int AS count FROM lease_clause_template_items i
+                    JOIN lease_clause_templates t ON t.id=i.template_id WHERE t.public_id=$1 AND i.deleted_at IS NULL`,[defaultId]);
+                assert.equal(defaultItems.rows[0].count,20);
+                assert.equal(await templatesDialog.evaluate(element=>element.scrollWidth<=element.clientWidth),true,'Template preview fits viewport');
+                await templatesDialog.getByRole('button',{name:'Close clause templates',exact:true}).click();
+                console.log(`PASS: ${viewport.width}px default preview and owner installation/reopen`);
                 await page.getByRole('button',{name:'Add Lease',exact:true}).click();
                 await page.locator('#lease_owner').selectOption('owner_acceptance');
                 if(viewport.width===390) {

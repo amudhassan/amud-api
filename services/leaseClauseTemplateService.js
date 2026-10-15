@@ -3,6 +3,51 @@ const {
 } = require("nanoid");
 
 const pool = require("../config/db");
+const residentialMainlandPreset = require("./residentialMainlandClausePreset");
+
+const installResidentialMainlandTemplate = async ({ ownerPublicId, authenticatedUser }) => {
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+        const owner = await getAuthorizedOwner({
+            db: client, ownerPublicId, authenticatedUser, lock: true
+        });
+        if (!owner) return await rollbackAndReturn(client, { ownerNotFound: true });
+
+        // The owner lock serializes installation. A stable version prefix survives
+        // renaming/editing; a deleted copy can be replaced without restoring it.
+        const prefix = `lease_clause_template_rm${residentialMainlandPreset.version}o${owner.id}_`;
+        const existing = await client.query(`
+            SELECT public_id FROM lease_clause_templates
+            WHERE owner_id = $1 AND left(public_id, length($2::text)) = $2
+              AND deleted_at IS NULL ORDER BY id LIMIT 1`, [owner.id, prefix]);
+        if (existing.rows.length) {
+            await client.query("COMMIT");
+            return { template: existing.rows[0], alreadyExists: true };
+        }
+        const publicId = `${prefix}${nanoid(12)}`;
+        const inserted = await client.query(`
+            INSERT INTO lease_clause_templates (public_id, owner_id, name, description, status, created_by)
+            VALUES ($1, $2, $3, $4, 'active', $5) RETURNING id, public_id`,
+        [publicId, owner.id, residentialMainlandPreset.name, residentialMainlandPreset.description, authenticatedUser.id]);
+        for (const item of residentialMainlandPreset.items) {
+            await client.query(`
+                INSERT INTO lease_clause_template_items
+                    (public_id, template_id, clause_category, title, clause_text, is_mandatory, display_order, created_by)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [`lease_clause_template_item_${nanoid(24)}`, inserted.rows[0].id,
+                item.clause_category, item.title, item.clause_text, item.is_mandatory,
+                item.display_order, authenticatedUser.id]);
+        }
+        await client.query("COMMIT");
+        return { template: { public_id: publicId }, alreadyExists: false };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 
 const hasOwn = (
     object,
@@ -1332,6 +1377,7 @@ const applyLeaseClauseTemplate = async ({
 };
 
 module.exports = {
+    installResidentialMainlandTemplate,
     getLeaseClauseTemplates,
     createLeaseClauseTemplate,
     getSingleLeaseClauseTemplate,
