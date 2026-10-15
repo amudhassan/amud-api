@@ -109,8 +109,13 @@ async function main(afterChecks) {
     check('staff with property access cannot register past tenancy',true);
     const confirmed = await leases.scheduleLease({leasePublicId,scheduleData,authenticatedUser:admin});
     check('admin registers existing tenancy',confirmed.lease?.status==='scheduled');
-    const row = (await db.query('SELECT start_date::text,scheduled_at::date::text AS registration_date,scheduled_by,notes FROM leases WHERE public_id=$1',[leasePublicId])).rows[0];
-    check('original dates and contract notes preserved with current actor/reason',row.start_date===dates.start && row.registration_date===dates.today && row.scheduled_by===1 && row.notes.includes(reason) && row.notes.startsWith('Original contract notes'));
+    const row = (await db.query('SELECT start_date::text,scheduled_at::date::text AS registration_date,scheduled_by::text AS scheduled_by,notes FROM leases WHERE public_id=$1',[leasePublicId])).rows[0];
+    assert.equal(row.start_date,dates.start,'Original start date must remain unchanged.');
+    assert.equal(row.registration_date,dates.today,'Registration must use the current database date.');
+    assert.equal(row.scheduled_by,String(admin.id),'Registration must retain the authenticated actor.');
+    assert.ok(row.notes.includes(reason),'Registration reason must be recorded.');
+    assert.ok(row.notes.startsWith('Original contract notes'),'Original contract notes must be preserved.');
+    check('original dates and contract notes preserved with current actor/reason',true);
     await assert.rejects(db.query('UPDATE leases SET notes=$1 WHERE public_id=$2',['altered',leasePublicId]));
     check('scheduled contract notes immutable',true);
     assert.deepEqual(await leases.scheduleLease({leasePublicId,scheduleData,authenticatedUser:admin}),{notDraft:true});
