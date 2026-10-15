@@ -246,5 +246,9 @@ const run = async afterChecks => {
     try { await main(afterChecks); }
     finally { await db.close(); }
 };
-module.exports = { run };
+const withDatabase = async callback => {
+    try { await callback({db,pool}); }
+    finally { await db.close(); }
+};
+module.exports = { run, withDatabase };
 if(require.main===module)run().catch(error=>{console.error(error);process.exitCode=1;});

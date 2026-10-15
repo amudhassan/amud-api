@@ -100,3 +100,17 @@ The same variable can be used with the real-API browser script. Native process s
 Native concurrency results: competing tenancy registrations leave exactly one scheduled lease and roll the other back; competing invoice requests create one invoice; competing payments cannot exceed the outstanding balance. All preceding audit, permissions, invoice/payment/receipt/PDF and real API checks also completed. The original partially populated test database remains separate; neither test database was removed. No production deployment or database change was made.
 
 Before merging/deploying, have the accountant review the flow, confirm compatibility with the production schema/configuration, and review the admin-only registration policy with the owner. Browser-to-API testing was completed with PGlite; native API/concurrency testing was completed separately on Windows. A combined native-browser run has not been claimed. Historical invoices and payment import, simplified navigation beyond this flow and general localization remain separate work.
+
+### Local accountant review launcher
+
+`scripts/ux/lease-accountant-preview.cjs` opens the existing synthetic native acceptance database without rerunning migrations or resetting records. It reuses the adapter's loopback/database-name safeguards and verifies the exact synthetic admin/property identity before starting. The launcher supplies six REVIEW rooms once, aligns the fixture tables' ID sequences for real create forms, and serves the frontend/API on loopback addresses only. It does not start production jobs or contact Render.
+
+With backend/frontend dependencies installed, provide the existing local acceptance database via `UX_NATIVE_DATABASE_URL`, then run:
+
+    node scripts/ux/lease-accountant-preview.cjs
+
+The terminal prints a local `/__preview` link for the synthetic admin and a `?role=staff` link for the synthetic staff account. These are local test-session entry points, not application login changes. Session/receipt secrets are generated for the preview process. Vite env-file loading is disabled and API traffic is proxied to the local server. Keep the terminal open; Ctrl+C closes both servers and the database pool. The same database can be reopened without a reset; sample records and review changes remain there. Receipts use a process-specific QR secret, so a previous preview session's QR link need not remain valid after restart.
+
+Local smoke checks on PGlite passed admin/staff browser entry, real API tenant creation with fixture ID sequence alignment, and restart without duplicate REVIEW rooms. Owner-machine launcher execution/accountant acceptance are pending.
+
+Review tasks: select/add a tenant; choose a REVIEW room; enter rent and dates; confirm the review/contract/signature; use admin registration with a reason for an existing tenancy; start the tenancy; prepare a period-specific invoice, add its rent item and issue it; record a partial payment and download its receipt PDF. Check the remaining balance and assess whether each next action is understandable. Staff must not see the admin-only existing-tenancy registration option. Review data stays in the acceptance database.
