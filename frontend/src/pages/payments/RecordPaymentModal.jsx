@@ -106,7 +106,9 @@ const toLocalDateTimeInput = date => {
         ":",
         pad(
             value.getSeconds()
-        )
+        ),
+        ".",
+        String(value.getMilliseconds()).padStart(3, "0")
     ].join("");
 };
 
@@ -307,7 +309,7 @@ function RecordPaymentModal({
                             setLoadError("This invoice is not payable. Issue it first and check its outstanding balance.");
                             return;
                         }
-                        setInvoices([invoice]);
+                        setInvoices([{ ...invoice, issued_at: invoice.issued_at || invoice.audit?.issued?.issued_at }]);
                         setInvoicePublicId(invoice.public_id);
                         return;
                     }
@@ -1006,7 +1008,7 @@ function RecordPaymentModal({
 
                                 <input
                                     type="datetime-local"
-                                    step="1"
+                                    step="0.001"
                                     value={
                                         paidAt
                                     }

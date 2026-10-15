@@ -881,8 +881,8 @@ const getLeases = async ({
             l.public_id,
             l.lease_number,
             l.status,
-            l.start_date,
-            l.end_date,
+            l.start_date::text AS start_date,
+            l.end_date::text AS end_date,
             l.currency_code,
             l.rent_amount,
             l.billing_frequency,
@@ -1200,8 +1200,8 @@ const getSingleLease = async ({
             l.public_id,
             l.lease_number,
             l.status,
-            l.start_date,
-            l.end_date,
+            l.start_date::text AS start_date,
+            l.end_date::text AS end_date,
 
             previous_lease.public_id
                 AS renewed_from_lease_public_id,

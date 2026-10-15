@@ -68,4 +68,31 @@ Reproduce with isolated dependencies (no application dependency changes):
 
 PGlite runs one database session. Native PostgreSQL process startup is unavailable in this environment because it only maps UID 0 and cannot run the server as a non-root user. These checks do not verify concurrent requests, native `pg` connection/type behavior, production schema parity or deployed configuration.
 
-Before merging/deploying, run native PostgreSQL acceptance on a disposable database, including simultaneous overlapping registrations/invoices, production-like schema and connection behavior. Complete browser-to-API QA for signing, invoice items/issuance, partial payment and receipt PDF; current browser checks use fixtures, while the real API checks run independently. Review the admin-only registration policy with the owner. Historical invoices and payment import, simplified navigation beyond this flow and general localization remain separate work.
+### Browser connected to the real API
+
+`scripts/ux/lease-live-api-browser-check.cjs` now passes the full workflow through a local Vite frontend, actual Express routers/auth/validators/controllers/services and the disposable PostgreSQL engine. API responses are not mocked. External network requests are blocked. The test covers desktop 1440×1000 in America/New_York and mobile 390×844 in Africa/Dar_es_Salaam: tenant/room selection, past-date agreement creation, signed confirmation with admin reason, activation, targeted invoice, rent item, issuance, partial payment, receipt and actual PDF download. Database joins confirm the exact lease/invoice/payment/receipt and remaining balance. A deliberately pre-issue payment time is rejected in the form before the valid default time succeeds.
+
+This exposed and fixed two integration issues:
+
+- Lease and invoice list/detail calendar fields are now selected as SQL text (`YYYY-MM-DD`), preserving calendar dates across JSON serialization. Lease date displays parse date-only values as local calendar dates. This prevents a timezone shift from making a due-today invoice appear overdue and disabling issuance. Audit timestamps still represent instants.
+- The payment form preserves milliseconds in its default timestamp and reads issuance time from the nested invoice audit response. Immediate payments no longer become earlier than invoice issuance merely because the form truncated seconds; manual pre-issue dates remain rejected.
+
+The single-session adapter serializes whole transactions when browser background reads overlap. This is test infrastructure, not evidence of native PostgreSQL concurrency behavior.
+
+    UX_PGLITE_DEPS=/tmp/lease-pglite-check UX_CHROMIUM_EXECUTABLE=/path/to/chromium node scripts/ux/lease-live-api-browser-check.cjs
+
+Outside the provided runtime, install Playwright in an isolated directory and set `UX_BROWSER_DEPS` to that directory. Vite comes from the frontend's installed dependencies.
+
+### Native PostgreSQL and staging handoff
+
+Render inventory was read on 2026-10-15 in the confirmed My Workspace. Only the production real-estate frontend/backend and shared PostgreSQL 18 database were present; preview generation was off and no staging/preview was listed. No Render resource was created or changed.
+
+The database script now also supports `UX_NATIVE_DATABASE_URL` for a **new, empty, local PostgreSQL 18 database**. It refuses non-loopback hosts, database names outside `lease_acceptance_*`, URL query parameters and databases with existing user objects. It does not use normal application DB environment variables. Native mode uses `pg` connections, finite statement/lock timeouts and additional parallel registration, invoice and payment checks. It creates only synthetic fixtures; it does not drop databases. Create a new database per run, keep authentication local, and remove that test database separately when finished.
+
+Example connection shape, using locally configured authentication rather than posting credentials:
+
+    UX_NATIVE_DATABASE_URL=postgresql://TEST_USER@127.0.0.1:5433/lease_acceptance_RUN_ID node scripts/ux/lease-database-check.cjs
+
+The same variable can be used with the real-API browser script. Native mode and its concurrency checks are prepared but **have not run here**; the production-database-name rejection guard was exercised. Native process startup remains blocked by this environment's UID mapping.
+
+Before merging/deploying, run that native acceptance on a disposable database, confirm production-like schema/connection behavior, and have the accountant review the flow. Choose an accessible local PostgreSQL 18 instance or a separately provisioned staging environment for that final check. Review the admin-only registration policy with the owner. Historical invoices and payment import, simplified navigation beyond this flow and general localization remain separate work.
