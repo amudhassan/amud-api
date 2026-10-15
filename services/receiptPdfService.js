@@ -1,3 +1,4 @@
+const { loadReceiptSignature } = require("./receiptSignatureService");
 const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
 
@@ -116,6 +117,7 @@ const ensureSpace = (document, requiredHeight) => {
  * Generate a professional rent receipt PDF in memory.
  */
 const generateReceiptPdf = async receipt => {
+    const signature = await loadReceiptSignature(receipt);
     const verificationUrl =
         buildReceiptVerificationUrl(
             receipt.receipt_number,
@@ -428,6 +430,22 @@ const generateReceiptPdf = async receipt => {
                 "Payment notes",
                 receipt.payment.notes
             );
+        }
+
+        if (signature) {
+            ensureSpace(document, 145);
+            document.moveDown(0.7);
+            drawRule(document);
+            const signatureTop = document.y;
+            document.font("Helvetica-Bold").fontSize(9).fillColor("#4B5563")
+                .text("AUTHORIZED SIGNATURE", 50, signatureTop, { width: 200 });
+            document.image(signature.image, 50, signatureTop + 16, {
+                fit: [180, 72], align: "left", valign: "center"
+            });
+            document.font("Helvetica").fontSize(9).fillColor("#111827");
+            if (signature.name) document.text(signature.name, 50, signatureTop + 94, { width: 300 });
+            document.text(signature.title, 50, signatureTop + (signature.name ? 108 : 94), { width: 300 });
+            document.y = signatureTop + 124;
         }
 
         ensureSpace(document, 125);
