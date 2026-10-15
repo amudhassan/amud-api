@@ -33,10 +33,11 @@ async function main() {
             return { file, text: execFileSync('pdftotext', [file, '-'], { encoding: 'utf8' }) };
         };
         const signed = await extract(receipt, 'signed');
-        assert.equal(signed.text.match(/AUTHORIZED SIGNATURE/g).length, 1);
+        assert.equal(signed.text.match(/Operator/g).length, 1);
+        assert.doesNotMatch(signed.text, /AUTHORIZED SIGNATURE/);
         assert.match(signed.text, /Operator/);
         assert.match(signed.text, /RECEIPT REFERENCE QR/);
-        assert.doesNotMatch((await extract(other, 'other')).text, /AUTHORIZED SIGNATURE/);
+        assert.doesNotMatch((await extract(other, 'other')).text, /Operator/);
         assert.match((await extract({ ...receipt, receipt_status: 'reversed' }, 'reversed')).text, /REVERSED/);
         config.image_path = path.join(directory, 'missing.png');
         await fs.writeFile(configPath, JSON.stringify(config));
