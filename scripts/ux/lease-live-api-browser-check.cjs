@@ -47,6 +47,23 @@ run(async ({db,app,auth,dates}) => {
             await page.addInitScript(token=>localStorage.setItem('access_token',token),auth);
             await page.goto(`${url}/leases`);
             try {
+                await page.goto(`${url}/owners`);
+                if(viewport.width===390) await page.getByRole('button',{name:'View Detail',exact:true}).first().click();
+                else await page.getByRole('button',{name:'View Test Owner',exact:true}).click();
+                const ownerDialog=page.getByRole('dialog');
+                await ownerDialog.getByText('Record Timeline',{exact:true}).scrollIntoViewIfNeeded();
+                assert.equal(await page.evaluate(()=>Boolean(document.elementFromPoint(12,window.innerHeight/2)?.closest('[role="presentation"]'))),true,'Owner backdrop covers sidebar hit targets');
+                assert.equal(await page.evaluate(()=>document.body.style.overflow),'hidden');
+                await ownerDialog.getByRole('button',{name:'Close owner detail',exact:true}).click();
+                assert.equal(await page.evaluate(()=>document.body.style.overflow),'');
+                await page.goto(`${url}/properties`);
+                await page.getByRole('button',{name:'Add Property',exact:true}).click();
+                assert.equal(await page.evaluate(()=>document.body.style.overflow),'hidden');
+                assert.equal(await page.evaluate(()=>Boolean(document.elementFromPoint(12,window.innerHeight/2)?.closest('[role="dialog"]'))),true,'Property backdrop covers sidebar hit targets');
+                await page.getByRole('dialog',{name:'Add Property',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();
+                assert.equal(await page.evaluate(()=>document.body.style.overflow),'');
+                console.log(`PASS: ${viewport.width}px owner details and property dialogs cover sidebar and restore scrolling`);
+                await page.goto(`${url}/leases`);
                 await page.getByRole('button',{name:'Clause Templates',exact:true}).click();
                 const templatesDialog=page.getByRole('dialog',{name:'Owner Clause Templates',exact:true});
                 const ownerLabel=templatesDialog.locator('label[for="lease_template_owner"]');

@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     Building2,
     PieChart,
@@ -332,6 +333,7 @@ function EditOwnerShareholderModal({
     };
 
     return (
+        <ModalPortal>
         <div
             className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
             role="dialog"
@@ -515,6 +517,7 @@ function EditOwnerShareholderModal({
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

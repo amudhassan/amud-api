@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     Building2,
     Plus,
@@ -299,6 +300,7 @@ function CreateOwnerModal({
     `;
 
     return (
+        <ModalPortal>
         <div
             className="
                 fixed inset-0 z-[70]
@@ -655,6 +657,7 @@ function CreateOwnerModal({
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

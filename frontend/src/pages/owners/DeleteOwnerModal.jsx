@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     AlertTriangle,
     Trash2,
@@ -104,6 +105,7 @@ function DeleteOwnerModal({
     };
 
     return (
+        <ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
             <button
                 type="button"
@@ -217,6 +219,7 @@ function DeleteOwnerModal({
                 </div>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

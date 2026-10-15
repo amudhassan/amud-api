@@ -15,3 +15,9 @@ Validation:
 - React component DOM checks and frontend build passed. Lint reports existing warnings; whitespace checks passed.
 
 Accountant review is still required. This change does not deploy production.
+
+## Owner and property follow-up
+
+A later review found the same page stacking issue in Owner Details. All 13 owner dialog components now use the shared portal, including nested user/shareholder dialogs. The property creation and deleted-property overlays also use it and expose accessible dialog names. No record timestamps or ownership dates are changed by this layout fix.
+
+The real browser/API check now opens and scrolls Owner Details, verifies that the backdrop covers the sidebar hit targets, closes it and checks body scroll restoration. It also opens/closes property creation and checks its backdrop and scrolling. These checks and the existing tenancy-to-receipt flow passed at all three viewport sizes. Build passed; lint retains existing warnings.

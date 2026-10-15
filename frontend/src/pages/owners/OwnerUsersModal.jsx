@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     Check,
     Pencil,
@@ -283,6 +284,7 @@ function OwnerUsersModal({
         data?.owner || owner;
 
     return (
+        <ModalPortal>
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
             onMouseDown={event => {
@@ -850,6 +852,7 @@ function OwnerUsersModal({
                 />
             )}
         </div>
+        </ModalPortal>
     );
 }
 
