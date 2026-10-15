@@ -53,4 +53,19 @@ Local browser command (start Vite separately with `VITE_API_BASE_URL=http://127.
 
 ## Remaining release checks
 
-Before merging/deploying, exercise this branch against a disposable database with the project's existing migrations. Confirm registration/activation timestamps, immutable notes, overlapping tenancy rejection and invoice overlap rejection using real PostgreSQL. Verify the guided flow with actual API response shapes and roles. Complete browser QA for signing, invoice items/issuance, partial payment and receipt PDF with the real API; wizard browser checks above use fixtures. Review the admin-only registration policy with the owner. Historical invoices and payment import, simplified navigation beyond this flow and general localization remain separate work.
+### Database and API acceptance results
+
+`scripts/ux/lease-database-check.cjs` now runs 27 acceptance checks on a fresh, in-memory PostgreSQL engine (PGlite 0.5.10, reporting PostgreSQL 18.6) with `btree_gist`. All 41 repository migrations execute unchanged. The fixture uses `database/schema.sql` plus the legacy `users.deleted_at` and `users.profile_image_url` columns referenced by current code but absent from that baseline; this is not proof of production schema parity. No production connection or credentials are used. The test injects its isolated database adapter before importing services, never loads `config/db.js`, and closes the engine on success or failure.
+
+Verified: ordinary past-date rejection; admin-only existing tenancy registration; original dates/notes and current registration actor/date; immutable confirmed notes; activation and occupied unit state; lease overlap rejection with rollback; no automatic billing; invoice creation/items/issuance; invoice overlap rejection at the service and database exclusion-constraint levels; partial payment totals; receipt ownership/access; and receipt PDF generation.
+
+The same run exercises the real Express routers, validators, authentication middleware, controllers and services through Supertest: unauthenticated access rejection, staff registration rejection, admin registration/activation, invoice creation and issue, overlapping invoice rejection, partial payment and exact response shapes used by the UI, receipt JSON/PDF, full settlement, overpayment rejection, paid-invoice payment rejection, and absence of extra allocations after rejected requests.
+
+Reproduce with isolated dependencies (no application dependency changes):
+
+    npm install --prefix /tmp/lease-pglite-check @electric-sql/pglite@0.5.10
+    UX_PGLITE_DEPS=/tmp/lease-pglite-check node scripts/ux/lease-database-check.cjs
+
+PGlite runs one database session. Native PostgreSQL process startup is unavailable in this environment because it only maps UID 0 and cannot run the server as a non-root user. These checks do not verify concurrent requests, native `pg` connection/type behavior, production schema parity or deployed configuration.
+
+Before merging/deploying, run native PostgreSQL acceptance on a disposable database, including simultaneous overlapping registrations/invoices, production-like schema and connection behavior. Complete browser-to-API QA for signing, invoice items/issuance, partial payment and receipt PDF; current browser checks use fixtures, while the real API checks run independently. Review the admin-only registration policy with the owner. Historical invoices and payment import, simplified navigation beyond this flow and general localization remain separate work.
