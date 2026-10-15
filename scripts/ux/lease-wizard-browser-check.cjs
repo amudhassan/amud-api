@@ -34,7 +34,12 @@ const unit = {
     operational_status: "available",
 };
 (async () => {
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({
+        headless: true,
+        ...(process.env.UX_CHROMIUM_EXECUTABLE
+            ? { executablePath: process.env.UX_CHROMIUM_EXECUTABLE }
+            : {}),
+    });
     try {
         for (const viewport of [
             { width: 1440, height: 1000 },
@@ -44,13 +49,22 @@ const unit = {
             const errors = [];
             let posts = 0;
             let posted;
-            page.on("pageerror", (error) => errors.push(error.message));
+            page.on("pageerror", (error) => {
+                errors.push(error.message);
+                console.error("Browser error:", error.message);
+            });
+            page.on("requestfailed", (request) =>
+                console.error("Fixture request failed:", request.url(), request.failure()?.errorText),
+            );
             await page.addInitScript(() =>
                 localStorage.setItem("access_token", "local-fixture-token"),
             );
             await page.route("**/api/**", async (route) => {
                 const req = route.request();
                 const url = new URL(req.url());
+                // Vite serves /src/api/apiClient.js, which also matches the glob.
+                // Only intercept backend endpoints, never application modules.
+                if (!url.pathname.startsWith("/api/")) return route.continue();
                 const path = url.pathname.replace("/api", "");
                 let body = { data: {} };
                 if (req.method() === "OPTIONS")
@@ -124,6 +138,11 @@ const unit = {
             await page.goto(
                 process.env.UX_TEST_URL || "http://127.0.0.1:5173/leases",
             );
+            await page.getByRole("button", { name: "Add Lease", exact: true })
+                .waitFor({ timeout: 10000 }).catch(async error => {
+                    console.error("Rendered page:", page.url(), await page.locator("body").innerText());
+                    throw error;
+                });
             await page
                 .getByRole("button", { name: "Add Lease", exact: true })
                 .click();
@@ -203,6 +222,12 @@ const unit = {
             await page
                 .getByRole("checkbox", { name: "I have checked" })
                 .check();
+            const overlay = await page.getByRole("dialog").boundingBox();
+            assert.ok(overlay && Math.abs(overlay.y) < 1 && Math.abs(overlay.height - viewport.height) < 1,
+                "dialog overlay must cover the viewport, not its animated page ancestor");
+            const saveBounds = await save.boundingBox();
+            assert.ok(saveBounds && saveBounds.y >= 0 && saveBounds.y + saveBounds.height <= viewport.height,
+                "save action must remain inside the viewport");
             await page.screenshot({
                 path: `/tmp/lease-review-${viewport.width}.png`,
                 fullPage: true,

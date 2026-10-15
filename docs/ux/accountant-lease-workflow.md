@@ -43,8 +43,14 @@ For isolated DOM tests:
     npm install --prefix /tmp/lease-wizard-check jsdom esbuild @testing-library/react @testing-library/user-event
     UX_TEST_DEPS=/tmp/lease-wizard-check node scripts/ux/lease-wizard-dom-check.cjs
 
-The optional Playwright browser check requires a local Vite server and installed Chromium. Browser installation failed in this environment, so browser screenshots and visual layout results are not claimed.
+The Playwright browser check passed with local API fixtures at 1440×1000 and 390×844. It verifies wizard validation, tenant dialog isolation, review confirmation, retained input, one create request, contract handoff, viewport coverage and visible Save controls. Screenshots were inspected. The test now avoids intercepting Vite's `/src/api/apiClient.js` module as an API request. `UX_CHROMIUM_EXECUTABLE` optionally selects an installed Chromium binary.
+
+Browser QA found that the page entrance animation retained a transform after completion, making fixed dialogs position against the page content instead of the viewport. Page and section entrance animations now release their transforms after completion. Regression checks verify dialog coverage and the Save button bounds on both viewport sizes.
+
+Local browser command (start Vite separately with `VITE_API_BASE_URL=http://127.0.0.1:5173/api`):
+
+    UX_CHROMIUM_EXECUTABLE=/path/to/chromium node scripts/ux/lease-wizard-browser-check.cjs
 
 ## Remaining release checks
 
-Before merging/deploying, exercise this branch against a disposable database with the project's existing migrations. Confirm registration/activation timestamps, immutable notes, overlapping tenancy rejection and invoice overlap rejection using real PostgreSQL. Verify the guided flow with actual API response shapes and roles. Run desktop and mobile browser QA, including focus, modal layout, signing, invoice items/issuance, partial payment and receipt PDF. Review the admin-only registration policy with the owner. Historical invoices and payment import, simplified navigation beyond this flow and general localization remain separate work.
+Before merging/deploying, exercise this branch against a disposable database with the project's existing migrations. Confirm registration/activation timestamps, immutable notes, overlapping tenancy rejection and invoice overlap rejection using real PostgreSQL. Verify the guided flow with actual API response shapes and roles. Complete browser QA for signing, invoice items/issuance, partial payment and receipt PDF with the real API; wizard browser checks above use fixtures. Review the admin-only registration policy with the owner. Historical invoices and payment import, simplified navigation beyond this flow and general localization remain separate work.
