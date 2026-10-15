@@ -186,6 +186,12 @@ run(async ({db,app,auth,dates}) => {
                 assert.equal(paymentResponse.status(),201,await paymentResponse.text());
                 const payment=(await paymentResponse.json()).data.payment;
                 await page.getByRole('heading',{name:'Rent Payment Receipt',exact:true}).waitFor();
+                assert.equal(await page.evaluate(()=>{
+                    const heading=[...document.querySelectorAll('h2')].find(el=>el.textContent==='Rent Payment Receipt');
+                    const backdrop=heading.closest('.fixed');
+                    return backdrop.parentElement===document.body && backdrop.contains(document.elementFromPoint(12,window.innerHeight/2));
+                }),true,'Receipt portal covers sidebar hit targets');
+                assert.equal(await page.evaluate(()=>document.body.style.overflow),'hidden','Receipt keeps background scroll locked');
                 const download=page.waitForEvent('download');
                 await page.getByRole('button',{name:'Download PDF',exact:true}).click();
                 const downloaded=await download;
