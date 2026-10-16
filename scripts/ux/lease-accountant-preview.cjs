@@ -33,6 +33,7 @@ async function startPreview({db}) {
         ['invoices','invoiceRoutes'],['payments','paymentRoutes'],['receipts','receiptRoutes'],['notifications','notificationRoutes']]) {
         app.use(`/api/${prefix}`,require(`../../routes/${router}`));
     }
+    app.use('/api/preview-rental-monitor',require('./legacy-rental-monitor-router.cjs')(require('../../config/db')));
     app.use((error,req,res,next)=>res.status(error.statusCode||500).json({message:error.message}));
     const api=await new Promise((resolve,reject)=>{
         const server=app.listen(0,'127.0.0.1',()=>resolve(server));
@@ -42,6 +43,7 @@ async function startPreview({db}) {
     try {
         const {createServer}=await import('../../frontend/node_modules/vite/dist/node/index.js');
         process.env.VITE_API_BASE_URL='/api';
+        process.env.VITE_PREVIEW_LEGACY_MONITORING='true';
         vite=await createServer({root:path.resolve(__dirname,'../../frontend'),envDir:false,
             server:{host:'127.0.0.1',port:5173,proxy:{'/api':`http://127.0.0.1:${api.address().port}`}},
             plugins:[{name:'local-acceptance-entry',configureServer(server) {
