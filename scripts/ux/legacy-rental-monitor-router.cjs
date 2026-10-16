@@ -21,17 +21,19 @@ module.exports=function monitoringRouter(pool){
         const asOf=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Dar_es_Salaam',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
         const payments=(await pool.query('SELECT source FROM preview_rental_monitor_payments WHERE namespace=$1 ORDER BY source->>\'date_created\',source_id',[NS])).rows.map(r=>r.source);
         const grouped=new Map();for(const p of payments){if(!grouped.has(p.tenant_id))grouped.set(p.tenant_id,[]);grouped.get(p.tenant_id).push(p);}
-        const current=(await pool.query(`SELECT t.public_id AS tenant_public_id,rp.receipt_number,rp.amount,rp.status,rp.paid_at,rp.transaction_reference
+        const importedLinks=(await pool.query("SELECT to_regclass('preview_legacy_financial_payment_links') AS name")).rows[0].name;
+        const importFlag=importedLinks?'EXISTS(SELECT 1 FROM preview_legacy_financial_payment_links x WHERE x.payment_id=rp.id)':'FALSE';
+        const current=(await pool.query(`SELECT t.public_id AS tenant_public_id,rp.receipt_number,rp.amount,rp.status,rp.paid_at,rp.transaction_reference,${importFlag} AS imported_from_csv
             FROM rent_payments rp JOIN tenants t ON t.id=rp.tenant_id WHERE rp.owner_id=$1 ORDER BY rp.paid_at DESC`,[req.monitorOwnerId])).rows;
         const invoices=(await pool.query(`SELECT t.public_id AS tenant_public_id,i.invoice_number,i.billing_period_start::text,i.billing_period_end::text,i.status,i.total_amount,i.balance_amount
             FROM rent_invoices i JOIN tenants t ON t.id=i.tenant_id WHERE i.owner_id=$1 ORDER BY i.billing_period_end DESC`,[req.monitorOwnerId])).rows;
         const rows=(await pool.query('SELECT source_id,tenant_public_id,source,review,version FROM preview_rental_monitor_rows WHERE namespace=$1',[NS])).rows.map(r=>{
             const history=grouped.get(r.source_id)||[];
             const currentPayments=current.filter(p=>p.tenant_public_id===r.tenant_public_id);
-            const potentiallyRepeated=currentPayments.filter(p=>p.status==='completed' && history.some(h=>
+            const potentiallyRepeated=currentPayments.filter(p=>!p.imported_from_csv && p.status==='completed' && history.some(h=>
                 (p.transaction_reference && p.transaction_reference===h.invoice) ||
                 (Number(p.amount)===Number(h.amount) && new Date(p.paid_at).toISOString().slice(0,10)===h.date_created.slice(0,10))));
-            const newPaid=currentPayments.filter(p=>p.status==='completed' && !potentiallyRepeated.includes(p) && new Date(p.paid_at).toISOString().slice(0,10)<=asOf).reduce((sum,p)=>sum+Math.round(Number(p.amount)*100),0)/100;
+            const newPaid=currentPayments.filter(p=>!p.imported_from_csv && p.status==='completed' && !potentiallyRepeated.includes(p) && new Date(p.paid_at).toISOString().slice(0,10)<=asOf).reduce((sum,p)=>sum+Math.round(Number(p.amount)*100),0)/100;
             return {...r,history,estimate:estimate(r.source,history,asOf),account:calculateBalance(r.source,history,asOf,newPaid),duplicate_review:potentiallyRepeated.map(p=>p.receipt_number),current_payments:currentPayments,current_invoices:invoices.filter(i=>i.tenant_public_id===r.tenant_public_id)};
         });
         const ids=new Set(rows.map(r=>r.source_id));const activeRows=rows.filter(r=>r.source.status==='1');
