@@ -1,3 +1,4 @@
+import { useActionAccess } from '../../routes/actionAccess';
 import ModalPortal from "../../components/ui/ModalPortal";
 import {
     Building2,
@@ -297,6 +298,8 @@ const validateCreateProperty = form => {
 };
 
 function PropertiesPage() {
+    const access = useActionAccess();
+
     const navigate = useNavigate();
     const [properties, setProperties] =
         useState([]);
@@ -963,7 +966,7 @@ function PropertiesPage() {
                         )}
                     </ActionGroup>
 
-                    <Button
+                    {access.anyProperty && (<Button
                         onClick={openCreateProperty}
                         variant="primary"
                         size="md"
@@ -971,7 +974,7 @@ function PropertiesPage() {
                         className="px-3.5"
                     >
                         Add Property
-                    </Button>
+                    </Button>)}
                 </div>
             </div>
 

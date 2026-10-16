@@ -1,5 +1,6 @@
 const { nanoid } = require("nanoid");
 const pool = require("../config/db");
+const { checkTenantWrite } = require("./tenantActionAccessService");
 
 /*
  * GET /api/tenants
@@ -1196,12 +1197,10 @@ const updateTenant = async ({
                     WHERE user_access.owner_id = o.id
                       AND user_access.user_id = $2
                       AND user_access.revoked_at IS NULL
-                      AND user_access.can_manage_properties = TRUE
-                      AND user_access.relationship_role IN (
-                          'owner',
-                          'representative',
-                          'manager'
-                      )
+                      AND ((user_access.can_manage_properties = TRUE
+                            AND user_access.relationship_role IN ('owner','representative','manager'))
+                           OR (user_access.relationship_role = 'accountant'
+                               AND user_access.can_manage_finances = TRUE))
                 )
             `;
         }
@@ -1242,6 +1241,8 @@ const updateTenant = async ({
         }
 
         const owner = ownerResult.rows[0];
+
+        await checkTenantWrite(client, owner.id, authenticatedUser, tenantData, false);
 
         /*
          * Admin anaweza kutumia active relationship
@@ -3472,12 +3473,10 @@ const createTenant = async ({
                     WHERE user_access.owner_id = o.id
                       AND user_access.user_id = $2
                       AND user_access.revoked_at IS NULL
-                      AND user_access.can_manage_properties = TRUE
-                      AND user_access.relationship_role IN (
-                          'owner',
-                          'representative',
-                          'manager'
-                      )
+                      AND ((user_access.can_manage_properties = TRUE
+                            AND user_access.relationship_role IN ('owner','representative','manager'))
+                           OR (user_access.relationship_role = 'accountant'
+                               AND user_access.can_manage_finances = TRUE))
                 )
             `;
         }
@@ -3515,6 +3514,8 @@ const createTenant = async ({
         }
 
         const owner = ownerResult.rows[0];
+
+        await checkTenantWrite(client, owner.id, authenticatedUser, tenantData, true);
 
         const tenantPublicId =
             `tenant_${nanoid(24)}`;

@@ -71,8 +71,8 @@ run(async({db,pool,app,auth})=>{
         assert.ok((await getNavigationModules({id:1,role:'admin'})).includes('users'));
         await db.query("UPDATE owner_users SET revoked_at=now() WHERE public_id='owner_user_acceptance'");
         const accountantMenus=await getNavigationModules({id:2,role:'user'});
-        for(const name of ['invoices','payments','reports','tenants','leases','legacy-rental-monitor'])assert.ok(accountantMenus.includes(name),name);
-        for(const name of ['users','owners','properties','units','maintenance'])assert.ok(!accountantMenus.includes(name),name);
+        for(const name of ['properties','units','invoices','payments','reports','tenants','leases','legacy-rental-monitor'])assert.ok(accountantMenus.includes(name),name);
+        for(const name of ['users','owners','maintenance'])assert.ok(!accountantMenus.includes(name),name);
         await db.query("UPDATE owner_users SET revoked_at=NULL WHERE public_id='owner_user_acceptance'");
         assert.deepEqual(await getNavigationModules({id:999999,role:'user'}),['dashboard','profile','settings','notifications']);
         console.log('PASS: finance-only accountant menus, admin menus, no-access defaults and revoked-link filtering.');
@@ -114,8 +114,8 @@ run(async({db,pool,app,auth})=>{
                 await page.getByRole('heading',{name:'Legacy Rental Monitoring',exact:true}).waitFor();
                 assert.equal(await page.getByRole('link',{name:'Users',exact:true}).count(),0);
                 assert.equal(await page.getByRole('link',{name:'Maintenance',exact:true}).count(),0);
-                for(const name of ['Owners','Properties','Units'])assert.equal(await page.getByRole('link',{name,exact:true}).count(),0);
-                for(const name of ['Invoices','Payments & Receipts','Reports'])assert.equal(await page.getByRole('link',{name,exact:true}).count(),1);
+                for(const name of ['Owners'])assert.equal(await page.getByRole('link',{name,exact:true}).count(),0);
+                for(const name of ['Properties','Units','Invoices','Payments & Receipts','Reports'])assert.equal(await page.getByRole('link',{name,exact:true}).count(),1);
                 await page.goto(preview.url.replace('/__preview','/users'));
                 await page.getByRole('heading',{name:'Access restricted',exact:true}).waitFor();
                 await page.goto(preview.url.replace('/__preview','/legacy-rental-monitor'));

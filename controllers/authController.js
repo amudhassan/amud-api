@@ -203,7 +203,8 @@ return res.status(200).json({
         full_name: user.full_name,
         email: user.email,
         role: user.role,
-        navigation_modules: await require("../services/navigationAccessService").getNavigationModules(user)
+        navigation_modules: await require("../services/navigationAccessService").getNavigationModules(user),
+        action_permissions: await require("../services/navigationAccessService").getActionPermissions(user)
     }
 });
 
@@ -215,7 +216,7 @@ const getProfile = asyncHandler(async (req, res) => {
     return res.status(200).json({
         success: true,
         message: "Profile loaded successfully",
-        user: { ...req.user, navigation_modules }
+        user: { ...req.user, navigation_modules, action_permissions: await require("../services/navigationAccessService").getActionPermissions(req.user) }
     });
 
 });

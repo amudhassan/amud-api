@@ -1,3 +1,4 @@
+import { useActionAccess } from '../../routes/actionAccess';
 import {
     ArchiveRestore,
     Building2,
@@ -100,6 +101,8 @@ const statusClassName = status => {
 };
 
 function TenantsPage() {
+    const access = useActionAccess();
+
     const navigate = useNavigate();
 
     const [owners, setOwners] =
@@ -443,7 +446,7 @@ function TenantsPage() {
                         }
                     />
 
-                    <IconButton
+                    {access.owner(selectedOwnerId) && (<IconButton
                         label="View deleted tenants"
                         icon={ArchiveRestore}
                         onClick={() =>
@@ -452,9 +455,9 @@ function TenantsPage() {
                             )
                         }
                         disabled={!selectedOwnerId}
-                    />
+                    />)}
 
-                    <Button
+                    {access.owner(selectedOwnerId, "tenant_add") && (<Button
                         leftIcon={Plus}
                         onClick={() => {
                             setSuccess("");
@@ -463,7 +466,7 @@ function TenantsPage() {
                         disabled={!selectedOwnerId}
                     >
                         Add Tenant
-                    </Button>
+                    </Button>)}
                 </ActionGroup>
             </div>
 
@@ -912,6 +915,7 @@ function TenantsPage() {
             <CreateTenantModal
                 open={createOpen}
                 owner={selectedOwner}
+                contactOnly={!access.owner(selectedOwnerId)}
                 onClose={() =>
                     setCreateOpen(false)
                 }

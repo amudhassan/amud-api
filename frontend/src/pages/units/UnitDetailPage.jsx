@@ -1,3 +1,4 @@
+import { useActionAccess } from '../../routes/actionAccess';
 import {
     ArrowLeft,
     Building2,
@@ -194,6 +195,8 @@ function Section({
 }
 
 function UnitDetailPage() {
+    const access = useActionAccess();
+
     const {
         unit_public_id
     } = useParams();
@@ -463,7 +466,7 @@ function UnitDetailPage() {
                             onClick={loadUnit}
                         />
 
-                        <IconButton
+                        <>{access.property(property?.public_id) && (<IconButton
                             label="Edit unit"
                             icon={PencilLine}
                             variant="secondary"
@@ -471,7 +474,7 @@ function UnitDetailPage() {
                                 setSuccess("");
                                 setEditOpen(true);
                             }}
-                        />
+                        />)}</>
 
                         {![
                             "reserved",
@@ -479,7 +482,7 @@ function UnitDetailPage() {
                         ].includes(
                             unit.operational_status
                         ) && (
-                            <IconButton
+                            <>{access.property(property?.public_id) && (<IconButton
                                 label="Delete unit"
                                 icon={Trash2}
                                 variant="danger"
@@ -494,7 +497,7 @@ function UnitDetailPage() {
                                         true
                                     );
                                 }}
-                            />
+                            />)}</>
                         )}
                     </ActionGroup>
 
@@ -504,7 +507,7 @@ function UnitDetailPage() {
                     ].includes(
                         unit.operational_status
                     ) && (
-                        <Button
+                        <>{access.property(property?.public_id) && (<Button
                             variant="success"
                             leftIcon={Power}
                             disabled={
@@ -520,7 +523,7 @@ function UnitDetailPage() {
                             }}
                         >
                             Activate Unit
-                        </Button>
+                        </Button>)}</>
                     )}
 
                     {[
@@ -529,7 +532,7 @@ function UnitDetailPage() {
                     ].includes(
                         unit.operational_status
                     ) && (
-                        <Button
+                        <>{access.property(property?.public_id) && (<Button
                             variant="warning"
                             leftIcon={Wrench}
                             disabled={
@@ -545,7 +548,7 @@ function UnitDetailPage() {
                             }}
                         >
                             Mark Maintenance
-                        </Button>
+                        </Button>)}</>
                     )}
                 </div>
             </div>
