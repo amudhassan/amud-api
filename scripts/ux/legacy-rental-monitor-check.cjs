@@ -65,7 +65,9 @@ run(async({db,pool,app,auth})=>{
         const request=(suffix='',token=auth,body)=>fetch(base+suffix,{method:body?'PUT':'GET',headers:{Authorization:token?`Bearer ${token}`:'','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
         try {
             assert.equal((await request('',null)).status,401);
-            let response=await request('',staff);assert.equal(response.status,200);const data=(await response.json()).data;assert.equal(data.rows.length,source.rows.length);assert.equal(data.orphan_payments.length,applied.orphan_payments);
+            let response=await request('',staff);assert.equal(response.status,200);const data=(await response.json()).data;assert.equal(data.rows.length,source.rows.filter(r=>r.status==='1').length);assert.ok(data.rows.every(r=>r.source.status==='1'));
+            const activeIds=new Set(source.rows.filter(r=>r.status==='1').map(r=>r.id));
+            assert.equal(data.batch.summary.payments,source.payments.filter(p=>activeIds.has(p.tenant_id)).length);assert.equal(data.orphan_payments.length,applied.orphan_payments);
             const id=source.rows.find(r=>r.name).id;const review={paid_through:'2026-12-31',evidence:'Verified from the signed payment ledger.',version:0};
             response=await request(`/${id}/review`,staff,review);assert.equal(response.status,200,await response.text());
             assert.equal((await request(`/${id}/review`,staff,review)).status,409);

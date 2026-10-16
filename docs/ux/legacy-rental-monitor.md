@@ -17,3 +17,5 @@ Validation: run `legacy-rental-monitor-check.cjs` with the isolated PostgreSQL t
 ## Preview testing-payment cleanup
 
 `legacy-rental-monitor-clean.cjs --dry-run` reports unmatched live monitoring payments and checks canonical payment parties, allocation ownership/tenant matches and completed-payment allocation presence. `--apply` archives only unmatched payments from this import namespace, removes them from live monitoring, updates totals and adds a composite tenant-source FK plus a payload/source identity CHECK. Repeats remove nothing. New imports exclude unmatched testing payments from the start and preserve exclusion audit records. A separate archive is not included in accountant balances or visible payment lists. Canonical leases/payments/receipts, synthetic fixture identities, source CSV files and reviewer evidence are preserved. No other test data is deleted by this scoped cleanup.
+
+The accountant monitoring list and its payment totals include only tenants marked Active in the source CSV. Inactive records and their historical payments stay in the private imported snapshot for audit, without being displayed or included in the Active monitoring totals.

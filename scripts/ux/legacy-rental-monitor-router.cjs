@@ -28,8 +28,11 @@ module.exports=function monitoringRouter(pool){
             const history=grouped.get(r.source_id)||[];
             return {...r,history,estimate:estimate(r.source,history,asOf),current_payments:current.filter(p=>p.tenant_public_id===r.tenant_public_id),current_invoices:invoices.filter(i=>i.tenant_public_id===r.tenant_public_id)};
         });
-        const ids=new Set(rows.map(r=>r.source_id));const batch=(await pool.query('SELECT summary,imported_at FROM preview_rental_monitor_batches WHERE namespace=$1',[NS])).rows[0];
-        res.json({data:{as_of:asOf,rows,orphan_payments:payments.filter(p=>!ids.has(p.tenant_id)),batch}});
+        const ids=new Set(rows.map(r=>r.source_id));const activeRows=rows.filter(r=>r.source.status==='1');
+        const activeIds=new Set(activeRows.map(r=>r.source_id));const activePayments=payments.filter(p=>activeIds.has(p.tenant_id));
+        const batch=(await pool.query('SELECT summary,imported_at FROM preview_rental_monitor_batches WHERE namespace=$1',[NS])).rows[0];
+        batch.summary={...batch.summary,tenants:activeRows.length,payments:activePayments.length,total_payment_amount:activePayments.reduce((a,p)=>a+Math.round(Number(p.amount)*100),0)/100};
+        res.json({data:{as_of:asOf,rows:activeRows,orphan_payments:payments.filter(p=>!ids.has(p.tenant_id)),batch}});
     }catch(error){next(error);}});
     router.put('/:id/review',async(req,res,next)=>{
         const {paid_through=null,evidence,version}=req.body||{};
