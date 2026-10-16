@@ -1,3 +1,5 @@
+import { useAuth } from "../../contexts/AuthContext";
+import { canAccessPath } from "../../routes/navigationAccess";
 import {
     BarChart3,
     Bell,
@@ -89,6 +91,8 @@ function Sidebar({
     collapsed = false,
     onToggleCollapse = () => {}
 }) {
+    const { user } = useAuth();
+    const visibleItems = navigationItems.filter(item => canAccessPath(user, item.path));
     const getNavigationClass = ({
         isActive
     }) => {
@@ -226,7 +230,7 @@ function Sidebar({
                     </p>
 
                     <div className="space-y-1">
-                        {navigationItems.map(
+                        {visibleItems.map(
                             ({
                                 label,
                                 path,
@@ -279,7 +283,7 @@ function Sidebar({
                         className={getNavigationClass}
                         title={
                             collapsed
-                                ? "Settings"
+                                ? "My Settings"
                                 : undefined
                         }
                     >
@@ -295,7 +299,7 @@ function Sidebar({
                                     : ""
                             }
                         >
-                            Settings
+                            My Settings
                         </span>
                     </NavLink>
 

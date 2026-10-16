@@ -1,3 +1,4 @@
+import { canAccessPath } from "./navigationAccess";
 import {
     Navigate,
     Outlet,
@@ -10,6 +11,7 @@ import {
 
 function ProtectedRoute() {
     const {
+        user,
         isAuthenticated,
         isAuthChecking
     } = useAuth();
@@ -39,6 +41,9 @@ function ProtectedRoute() {
         );
     }
 
+    if (!canAccessPath(user, location.pathname)) {
+        return <div className="mx-auto max-w-xl p-8"><h1 className="text-xl font-bold">Access restricted</h1><p className="mt-3 text-slate-600">This page is not included in your assigned access.</p><a className="mt-4 inline-block text-blue-700 underline" href="/dashboard">Go to dashboard</a></div>;
+    }
     return <Outlet />;
 }
 

@@ -67,6 +67,15 @@ run(async({db,pool,app,auth})=>{
         assert.equal(calculateBalance(balanceRow,[],'2026-09-30').status,'needs_review');
         assert.equal(calculateBalance({...balanceRow,monthly_rent:0},[],'2026-10-16').balance,0);
         console.log('PASS: date-in to as-of balance, actual-day proration, inclusive today, calendar/leap boundaries, advance payments and missing/future inputs.');
+        const {getNavigationModules}=require('../../services/navigationAccessService');
+        assert.ok((await getNavigationModules({id:1,role:'admin'})).includes('users'));
+        await db.query("UPDATE owner_users SET revoked_at=now() WHERE public_id='owner_user_acceptance'");
+        const accountantMenus=await getNavigationModules({id:2,role:'user'});
+        for(const name of ['invoices','payments','reports','tenants','leases','legacy-rental-monitor'])assert.ok(accountantMenus.includes(name),name);
+        for(const name of ['users','owners','properties','units','maintenance'])assert.ok(!accountantMenus.includes(name),name);
+        await db.query("UPDATE owner_users SET revoked_at=NULL WHERE public_id='owner_user_acceptance'");
+        assert.deepEqual(await getNavigationModules({id:999999,role:'user'}),['dashboard','profile','settings','notifications']);
+        console.log('PASS: finance-only accountant menus, admin menus, no-access defaults and revoked-link filtering.');
         const jwt=require('jsonwebtoken');const staff=jwt.sign({public_id:'user_acceptance_staff'},process.env.JWT_SECRET,{expiresIn:'5m'});
         app.use('/api/preview-rental-monitor',require('./legacy-rental-monitor-router.cjs')(pool));
         app.use((error,req,res,next)=>res.status(error.statusCode||500).json({message:error.message}));
@@ -94,6 +103,7 @@ run(async({db,pool,app,auth})=>{
             console.log('PASS: monitoring CSV validation, guarded dry-run, rollback, all source rows/payments, source mismatch, repeat preservation, owner access/revocation, optimistic review/audit, calendar math and unchanged canonical billing.');
         }finally{await new Promise(resolve=>server.close(resolve));}
         if(process.env.UX_MONITOR_BROWSER==='1'){
+            await db.query("UPDATE owner_users SET revoked_at=now() WHERE public_id='owner_user_acceptance'");
             const {createRequire}=require('node:module');const runtime=createRequire(`${process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES}/package.json`);const {chromium}=runtime('playwright');
             preview=await require('./lease-accountant-preview.cjs').startPreview({db});
             browser=await chromium.launch({executablePath:process.env.UX_CHROMIUM_EXECUTABLE,headless:true});
@@ -102,6 +112,14 @@ run(async({db,pool,app,auth})=>{
                 const errors=[];page.on('pageerror',e=>errors.push(e.message));
                 await page.goto(preview.staffUrl);await page.goto(preview.url.replace('/__preview','/legacy-rental-monitor'));
                 await page.getByRole('heading',{name:'Legacy Rental Monitoring',exact:true}).waitFor();
+                assert.equal(await page.getByRole('link',{name:'Users',exact:true}).count(),0);
+                assert.equal(await page.getByRole('link',{name:'Maintenance',exact:true}).count(),0);
+                for(const name of ['Owners','Properties','Units'])assert.equal(await page.getByRole('link',{name,exact:true}).count(),0);
+                for(const name of ['Invoices','Payments & Receipts','Reports'])assert.equal(await page.getByRole('link',{name,exact:true}).count(),1);
+                await page.goto(preview.url.replace('/__preview','/users'));
+                await page.getByRole('heading',{name:'Access restricted',exact:true}).waitFor();
+                await page.goto(preview.url.replace('/__preview','/legacy-rental-monitor'));
+
                 await page.getByRole('button',{name:`Review ID ${source.rows.find(r=>r.name).id}`,exact:true}).click();
                 await page.getByRole('heading',{name:/Malipo ya CSV/}).waitFor();
                 await page.getByLabel('Ushahidi / maelezo ya uhakiki').fill('Browser check: verified payment period from ledger.');

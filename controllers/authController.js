@@ -202,21 +202,23 @@ return res.status(200).json({
         public_id: user.public_id,
         full_name: user.full_name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        navigation_modules: await require("../services/navigationAccessService").getNavigationModules(user)
     }
 });
 
 });
 
-const getProfile = async (req, res) => {
+const getProfile = asyncHandler(async (req, res) => {
+    const navigation_modules = await require("../services/navigationAccessService").getNavigationModules(req.user);
 
     return res.status(200).json({
         success: true,
         message: "Profile loaded successfully",
-        user: req.user
+        user: { ...req.user, navigation_modules }
     });
 
-};
+});
 
 const updateProfile = asyncHandler(async (req, res, next) => {
 
