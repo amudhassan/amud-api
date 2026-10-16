@@ -30,15 +30,33 @@ run(async({db,pool,app,auth})=>{
         const faultPool={...pool,connect:async()=>{const client=await pool.connect();return {...client,query:async(sql,args)=>{if(fail&&sql.startsWith('INSERT INTO preview_rental_monitor_payments')){fail=false;throw Error('Injected monitoring failure');}return client.query(sql,args);},release:()=>client.release()};}};
         await assert.rejects(importMonitoring({pool:faultPool,source,apply:true}),/Injected/);
         assert.equal((await db.query("SELECT to_regclass('preview_rental_monitor_batches') AS name")).rows[0].name,null);
-        const applied=await importMonitoring({pool,source,apply:true});assert.equal(applied.mode,'imported');assert.equal(applied.tenants,source.rows.length);assert.equal(applied.payments,source.payments.length);
+        const applied=await importMonitoring({pool,source,apply:true});assert.equal(applied.mode,'imported');assert.equal(applied.tenants,source.rows.length);assert.equal(applied.payments,source.payments.length-applied.excluded_test_payments);
         assert.equal((await importMonitoring({pool,source,apply:true})).mode,'already-imported');
         await assert.rejects(importMonitoring({pool,source:{...source,sourceHash:'changed'},apply:true}),/source changed/);
         assert.deepEqual(await counts(),before);
         assert.equal((await db.query('SELECT count(*)::int AS n FROM preview_rental_monitor_rows')).rows[0].n,source.rows.length);
-        assert.equal((await db.query('SELECT count(*)::int AS n FROM preview_rental_monitor_payments')).rows[0].n,source.payments.length);
+        assert.equal((await db.query('SELECT count(*)::int AS n FROM preview_rental_monitor_payments')).rows[0].n,source.payments.length-applied.excluded_test_payments);
         assert.equal(Number((await db.query("SELECT sum((source->>'amount')::numeric) AS total FROM preview_rental_monitor_payments")).rows[0].total),applied.total_payment_amount);
         assert.equal(estimate({date_in:'2025-01-31',monthly_rent:100,unit:'1'},[{amount:'100',date_created:'2025-01-31'}],'2026-01-01').end,'2025-02-27');
         assert.equal(estimate({date_in:'2025-01-01',monthly_rent:100,unit:'1'},[{amount:'150',date_created:'2025-01-01'}],'2026-01-01').status,'partial_month');
+        const {cleanMonitoring}=require('./legacy-rental-monitor-clean.cjs');
+        // Simulate the earlier import shape, then verify cleanup and hard guards.
+        const excluded=source.payments.filter(p=>!source.rows.some(t=>t.id===p.tenant_id));
+        await db.query('ALTER TABLE preview_rental_monitor_payments DROP CONSTRAINT preview_monitor_payment_tenant_fk');
+        for(const p of excluded)await db.query('INSERT INTO preview_rental_monitor_payments(namespace,source_id,tenant_source_id,source) VALUES($1,$2,$3,$4::jsonb)',['mkutasidu_legacy_v1',p.id,p.tenant_id,JSON.stringify(p)]);
+        assert.equal((await cleanMonitoring({pool})).would_remove,excluded.length);
+        const cleanupFault={connect:async()=>{const c=await pool.connect();return {query:async(sql,args)=>{if(sql.includes('ADD CONSTRAINT preview_monitor_payment_tenant_fk'))throw Error('Injected cleanup failure');return c.query(sql,args);},release:()=>c.release()};}};
+        await assert.rejects(cleanMonitoring({pool:cleanupFault,apply:true}),/Injected cleanup failure/);
+        assert.equal((await cleanMonitoring({pool})).would_remove,excluded.length,'Cleanup failure restores deleted testing rows and prior totals');
+
+        assert.equal((await cleanMonitoring({pool,apply:true})).removed,excluded.length);
+        assert.equal((await cleanMonitoring({pool,apply:true})).removed,0);
+        assert.deepEqual((await cleanMonitoring({pool})).canonical_checks,{missing_payment_parties:0,mismatched_allocations:0,unallocated_completed_payments:0});
+        if(excluded.length)await assert.rejects(db.query('INSERT INTO preview_rental_monitor_payments(namespace,source_id,tenant_source_id,source) VALUES($1,$2,$3,$4::jsonb)',['mkutasidu_legacy_v1',excluded[0].id,excluded[0].tenant_id,JSON.stringify(excluded[0])]),/foreign key/i);
+        const good=source.payments.find(p=>source.rows.some(t=>t.id===p.tenant_id));
+        await assert.rejects(db.query('INSERT INTO preview_rental_monitor_payments(namespace,source_id,tenant_source_id,source) VALUES($1,$2,$3,$4::jsonb)',['mkutasidu_legacy_v1','999999999999',good.tenant_id,JSON.stringify(good)]),/check constraint/i);
+        assert.deepEqual(await counts(),before);
+        console.log('PASS: old unmatched test payments removed, private audit retained, repeat no-op, FK rejects missing tenant, identity CHECK rejects mismatched payload; canonical payment audit clean.');
         const jwt=require('jsonwebtoken');const staff=jwt.sign({public_id:'user_acceptance_staff'},process.env.JWT_SECRET,{expiresIn:'5m'});
         app.use('/api/preview-rental-monitor',require('./legacy-rental-monitor-router.cjs')(pool));
         app.use((error,req,res,next)=>res.status(error.statusCode||500).json({message:error.message}));

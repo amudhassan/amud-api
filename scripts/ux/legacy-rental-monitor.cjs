@@ -52,7 +52,8 @@ async function importMonitoring({pool,source,apply=false}) {
         if(prior){check(prior.source_sha256===source.sourceHash,'Monitoring source changed; existing history and reviews will not be overwritten.');await client.query('ROLLBACK');return {mode:'already-imported',...prior.summary};}
         const profiles=(await client.query('SELECT public_id FROM tenants WHERE public_id=ANY($1::text[]) AND deleted_at IS NULL',[source.rows.filter(t=>t.name).map(t=>`tenant_mkut_${t.id}`)])).rows;
         check(profiles.length===source.rows.filter(t=>t.name).length,'An imported tenant profile is missing/deleted; review before importing.');
-        const summary={tenants:source.rows.length,payments:source.payments.length,orphan_payments:source.payments.filter(p=>!source.rows.some(t=>t.id===p.tenant_id)).length,total_payment_amount:source.payments.reduce((a,p)=>a+Math.round(Number(p.amount)*100),0)/100};
+        const accepted=source.payments.filter(p=>source.rows.some(t=>t.id===p.tenant_id));
+        const summary={excluded_test_payments:source.payments.length-accepted.length,tenants:source.rows.length,payments:accepted.length,orphan_payments:0,total_payment_amount:accepted.reduce((a,p)=>a+Math.round(Number(p.amount)*100),0)/100};
         if(!apply){await client.query('ROLLBACK');return {mode:'dry-run',...summary};}
         const schema=`CREATE TABLE IF NOT EXISTS preview_rental_monitor_batches(namespace text PRIMARY KEY REFERENCES preview_legacy_import_batches(namespace),source_sha256 text NOT NULL,summary jsonb NOT NULL,imported_by bigint REFERENCES users(id),imported_at timestamptz NOT NULL DEFAULT now());
             CREATE TABLE IF NOT EXISTS preview_rental_monitor_rows(namespace text REFERENCES preview_rental_monitor_batches(namespace),source_id text,tenant_public_id varchar(40) REFERENCES tenants(public_id),source jsonb NOT NULL,review jsonb NOT NULL DEFAULT '{}',version integer NOT NULL DEFAULT 0,PRIMARY KEY(namespace,source_id));
@@ -61,12 +62,24 @@ async function importMonitoring({pool,source,apply=false}) {
         for(const statement of schema.split(";").filter(s=>s.trim()))await client.query(statement);
         await client.query('INSERT INTO preview_rental_monitor_batches(namespace,source_sha256,summary,imported_by) VALUES($1,$2,$3::jsonb,$4)',[NS,source.sourceHash,JSON.stringify(summary),actor.id]);
         for(const row of source.rows)await client.query('INSERT INTO preview_rental_monitor_rows(namespace,source_id,tenant_public_id,source) VALUES($1,$2,$3,$4::jsonb)',[NS,row.id,row.name?`tenant_mkut_${row.id}`:null,JSON.stringify(row)]);
-        for(const p of source.payments)await client.query('INSERT INTO preview_rental_monitor_payments(namespace,source_id,tenant_source_id,source) VALUES($1,$2,$3,$4::jsonb)',[NS,p.id,p.tenant_id,JSON.stringify(p)]);
+        for(const p of accepted)await client.query('INSERT INTO preview_rental_monitor_payments(namespace,source_id,tenant_source_id,source) VALUES($1,$2,$3,$4::jsonb)',[NS,p.id,p.tenant_id,JSON.stringify(p)]);
         // Only the known synthetic preview staff user gets the imported owner's finance relationship.
         await client.query(`INSERT INTO owner_users(public_id,owner_id,user_id,relationship_role,can_manage_finances)
             SELECT 'owner_user_mkut_preview',o.id,u.id,'accountant',true FROM owners o CROSS JOIN users u
             WHERE o.public_id=$1 AND o.deleted_at IS NULL AND u.public_id='user_acceptance_staff' AND u.email='staff@example.invalid' AND u.deleted_at IS NULL
             AND NOT EXISTS(SELECT 1 FROM owner_users ou WHERE ou.owner_id=o.id AND ou.user_id=u.id AND ou.revoked_at IS NULL)`,[OWNER]);
+        // Reuse the same transactional cleanup/constraint installer before commit.
+        // Nested transactions are avoided by exposing this transaction through a savepoint.
+        const nested={connect:async()=>({query:async(sql,args)=>{
+            if(sql==='BEGIN')return client.query('SAVEPOINT monitor_integrity');
+            if(sql==='COMMIT')return client.query('RELEASE SAVEPOINT monitor_integrity');
+            if(sql==='ROLLBACK')return client.query('ROLLBACK TO SAVEPOINT monitor_integrity');
+            return client.query(sql,args);
+        },release:()=>{}})};
+        await require('./legacy-rental-monitor-clean.cjs').cleanMonitoring({pool:nested,apply:true});
+        // Keep excluded source rows solely in the private audit, never the live ledger.
+        for(const p of source.payments.filter(p=>!accepted.includes(p)))await client.query("INSERT INTO preview_rental_monitor_exclusions(namespace,source_id,source,reason,removed_by) VALUES($1,$2,$3::jsonb,'User-confirmed legacy system testing; unmatched tenant',$4) ON CONFLICT DO NOTHING",[NS,p.id,JSON.stringify(p),actor.id]);
+        await client.query('UPDATE preview_rental_monitor_batches SET summary=$2::jsonb WHERE namespace=$1',[NS,JSON.stringify(summary)]);
         await client.query('COMMIT');return {mode:'imported',...summary};
     }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
 }
