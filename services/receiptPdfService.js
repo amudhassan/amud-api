@@ -1,3 +1,4 @@
+const { loadReceiptSignature } = require("./receiptSignatureService");
 const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
 
@@ -116,6 +117,7 @@ const ensureSpace = (document, requiredHeight) => {
  * Generate a professional rent receipt PDF in memory.
  */
 const generateReceiptPdf = async receipt => {
+    const signature = await loadReceiptSignature(receipt);
     const verificationUrl =
         buildReceiptVerificationUrl(
             receipt.receipt_number,
@@ -454,7 +456,7 @@ const generateReceiptPdf = async receipt => {
                 "RECEIPT REFERENCE QR",
                 160,
                 qrTop + 12,
-                { width: 385 }
+                { width: signature ? 185 : 385 }
             );
 
         document
@@ -465,17 +467,35 @@ const generateReceiptPdf = async receipt => {
                 "Scan to open and verify the original receipt PDF.",
                 160,
                 qrTop + 32,
-                { width: 350 }
+                { width: signature ? 185 : 350 }
             )
             .text(
                 `Receipt: ${receipt.receipt_number}`,
                 160,
                 qrTop + 55,
-                { width: 350 }
+                { width: signature ? 185 : 350 }
             );
+
+        if (signature) {
+            // Composite the original image into the right-hand QR area without
+            // reserving a separate signature section or obscuring the QR itself.
+            const blend = document.ref({ Type: "ExtGState", BM: "Multiply", ca: 0.9 });
+            blend.end();
+            document.page.ext_gstates.ReceiptSignatureBlend = blend;
+            document.save().addContent("/ReceiptSignatureBlend gs");
+            document.rect(355, qrTop, 190, 76).clip();
+            document.image(signature.image, 355, qrTop, {
+                fit: [190, 76], align: "center", valign: "center"
+            });
+            document.restore();
+            document.font("Helvetica").fontSize(8).fillColor("#4B5563");
+            if (signature.name) document.text(signature.name, 355, qrTop + 77, { width: 190, align: "center" });
+            document.text(signature.title, 355, qrTop + (signature.name ? 89 : 80), { width: 190, align: "center" });
+        }
 
         document.y = qrTop + 100;
 
+        document.x = 50;
         ensureSpace(document, 55);
         document
             .moveDown(1.2)

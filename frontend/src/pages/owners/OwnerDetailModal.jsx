@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     Building2,
     CalendarDays,
@@ -271,6 +272,7 @@ function OwnerDetailModal({
     }
 
     return (
+        <ModalPortal>
         <div
             className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/55 px-4 py-6 backdrop-blur-[2px]"
             role="presentation"
@@ -600,6 +602,7 @@ function OwnerDetailModal({
                 </div>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

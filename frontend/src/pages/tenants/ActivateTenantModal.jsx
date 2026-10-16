@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     Power,
     X
@@ -91,6 +92,7 @@ function ActivateTenantModal({
     };
 
     return (
+        <ModalPortal>
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6"
             role="dialog"
@@ -181,6 +183,7 @@ function ActivateTenantModal({
                 </div>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

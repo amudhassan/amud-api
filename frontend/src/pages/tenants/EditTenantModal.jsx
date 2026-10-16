@@ -101,6 +101,7 @@ const getErrorMessage = error =>
 
 function EditTenantModal({
     open,
+    contactOnly = false,
     tenant,
     ownerPublicId,
     onClose,
@@ -142,7 +143,7 @@ function EditTenantModal({
     const buildChangedPayload = () => {
         const payload = {};
 
-        EDITABLE_FIELDS.forEach(field => {
+        EDITABLE_FIELDS.filter(field => !contactOnly || ["email","phone_number","alternative_phone","address","city","region","country"].includes(field)).forEach(field => {
             const currentRaw =
                 form[field];
             const originalRaw =
@@ -253,7 +254,7 @@ function EditTenantModal({
                                 id="edit-tenant-title"
                                 className="text-lg font-bold text-slate-950"
                             >
-                                Edit Tenant
+                                {contactOnly ? "Edit contacts" : "Edit Tenant"}
                             </h2>
                             <p className="mt-1 text-sm text-slate-500">
                                 Update tenant profile information. Lifecycle status and owner relationship are managed separately.
@@ -284,7 +285,7 @@ function EditTenantModal({
                         )}
 
                         <div className="grid gap-5 md:grid-cols-2">
-                            <label className="text-sm font-medium text-slate-700">
+                            {!contactOnly && (<label className="text-sm font-medium text-slate-700">
                                 Tenant Type
                                 <select
                                     name="tenant_type"
@@ -302,9 +303,9 @@ function EditTenantModal({
                                         </option>
                                     ))}
                                 </select>
-                            </label>
+                            </label>)}
 
-                            <label className="text-sm font-medium text-slate-700">
+                            {!contactOnly && (<label className="text-sm font-medium text-slate-700">
                                 Display Name
                                 <input
                                     name="display_name"
@@ -316,9 +317,9 @@ function EditTenantModal({
                                     required
                                     className={inputClassName}
                                 />
-                            </label>
+                            </label>)}
 
-                            <label className="text-sm font-medium text-slate-700">
+                            {!contactOnly && (<label className="text-sm font-medium text-slate-700">
                                 National ID
                                 <input
                                     name="national_id"
@@ -328,9 +329,9 @@ function EditTenantModal({
                                     maxLength={100}
                                     className={inputClassName}
                                 />
-                            </label>
+                            </label>)}
 
-                            <label className="text-sm font-medium text-slate-700">
+                            {!contactOnly && (<label className="text-sm font-medium text-slate-700">
                                 Passport Number
                                 <input
                                     name="passport_number"
@@ -340,9 +341,9 @@ function EditTenantModal({
                                     maxLength={100}
                                     className={inputClassName}
                                 />
-                            </label>
+                            </label>)}
 
-                            <label className="text-sm font-medium text-slate-700">
+                            {!contactOnly && (<label className="text-sm font-medium text-slate-700">
                                 Registration Number
                                 <input
                                     name="registration_number"
@@ -352,9 +353,9 @@ function EditTenantModal({
                                     maxLength={150}
                                     className={inputClassName}
                                 />
-                            </label>
+                            </label>)}
 
-                            <label className="text-sm font-medium text-slate-700">
+                            {!contactOnly && (<label className="text-sm font-medium text-slate-700">
                                 Tax Identification Number
                                 <input
                                     name="tax_identification_number"
@@ -364,7 +365,7 @@ function EditTenantModal({
                                     maxLength={150}
                                     className={inputClassName}
                                 />
-                            </label>
+                            </label>)}
 
                             <label className="text-sm font-medium text-slate-700">
                                 Email

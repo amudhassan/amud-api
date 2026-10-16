@@ -1,3 +1,5 @@
+import ExistingResident, { useExistingResidents } from '../../components/ExistingResident';
+import { useActionAccess } from '../../routes/actionAccess';
 import {
     ArrowLeft,
     Building2,
@@ -111,6 +113,9 @@ function InfoItem({
 }
 
 function TenantDetailPage() {
+    const residents = useExistingResidents();
+    const access = useActionAccess();
+
     const navigate = useNavigate();
     const { tenant_public_id } = useParams();
     const [searchParams] = useSearchParams();
@@ -249,8 +254,8 @@ function TenantDetailPage() {
                         }
                     />
 
-                    <IconButton
-                        label="Edit tenant"
+                    {access.owner(ownerPublicId, "tenant_contacts") && (<IconButton
+                        label={access.owner(ownerPublicId) ? "Edit tenant" : "Edit contacts"}
                         icon={Pencil}
                         onClick={() => {
                             setSuccess("");
@@ -261,9 +266,9 @@ function TenantDetailPage() {
                             !ownerPublicId ||
                             Boolean(endedRelationship)
                         }
-                    />
+                    />)}
 
-                    <IconButton
+                    {access.owner(ownerPublicId) && (<IconButton
                         label="Manage tenant users"
                         icon={UsersRound}
                         onClick={() =>
@@ -277,9 +282,9 @@ function TenantDetailPage() {
                             !tenant ||
                             !ownerPublicId
                         }
-                    />
+                    />)}
 
-                    <IconButton
+                    {access.owner(ownerPublicId) && (<IconButton
                         label="Activate tenant"
                         icon={Power}
                         onClick={() => {
@@ -296,9 +301,9 @@ function TenantDetailPage() {
                             relationship.relationship_status !==
                                 "active"
                         }
-                    />
+                    />)}
 
-                    <IconButton
+                    {access.owner(ownerPublicId) && (<IconButton
                         label="Block tenant"
                         icon={Ban}
                         variant="danger"
@@ -314,9 +319,9 @@ function TenantDetailPage() {
                             relationship.relationship_status !==
                                 "active"
                         }
-                    />
+                    />)}
 
-                    <IconButton
+                    {access.owner(ownerPublicId) && (<IconButton
                         label="Unblock tenant"
                         icon={ShieldOff}
                         variant="success"
@@ -332,9 +337,9 @@ function TenantDetailPage() {
                             relationship.relationship_status !==
                                 "active"
                         }
-                    />
+                    />)}
 
-                    <IconButton
+                    {access.owner(ownerPublicId) && (<IconButton
                         label="Block owner-tenant relationship"
                         icon={ShieldOff}
                         variant="danger"
@@ -349,9 +354,9 @@ function TenantDetailPage() {
                             relationship.relationship_status !==
                                 "active"
                         }
-                    />
+                    />)}
 
-                    <IconButton
+                    {access.owner(ownerPublicId) && (<IconButton
                         label="Unblock owner-tenant relationship"
                         icon={ShieldCheck}
                         variant="success"
@@ -366,9 +371,9 @@ function TenantDetailPage() {
                             relationship.relationship_status !==
                                 "blocked"
                         }
-                    />
+                    />)}
 
-                    <IconButton
+                    {access.owner(ownerPublicId) && (<IconButton
                         label="End owner-tenant relationship"
                         icon={Link2Off}
                         variant="danger"
@@ -384,9 +389,9 @@ function TenantDetailPage() {
                                 relationship.relationship_status
                             )
                         }
-                    />
+                    />)}
 
-                    <IconButton
+                    {access.owner(ownerPublicId) && (<IconButton
                         label="Delete tenant profile"
                         icon={Trash2}
                         variant="danger"
@@ -399,7 +404,7 @@ function TenantDetailPage() {
                             !ownerPublicId ||
                             !endedRelationship
                         }
-                    />
+                    />)}
                 </ActionGroup>
             </div>
 
@@ -434,7 +439,7 @@ function TenantDetailPage() {
                                     <div className="flex flex-wrap items-center gap-2">
                                         <h2 className="text-xl font-bold text-slate-950">
                                             {tenant.display_name}
-                                        </h2>
+                                        </h2><ExistingResident rows={residents.rows} tenantId={tenant.public_id} error={residents.error} />
 
                                         <span
                                             className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${statusClassName(tenant.status)}`}
@@ -751,6 +756,7 @@ function TenantDetailPage() {
             />
 
             <EditTenantModal
+                contactOnly={!access.owner(ownerPublicId)}
                 open={editOpen}
                 tenant={tenant}
                 ownerPublicId={ownerPublicId}

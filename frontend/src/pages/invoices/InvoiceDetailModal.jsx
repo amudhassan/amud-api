@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     AlertCircle,
     Building2,
@@ -19,6 +20,8 @@ import {
     useState
 } from "react";
 
+import RecordPaymentModal from "../payments/RecordPaymentModal";
+import ReceiptDetailModal from "../payments/ReceiptDetailModal";
 import apiClient from "../../api/apiClient";
 
 import {
@@ -239,6 +242,13 @@ function InvoiceDetailModal({
     onClose,
     onInvoiceChanged
 }) {
+    useEffect(() => {
+        setRecordPaymentOpen(false);
+        setReceiptNumber("");
+    }, [open, invoicePublicId]);
+
+    const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
+    const [receiptNumber, setReceiptNumber] = useState("");
     const [
         invoice,
         setInvoice
@@ -518,8 +528,9 @@ function InvoiceDetailModal({
             : [];
 
     return (
+        <ModalPortal>
         <>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 backdrop-blur-[1px] sm:p-5">
+        <div style={recordPaymentOpen || receiptNumber ? { display: "none" } : undefined} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 backdrop-blur-[1px] sm:p-5">
             <div
                 role="dialog"
                 aria-modal="true"
@@ -1060,6 +1071,8 @@ function InvoiceDetailModal({
                         </>
                     )}
 
+                    {["issued", "partially_paid", "overdue"].includes(invoice?.status) && Number(financialSummary.balance_amount) > 0 && <Button onClick={() => setRecordPaymentOpen(true)}>Record payment</Button>}
+
                     {[
                         "draft",
                         "issued"
@@ -1081,6 +1094,25 @@ function InvoiceDetailModal({
                 </div>
             </div>
         </div>
+
+        <RecordPaymentModal
+            open={recordPaymentOpen}
+            initialInvoicePublicId={invoice?.public_id || ""}
+            onClose={() => setRecordPaymentOpen(false)}
+            onRecorded={async result => {
+                setRecordPaymentOpen(false);
+                const number = result?.data?.payment?.receipt_number || result?.data?.receipt?.receipt_number || "";
+                setReceiptNumber(number);
+                setItemSuccess(number ? `Payment recorded. Receipt ${number} is ready.` : "Payment recorded successfully.");
+                await loadInvoice();
+                await onInvoiceChanged?.();
+            }}
+        />
+        <ReceiptDetailModal
+            open={Boolean(receiptNumber)}
+            receiptNumber={receiptNumber}
+            onClose={() => setReceiptNumber("")}
+        />
 
         <EditInvoiceModal
             open={editInvoiceOpen}
@@ -1140,6 +1172,7 @@ function InvoiceDetailModal({
             onDeleted={handleItemDeleted}
         />
         </>
+        </ModalPortal>
     );
 }
 

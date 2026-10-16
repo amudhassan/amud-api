@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     AlertTriangle,
     PieChart,
@@ -184,6 +185,7 @@ function CloseOwnerShareholderModal({
     };
 
     return (
+        <ModalPortal>
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6">
             <button
                 type="button"
@@ -333,6 +335,7 @@ function CloseOwnerShareholderModal({
                 </div>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

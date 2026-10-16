@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     CalendarDays,
     X
@@ -13,10 +14,13 @@ import {
     IconButton
 } from "../../components/ui/Button";
 
-const getErrorMessage = error =>
-    error?.response?.data?.message ||
-    error?.message ||
-    "Unable to schedule lease.";
+const getErrorMessage = error => {
+    const message = error?.response?.data?.message || error?.message;
+    if (message === "A lease with a past start date cannot be scheduled.") {
+        return "The start date has already passed. If the tenant has not moved in, edit the lease to use the correct start date. If the tenant already moved in, contact your administrator to record the existing tenancy with its original dates.";
+    }
+    return message || "Unable to confirm the agreement.";
+};
 
 const toDateTimeLocal = value => {
     if (!value) {
@@ -58,7 +62,11 @@ const formatDate = value => {
         return "—";
     }
 
-    const date = new Date(value);
+    const date = new Date(
+        /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+            ? `${value}T00:00:00`
+            : value
+    );
 
     if (Number.isNaN(date.getTime())) {
         return String(value);
@@ -113,10 +121,13 @@ function ScheduleLeaseModal({
     open,
     lease,
     onClose,
-    onScheduled
+    onScheduled,
+    allowExistingRegistration = false
 }) {
     const [leaseDetail, setLeaseDetail] =
         useState(null);
+    const [registerExisting, setRegisterExisting] = useState(false);
+    const [registrationReason, setRegistrationReason] = useState("");
     const [signedAt, setSignedAt] =
         useState("");
     const [loading, setLoading] =
@@ -139,6 +150,8 @@ function ScheduleLeaseModal({
                 setError("");
                 setLeaseDetail(null);
                 setSignedAt("");
+                setRegisterExisting(false);
+                setRegistrationReason("");
 
                 const response =
                     await apiClient.get(
@@ -220,6 +233,14 @@ function ScheduleLeaseModal({
                 ?.signed_at || null;
 
         const payload = {};
+        if (registerExisting) {
+            if (!allowExistingRegistration || registrationReason.trim().length < 10) {
+                setError("An administrator must provide a reason of at least 10 characters to register an existing tenancy.");
+                return;
+            }
+            payload.register_existing_tenancy = true;
+            payload.registration_reason = registrationReason.trim();
+        }
 
         if (signedAt) {
             const normalizedSignedAt =
@@ -287,6 +308,7 @@ function ScheduleLeaseModal({
         leaseDetail?.tenant || null;
 
     return (
+        <ModalPortal>
         <div
             className="
                 fixed inset-0 z-50
@@ -331,7 +353,7 @@ function ScheduleLeaseModal({
                                 text-slate-950
                             "
                         >
-                            Schedule Lease
+                            Confirm Signed Agreement
                         </h2>
 
                         <p
@@ -340,13 +362,13 @@ function ScheduleLeaseModal({
                                 text-slate-500
                             "
                         >
-                            Move{" "}
+                            Confirm agreement{" "}
                             <span className="font-medium">
                                 {
                                     lease.lease_number
                                 }
                             </span>{" "}
-                            from Draft to Scheduled.
+                            and reserve its room.
                         </p>
                     </div>
 
@@ -373,13 +395,8 @@ function ScheduleLeaseModal({
                             text-sm text-violet-800
                         "
                     >
-                        Scheduling is a controlled
-                        lifecycle action. The backend
-                        will re-check owner, property,
-                        unit, tenant relationship,
-                        signature, start date and lease
-                        conflicts before changing the
-                        status.
+                        Check the lease details and enter when the agreement was signed.
+                        This confirms the agreement; the tenancy starts in a separate step.
                     </div>
 
                     {error && (
@@ -527,7 +544,7 @@ function ScheduleLeaseModal({
                                         text-slate-700
                                     "
                                 >
-                                    Signed At{" "}
+                                    Agreement Signed On{" "}
                                     <span className="text-rose-500">
                                         *
                                     </span>
@@ -565,6 +582,18 @@ function ScheduleLeaseModal({
                                 </p>
                             </div>
 
+                            {allowExistingRegistration && <div className="rounded-2xl border border-slate-200 p-4">
+                                <label className="flex items-start gap-3 text-sm font-semibold text-slate-700">
+                                    <input type="checkbox" checked={registerExisting} disabled={submitting} onChange={event => setRegisterExisting(event.target.checked)} className="mt-1" />
+                                    The tenant already moved in before today (administrator registration)
+                                </label>
+                                {registerExisting && <div className="mt-3 space-y-2">
+                                    <label htmlFor="registration_reason" className="block text-sm text-slate-700">Reason for recording this tenancy now</label>
+                                    <textarea id="registration_reason" value={registrationReason} onChange={event => setRegistrationReason(event.target.value)} minLength={10} maxLength={1000} required disabled={submitting} className="w-full rounded-xl border border-slate-200 p-3 text-sm" />
+                                    <p className="text-xs text-slate-600">Original rental dates are preserved. The reason and current registration date are stored with the lease. Review previous invoices and payments separately; this does not create historical charges.</p>
+                                </div>}
+                            </div>}
+
                             <div
                                 className="
                                     rounded-2xl
@@ -575,12 +604,8 @@ function ScheduleLeaseModal({
                                     text-amber-800
                                 "
                             >
-                                If the selected unit is
-                                currently Available, a
-                                successful schedule action
-                                will reserve it. Existing
-                                Reserved or Occupied status
-                                is preserved by the backend.
+                                An available room will be reserved for this agreement.
+                                It will be marked occupied when you start the tenancy.
                             </div>
                         </div>
                     ) : null}
@@ -620,12 +645,13 @@ function ScheduleLeaseModal({
                                 !leaseDetail
                             }
                         >
-                            Schedule Lease
+                            Confirm Signed Agreement
                         </Button>
                     </div>
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

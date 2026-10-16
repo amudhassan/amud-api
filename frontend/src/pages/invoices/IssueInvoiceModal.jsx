@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     AlertTriangle,
     CheckCircle2,
@@ -386,6 +387,7 @@ function IssueInvoiceModal({
         };
 
     return (
+        <ModalPortal>
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[1px]">
             <div
                 role="dialog"
@@ -523,6 +525,7 @@ function IssueInvoiceModal({
                 </div>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

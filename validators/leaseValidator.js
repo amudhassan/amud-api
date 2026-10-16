@@ -1497,12 +1497,14 @@ const scheduleLeaseValidator = [
         }),
 
     /*
-     * signed_at is the only supported body field.
+     * Signature and explicit administrator registration fields.
      */
     body()
         .custom(value => {
             const allowedFields = [
-                "signed_at"
+                "signed_at",
+                "register_existing_tenancy",
+                "registration_reason"
             ];
 
             const suppliedFields =
@@ -1524,6 +1526,22 @@ const scheduleLeaseValidator = [
 
             return true;
         }),
+
+    body("register_existing_tenancy").optional().custom(value => {
+        if (typeof value !== "boolean") throw new Error("register_existing_tenancy must be a boolean.");
+        return true;
+    }),
+    body("registration_reason").optional().isString().bail().trim().isLength({ min: 10, max: 1000 })
+        .withMessage("Registration reason must contain 10 to 1000 characters."),
+    body().custom(value => {
+        if (value?.register_existing_tenancy === true && typeof value.registration_reason !== "string") {
+            throw new Error("A reason is required to register an existing tenancy.");
+        }
+        if (value?.register_existing_tenancy !== true && value?.registration_reason !== undefined) {
+            throw new Error("Registration reason requires explicit existing tenancy registration.");
+        }
+        return true;
+    }),
 
     body("signed_at")
         .optional()

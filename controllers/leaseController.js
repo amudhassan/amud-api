@@ -801,6 +801,16 @@ const scheduleLeaseController =
                     );
                 }
 
+                if (result.existingTenancyForbidden) {
+                    return next(new AppError("Only an administrator can register a tenancy that has already started.", 403));
+                }
+                if (result.existingTenancyReasonRequired || result.existingTenancyInvalidRequest) {
+                    return next(new AppError("Explicit existing tenancy registration requires a reason of 10 to 1000 characters.", 422));
+                }
+                if (result.existingTenancyDateInvalid) {
+                    return next(new AppError("Existing tenancy registration requires a past start date and a lease that has not ended.", 409));
+                }
+
                 if (result.pastStartDate) {
                     return next(
                         new AppError(

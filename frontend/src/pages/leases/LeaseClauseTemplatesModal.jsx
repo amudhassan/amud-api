@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     FileText,
     PencilLine,
@@ -14,6 +15,7 @@ import {
 } from "react";
 
 import apiClient from "../../api/apiClient";
+import ResidentialMainlandPreset from "./ResidentialMainlandPreset";
 import {
     Button,
     IconButton
@@ -779,6 +781,7 @@ function LeaseClauseTemplatesModal({
         };
 
     return (
+        <ModalPortal>
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
             role="dialog"
@@ -927,6 +930,21 @@ function LeaseClauseTemplatesModal({
                             </p>
                         )}
                     </section>
+
+                    <ResidentialMainlandPreset
+                        ownerPublicId={ownerPublicId}
+                        busy={templateSubmitting || itemSubmitting || templatesLoading || detailLoading || Boolean(deletingTemplateId) || Boolean(deletingItemId)}
+                        onInstalling={setTemplateSubmitting}
+                        onError={message => { setSuccess(""); setError(message); }}
+                        onInstalled={async (publicId, message) => {
+                            await loadTemplates(ownerPublicId);
+                            setSelectedTemplateId(publicId);
+                            await loadTemplateDetail(publicId);
+                            resetTemplateEditor();
+                            setEditingItem(null);
+                            setSuccess(message);
+                        }}
+                    />
 
                     <div className="grid gap-6 xl:grid-cols-[minmax(320px,0.85fr)_minmax(0,1.4fr)]">
                         <div className="space-y-6">
@@ -1640,6 +1658,7 @@ function LeaseClauseTemplatesModal({
                 </div>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

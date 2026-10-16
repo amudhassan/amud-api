@@ -1,3 +1,5 @@
+import { useAuth } from "../../contexts/AuthContext";
+import { canAccessPath } from "../../routes/navigationAccess";
 import {
     BarChart3,
     Bell,
@@ -20,6 +22,7 @@ import {
 } from "react-router-dom";
 
 const navigationItems = [
+    ...(import.meta.env.VITE_PREVIEW_LEGACY_MONITORING === "true" ? [{ label: "Legacy Rental Monitoring", path: "/legacy-rental-monitor", icon: ReceiptText }] : []),
     {
         label: "Dashboard",
         path: "/dashboard",
@@ -88,6 +91,8 @@ function Sidebar({
     collapsed = false,
     onToggleCollapse = () => {}
 }) {
+    const { user } = useAuth();
+    const visibleItems = navigationItems.filter(item => canAccessPath(user, item.path));
     const getNavigationClass = ({
         isActive
     }) => {
@@ -225,7 +230,7 @@ function Sidebar({
                     </p>
 
                     <div className="space-y-1">
-                        {navigationItems.map(
+                        {visibleItems.map(
                             ({
                                 label,
                                 path,
@@ -278,7 +283,7 @@ function Sidebar({
                         className={getNavigationClass}
                         title={
                             collapsed
-                                ? "Settings"
+                                ? "My Settings"
                                 : undefined
                         }
                     >
@@ -294,7 +299,7 @@ function Sidebar({
                                     : ""
                             }
                         >
-                            Settings
+                            My Settings
                         </span>
                     </NavLink>
 

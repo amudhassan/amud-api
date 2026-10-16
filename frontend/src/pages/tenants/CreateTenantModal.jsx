@@ -1,3 +1,5 @@
+import { useActionAccess } from '../../routes/actionAccess';
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     Plus,
     UserRoundPlus,
@@ -85,10 +87,13 @@ const cleanPayload = form => {
 
 function CreateTenantModal({
     open,
+    contactOnly: contactOnlyOverride,
     owner,
     onClose,
     onCreated
 }) {
+    const access = useActionAccess();
+    const contactOnly = contactOnlyOverride ?? !access.owner(owner?.public_id);
     const [form, setForm] =
         useState(INITIAL_FORM);
     const [loading, setLoading] =
@@ -148,7 +153,8 @@ function CreateTenantModal({
                 response?.data?.data || {};
 
             onCreated?.(
-                result.tenant || result
+                result.tenant || result,
+                result
             );
         } catch (requestError) {
             setError(
@@ -165,6 +171,7 @@ function CreateTenantModal({
         "mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60";
 
     return (
+        <ModalPortal>
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6"
             role="dialog"
@@ -249,7 +256,7 @@ function CreateTenantModal({
                                 />
                             </label>
 
-                            <label className="text-sm font-medium text-slate-700">
+                            {!contactOnly && (<label className="text-sm font-medium text-slate-700">
                                 National ID
                                 <input
                                     name="national_id"
@@ -259,9 +266,9 @@ function CreateTenantModal({
                                     maxLength={100}
                                     className={inputClassName}
                                 />
-                            </label>
+                            </label>)}
 
-                            <label className="text-sm font-medium text-slate-700">
+                            {!contactOnly && (<label className="text-sm font-medium text-slate-700">
                                 Passport Number
                                 <input
                                     name="passport_number"
@@ -271,9 +278,9 @@ function CreateTenantModal({
                                     maxLength={100}
                                     className={inputClassName}
                                 />
-                            </label>
+                            </label>)}
 
-                            <label className="text-sm font-medium text-slate-700">
+                            {!contactOnly && (<label className="text-sm font-medium text-slate-700">
                                 Registration Number
                                 <input
                                     name="registration_number"
@@ -283,9 +290,9 @@ function CreateTenantModal({
                                     maxLength={150}
                                     className={inputClassName}
                                 />
-                            </label>
+                            </label>)}
 
-                            <label className="text-sm font-medium text-slate-700">
+                            {!contactOnly && (<label className="text-sm font-medium text-slate-700">
                                 Tax Identification Number
                                 <input
                                     name="tax_identification_number"
@@ -295,7 +302,7 @@ function CreateTenantModal({
                                     maxLength={150}
                                     className={inputClassName}
                                 />
-                            </label>
+                            </label>)}
 
                             <label className="text-sm font-medium text-slate-700">
                                 Email
@@ -418,6 +425,7 @@ function CreateTenantModal({
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

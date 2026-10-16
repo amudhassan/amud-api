@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     AlertCircle,
     Calculator,
@@ -294,6 +295,7 @@ function AddInvoiceItemModal({
     };
 
     return (
+        <ModalPortal>
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-[2px] sm:p-5">
             <div
                 role="dialog"
@@ -480,6 +482,7 @@ function AddInvoiceItemModal({
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 
