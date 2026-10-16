@@ -7,15 +7,12 @@ const jwt = require('jsonwebtoken');
 
 async function startPreview({db}) {
     // The shared adapter already restricts native URLs to local lease_acceptance_*.
-    const identity=(await db.query(`SELECT u.public_id,u.email,u.role,p.public_id AS property_id
-        FROM users u CROSS JOIN properties p WHERE u.id=1 AND p.id=1`)).rows[0];
+    const identity=(await db.query(`SELECT public_id,email,role FROM users WHERE id=1`)).rows[0];
+    const staff=(await db.query(`SELECT public_id FROM users WHERE id=2 AND deleted_at IS NULL`)).rows[0];
     assert.ok(identity?.public_id==='user_acceptance_admin' && identity.email==='admin@example.invalid' &&
-        identity.role==='admin' && identity.property_id==='property_acceptance',
-        'Preview requires the synthetic accountant acceptance fixture.');
-    await db.query(`INSERT INTO units(id,public_id,property_id,unit_code,unit_name,unit_type,operational_status,created_by)
-        SELECT n,'unit_accountant_review_'||n,1,'REVIEW-'||(n-5999),'Review room '||(n-5999),'room','available',1
-        FROM generate_series(6000,6005) n
-        WHERE NOT EXISTS(SELECT 1 FROM units WHERE public_id='unit_accountant_review_'||n)`);
+        identity.role==='admin' && staff?.public_id==='user_acceptance_staff',
+        'Preview requires the local acceptance login accounts.');
+    // Business test records may have been deliberately removed. Never reseed them on startup.
     // Explicit fixture IDs must not collide with IDs assigned by real create forms.
     for(const table of ['users','owners','properties','units','tenants']) {
         await db.query(`SELECT setval(pg_get_serial_sequence('${table}','id'),COALESCE(max(id),1),max(id) IS NOT NULL) FROM ${table}`);
