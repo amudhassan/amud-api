@@ -57,6 +57,16 @@ run(async({db,pool,app,auth})=>{
         await assert.rejects(db.query('INSERT INTO preview_rental_monitor_payments(namespace,source_id,tenant_source_id,source) VALUES($1,$2,$3,$4::jsonb)',['mkutasidu_legacy_v1','999999999999',good.tenant_id,JSON.stringify(good)]),/check constraint/i);
         assert.deepEqual(await counts(),before);
         console.log('PASS: old unmatched test payments removed, private audit retained, repeat no-op, FK rejects missing tenant, identity CHECK rejects mismatched payload; canonical payment audit clean.');
+        const {calculateBalance}=require('./legacy-rental-balance.cjs');
+        const balanceRow={date_in:'2026-10-01',monthly_rent:60000,unit:'TEST'};
+        const balance=calculateBalance(balanceRow,[],'2026-10-16',180000);
+        assert.equal(balance.days,16);assert.equal(balance.rent_due,30967.74);assert.equal(balance.credit,149032.26);
+        assert.equal(calculateBalance(balanceRow,[],'2026-10-31').rent_due,60000);
+        assert.equal(calculateBalance({...balanceRow,date_in:'2024-01-31'},[],'2024-02-28').rent_due,60000);
+        assert.equal(calculateBalance(balanceRow,[{date_created:'2026-09-01',amount:'10000'}],'2026-10-16').csv_paid,10000);
+        assert.equal(calculateBalance(balanceRow,[],'2026-09-30').status,'needs_review');
+        assert.equal(calculateBalance({...balanceRow,monthly_rent:0},[],'2026-10-16').balance,0);
+        console.log('PASS: date-in to as-of balance, actual-day proration, inclusive today, calendar/leap boundaries, advance payments and missing/future inputs.');
         const jwt=require('jsonwebtoken');const staff=jwt.sign({public_id:'user_acceptance_staff'},process.env.JWT_SECRET,{expiresIn:'5m'});
         app.use('/api/preview-rental-monitor',require('./legacy-rental-monitor-router.cjs')(pool));
         app.use((error,req,res,next)=>res.status(error.statusCode||500).json({message:error.message}));
@@ -65,7 +75,7 @@ run(async({db,pool,app,auth})=>{
         const request=(suffix='',token=auth,body)=>fetch(base+suffix,{method:body?'PUT':'GET',headers:{Authorization:token?`Bearer ${token}`:'','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
         try {
             assert.equal((await request('',null)).status,401);
-            let response=await request('',staff);assert.equal(response.status,200);const data=(await response.json()).data;assert.equal(data.rows.length,source.rows.filter(r=>r.status==='1').length);assert.ok(data.rows.every(r=>r.source.status==='1'));
+            let response=await request('',staff);assert.equal(response.status,200);const data=(await response.json()).data;assert.equal(data.rows.length,source.rows.filter(r=>r.status==='1').length);assert.ok(data.rows.every(r=>r.source.status==='1'));assert.ok(data.rows.every(r=>Object.hasOwn(r.account,'balance')));
             const activeIds=new Set(source.rows.filter(r=>r.status==='1').map(r=>r.id));
             assert.equal(data.batch.summary.payments,source.payments.filter(p=>activeIds.has(p.tenant_id)).length);assert.equal(data.orphan_payments.length,applied.orphan_payments);
             const id=source.rows.find(r=>r.name).id;const review={paid_through:'2026-12-31',evidence:'Verified from the signed payment ledger.',version:0};
