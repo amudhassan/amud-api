@@ -1,3 +1,4 @@
+import ExistingResident, { useExistingResidents } from '../../components/ExistingResident';
 import { useActionAccess } from '../../routes/actionAccess';
 import {
     ArchiveRestore,
@@ -101,6 +102,7 @@ const statusClassName = status => {
 };
 
 function TenantsPage() {
+    const residents = useExistingResidents();
     const access = useActionAccess();
 
     const navigate = useNavigate();
@@ -787,7 +789,7 @@ function TenantsPage() {
                                                     <div className="min-w-0">
                                                         <p className="font-semibold text-slate-900">
                                                             {tenant.display_name}
-                                                        </p>
+                                                        </p><ExistingResident rows={residents.rows} tenantId={tenant.public_id} error={residents.error} />
                                                         <p className="mt-0.5 max-w-[240px] truncate text-xs text-slate-500">
                                                             {tenant.email ||
                                                                 tenant.phone_number ||

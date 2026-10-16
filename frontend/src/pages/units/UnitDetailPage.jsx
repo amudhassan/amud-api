@@ -1,3 +1,4 @@
+import ExistingResident, { useExistingResidents } from '../../components/ExistingResident';
 import { useActionAccess } from '../../routes/actionAccess';
 import {
     ArrowLeft,
@@ -195,6 +196,7 @@ function Section({
 }
 
 function UnitDetailPage() {
+    const residents = useExistingResidents();
     const access = useActionAccess();
 
     const {
@@ -449,7 +451,7 @@ function UnitDetailPage() {
                             {formatLabel(
                                 unit.unit_type
                             )}
-                        </p>
+                        </p><ExistingResident rows={residents.rows} unitId={unit.public_id} error={residents.error} />
                     </div>
                 </div>
 

@@ -30,6 +30,7 @@ async function startPreview({db}) {
         ['invoices','invoiceRoutes'],['payments','paymentRoutes'],['receipts','receiptRoutes'],['notifications','notificationRoutes'],['reports','reportRoutes']]) {
         app.use(`/api/${prefix}`,require(`../../routes/${router}`));
     }
+    app.use('/api/preview-existing-occupancies',require('./preview-existing-occupancy-router.cjs')(require('../../config/db')));
     app.use('/api/preview-rental-monitor',require('./legacy-rental-monitor-router.cjs')(require('../../config/db')));
     app.use((error,req,res,next)=>res.status(error.statusCode||500).json({message:error.message}));
     const api=await new Promise((resolve,reject)=>{

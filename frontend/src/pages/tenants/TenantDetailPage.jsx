@@ -1,3 +1,4 @@
+import ExistingResident, { useExistingResidents } from '../../components/ExistingResident';
 import { useActionAccess } from '../../routes/actionAccess';
 import {
     ArrowLeft,
@@ -112,6 +113,7 @@ function InfoItem({
 }
 
 function TenantDetailPage() {
+    const residents = useExistingResidents();
     const access = useActionAccess();
 
     const navigate = useNavigate();
@@ -437,7 +439,7 @@ function TenantDetailPage() {
                                     <div className="flex flex-wrap items-center gap-2">
                                         <h2 className="text-xl font-bold text-slate-950">
                                             {tenant.display_name}
-                                        </h2>
+                                        </h2><ExistingResident rows={residents.rows} tenantId={tenant.public_id} error={residents.error} />
 
                                         <span
                                             className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${statusClassName(tenant.status)}`}

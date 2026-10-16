@@ -1,3 +1,4 @@
+import ExistingResident, { useExistingResidents } from '../../components/ExistingResident';
 import { useActionAccess } from '../../routes/actionAccess';
 import {
     ArchiveRestore,
@@ -105,6 +106,7 @@ const statusClassName = status => {
 };
 
 function UnitsPage() {
+    const residents = useExistingResidents();
     const access = useActionAccess();
 
     const navigate = useNavigate();
@@ -1280,7 +1282,7 @@ function UnitsPage() {
                                                         >
                                                             {unit.unit_name ||
                                                                 unit.unit_code}
-                                                        </p>
+                                                        </p><ExistingResident rows={residents.rows} unitId={unit.public_id} error={residents.error} />
 
                                                         <p
                                                             className="
