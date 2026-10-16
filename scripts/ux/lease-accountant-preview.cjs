@@ -27,7 +27,7 @@ async function startPreview({db}) {
     app.get('/api/auth/profile',authMiddleware,getProfile);
     for(const [prefix,router] of [['owners','ownerRoutes'],['properties','propertyRoutes'],['units','unitRoutes'],
         ['tenants','tenantRoutes'],['leases','leaseRoutes'],['lease-clause-templates','leaseClauseTemplateRoutes'],
-        ['invoices','invoiceRoutes'],['payments','paymentRoutes'],['receipts','receiptRoutes'],['notifications','notificationRoutes']]) {
+        ['invoices','invoiceRoutes'],['payments','paymentRoutes'],['receipts','receiptRoutes'],['notifications','notificationRoutes'],['reports','reportRoutes']]) {
         app.use(`/api/${prefix}`,require(`../../routes/${router}`));
     }
     app.use('/api/preview-rental-monitor',require('./legacy-rental-monitor-router.cjs')(require('../../config/db')));
