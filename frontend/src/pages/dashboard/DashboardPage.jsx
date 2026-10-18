@@ -477,6 +477,25 @@ function DashboardPage() {
                 </div>
             )}
 
+            {sectionAccess.portfolio_and_leases && dashboard?.lease_summary && (
+                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="lease-status-heading">
+                    <h2 id="lease-status-heading" className="text-lg font-bold text-slate-900">Lease Status</h2>
+                    <p className="mt-1 text-sm text-slate-500">Ended leases include previous terms that may already have been renewed. These counts do not indicate rent arrears.</p>
+                    <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+                        {[
+                            ["Active", "active_leases", "text-emerald-700 bg-emerald-50"],
+                            ["Ended / Expired", "expired_leases", "text-amber-800 bg-amber-50"],
+                            ["Expiring within 30 days", "expiring_30_days", "text-blue-700 bg-blue-50"]
+                        ].map(([label, key, color]) => (
+                            <div key={key} className={`rounded-xl p-4 ${color}`}>
+                                <dt className="text-sm font-medium">{label}</dt>
+                                <dd className="mt-2 text-2xl font-bold">{formatNumber(dashboard.lease_summary[key] || 0)}</dd>
+                            </div>
+                        ))}
+                    </dl>
+                </section>
+            )}
+
             <section className="grid gap-6 xl:grid-cols-3">
                 <div className="overflow-hidden rounded-2xl border border-white/80 bg-white/90 p-6 shadow-[0_18px_50px_-30px_rgba(15,23,42,0.45)] ring-1 ring-slate-200/70 backdrop-blur xl:col-span-2">
                     <div className="flex items-start justify-between gap-4">

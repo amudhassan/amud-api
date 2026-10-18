@@ -9,6 +9,7 @@ const {
 
 const {
     getOccupancyReport,
+    getLeaseReport,
     getExpiringLeasesReport
 } = require(
     "./occupancyLeaseReportService"
@@ -293,7 +294,8 @@ const getDashboard = async ({
         financialResult,
         maintenanceResult,
         recentPayments,
-        recentMaintenance
+        recentMaintenance,
+        leaseResult
     ] = await Promise.all([
         getOccupancyReport({
             filters,
@@ -321,6 +323,10 @@ const getDashboard = async ({
         }),
         getRecentMaintenanceActivity({
             filters,
+            authenticatedUser
+        }),
+        getLeaseReport({
+            filters: { ...filters, limit: 1 },
             authenticatedUser
         })
     ]);
@@ -441,6 +447,11 @@ const getDashboard = async ({
                 propertyAccessible
                     ? occupancyResult.report
                         .summary
+                    : null,
+
+            lease_summary:
+                propertyAccessible && !isScopeFailure(leaseResult)
+                    ? leaseResult.report.summary
                     : null,
 
             expiring_leases_30_days:
