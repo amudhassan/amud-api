@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     KeyRound,
     LoaderCircle,
@@ -372,6 +373,7 @@ function EditOwnerUserModal({
     }
 
     return (
+        <ModalPortal>
         <div
             className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
             onMouseDown={event => {
@@ -640,6 +642,7 @@ function EditOwnerUserModal({
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 }
 

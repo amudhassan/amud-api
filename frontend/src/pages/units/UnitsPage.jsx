@@ -1,3 +1,5 @@
+import ExistingResident, { useExistingResidents } from '../../components/ExistingResident';
+import { useActionAccess } from '../../routes/actionAccess';
 import {
     ArchiveRestore,
     Building2,
@@ -104,6 +106,9 @@ const statusClassName = status => {
 };
 
 function UnitsPage() {
+    const residents = useExistingResidents();
+    const access = useActionAccess();
+
     const navigate = useNavigate();
 
     const [properties, setProperties] =
@@ -498,7 +503,7 @@ function UnitsPage() {
                             }
                         />
 
-                        <IconButton
+                        {access.anyProperty && (<IconButton
                             label="Deleted units"
                             icon={ArchiveRestore}
                             variant="secondary"
@@ -507,10 +512,10 @@ function UnitsPage() {
                                     "/units/deleted"
                                 )
                             }
-                        />
+                        />)}
                     </ActionGroup>
 
-                    <Button
+                    {access.property(selectedPropertyId) && (<Button
                         onClick={() => {
                             setCreateSuccess("");
                             setCreateOpen(true);
@@ -521,7 +526,7 @@ function UnitsPage() {
                         }
                     >
                         Add Unit
-                    </Button>
+                    </Button>)}
                 </div>
             </div>
 
@@ -1277,7 +1282,7 @@ function UnitsPage() {
                                                         >
                                                             {unit.unit_name ||
                                                                 unit.unit_code}
-                                                        </p>
+                                                        </p><ExistingResident rows={residents.rows} unitId={unit.public_id} error={residents.error} />
 
                                                         <p
                                                             className="

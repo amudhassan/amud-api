@@ -7,6 +7,7 @@ const AppError = require(
 );
 
 const {
+    installResidentialMainlandTemplate,
     getLeaseClauseTemplates,
     createLeaseClauseTemplate,
     getSingleLeaseClauseTemplate,
@@ -540,6 +541,24 @@ const applyLeaseClauseTemplateController =
     );
 
 module.exports = {
+    getResidentialMainlandPresetController: asyncHandler(async (req, res) => {
+        res.status(200).json({ success: true, data: require("../services/residentialMainlandClausePreset") });
+    }),
+    installResidentialMainlandTemplateController: asyncHandler(async (req, res, next) => {
+        try {
+            const result = await installResidentialMainlandTemplate({
+                ownerPublicId: req.body.owner_public_id, authenticatedUser: req.user
+            });
+            if (result.ownerNotFound) return next(new AppError("Owner not found.", 404));
+            res.status(result.alreadyExists ? 200 : 201).json({
+                success: true,
+                message: result.alreadyExists ? "Existing default template opened; your changes were preserved." : "Residential mainland template added. Review before signing.",
+                data: result
+            });
+        } catch (error) {
+            return sendIntegrityError(error, next);
+        }
+    }),
     getLeaseClauseTemplatesController,
     createLeaseClauseTemplateController,
     getSingleLeaseClauseTemplateController,

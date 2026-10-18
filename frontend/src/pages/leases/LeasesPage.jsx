@@ -22,7 +22,10 @@ import {
     useState
 } from "react";
 
+import { useAuth } from "../../contexts/AuthContext";
 import apiClient from "../../api/apiClient";
+import CreateInvoiceModal from "../invoices/CreateInvoiceModal";
+import InvoiceDetailModal from "../invoices/InvoiceDetailModal";
 import CreateLeaseModal from "./CreateLeaseModal";
 import EditLeaseModal from "./EditLeaseModal";
 import ScheduleLeaseModal from "./ScheduleLeaseModal";
@@ -47,6 +50,15 @@ const LEASE_STATUSES = [
     "terminated",
     "cancelled"
 ];
+
+const leaseStatusLabel = status => ({
+    draft: "Needs confirmation",
+    scheduled: "Confirmed — awaiting start",
+    active: "Tenancy in progress",
+    expired: "Ended",
+    terminated: "Ended early",
+    cancelled: "Cancelled"
+}[status] || status);
 
 const LEASE_PDF_LANGUAGES = [
     {
@@ -87,7 +99,11 @@ const formatDate = value => {
         return "—";
     }
 
-    const date = new Date(value);
+    const date = new Date(
+        /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+            ? `${value}T00:00:00`
+            : value
+    );
 
     if (Number.isNaN(date.getTime())) {
         return String(value);
@@ -163,6 +179,10 @@ const statusClassName = status => {
 };
 
 function LeasesPage() {
+    const { user } = useAuth();
+    const [nextLease, setNextLease] = useState(null);
+    const [billingLease, setBillingLease] = useState(null);
+    const [workflowInvoicePublicId, setWorkflowInvoicePublicId] = useState("");
     const [leases, setLeases] =
         useState([]);
     const [pagination, setPagination] =
@@ -333,6 +353,7 @@ function LeasesPage() {
             data?.lease || null;
 
         setCreateOpen(false);
+        setNextLease(createdLease ? { ...createdLease, owner: data?.owner || createdLease.owner } : null);
         setEditSuccess("");
         setCancelSuccess("");
         setTerminateSuccess("");
@@ -340,8 +361,8 @@ function LeasesPage() {
         setRenewSuccess("");
         setCreateSuccess(
             createdLease?.lease_number
-                ? `Draft lease ${createdLease.lease_number} created successfully. Add or review its Terms & Conditions before scheduling.`
-                : "Draft lease created successfully. Add or review its Terms & Conditions before scheduling."
+                ? `Lease ${createdLease.lease_number} saved. Review the contract terms, then confirm the signed agreement.`
+                : "Lease details saved. Review the contract terms, then confirm the signed agreement."
         );
 
         if (createdLease?.public_id) {
@@ -392,6 +413,7 @@ function LeasesPage() {
             data?.lease || null;
 
         setScheduleLease(null);
+        setNextLease(scheduledLease ? { ...scheduledLease, status: "scheduled" } : null);
         setRenewSuccess("");
         setCreateSuccess("");
         setEditSuccess("");
@@ -412,6 +434,7 @@ function LeasesPage() {
             data?.lease || null;
 
         setActivateLease(null);
+        setNextLease(activatedLease ? { ...activatedLease, status: "active" } : null);
         setRenewSuccess("");
         setCreateSuccess("");
         setEditSuccess("");
@@ -432,6 +455,7 @@ function LeasesPage() {
         const cancelledLease =
             data?.lease || null;
 
+        setNextLease(current => current?.public_id === cancelledLease?.public_id ? null : current);
         setCancelLease(null);
         setRenewSuccess("");
         setCreateSuccess("");
@@ -453,6 +477,7 @@ function LeasesPage() {
         const terminatedLease =
             data?.lease || null;
 
+        setNextLease(current => current?.public_id === terminatedLease?.public_id ? null : current);
         setTerminateLease(null);
         setRenewSuccess("");
         setCreateSuccess("");
@@ -474,6 +499,7 @@ function LeasesPage() {
         const expiredLease =
             data?.lease || null;
 
+        setNextLease(current => current?.public_id === expiredLease?.public_id ? null : current);
         setExpireLease(null);
         setRenewSuccess("");
         setCreateSuccess("");
@@ -745,10 +771,22 @@ function LeasesPage() {
                         }}
                         leftIcon={Plus}
                     >
-                        Add Draft Lease
+                        Add Lease
                     </Button>
                 </div>
             </div>
+
+            {nextLease?.public_id && <section aria-label="Next lease step" className="flex flex-col gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div><p className="font-semibold text-blue-950">Next for {nextLease.lease_number}</p>
+                    <p className="mt-1 text-sm text-blue-800">{nextLease.status === "draft" ? "Review the contract terms, then confirm the signed agreement." : nextLease.status === "scheduled" ? "The agreement is confirmed. Start the tenancy when its rental period begins." : "Tenancy started. Prepare the invoice for the period being charged before recording payment."}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {nextLease.status === "draft" && <Button onClick={() => setClausesLease(nextLease)}>Review contract terms</Button>}
+                    {nextLease.status === "scheduled" && <Button onClick={() => setActivateLease(nextLease)}>Start tenancy</Button>}
+                    {nextLease.status === "active" && <Button onClick={() => setBillingLease(nextLease)}>Prepare invoice</Button>}
+                    <Button variant="secondary" onClick={() => setNextLease(null)}>Dismiss</Button>
+                </div>
+            </section>}
 
             {createSuccess && (
                 <div
@@ -856,7 +894,7 @@ function LeasesPage() {
                 >
                     <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-slate-500">
-                            Active on Page
+                            Tenancies in Progress on Page
                         </p>
                         <ShieldCheck className="h-5 w-5 text-blue-600" />
                     </div>
@@ -874,7 +912,7 @@ function LeasesPage() {
                 >
                     <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-slate-500">
-                            Scheduled on Page
+                            Awaiting Start on Page
                         </p>
                         <CalendarDays className="h-5 w-5 text-blue-600" />
                     </div>
@@ -983,7 +1021,7 @@ function LeasesPage() {
                                     key={leaseStatus}
                                     value={leaseStatus}
                                 >
-                                    {formatLabel(
+                                    {leaseStatusLabel(
                                         leaseStatus
                                     )}
                                 </option>
@@ -1300,7 +1338,7 @@ function LeasesPage() {
                                                         )}
                                                     `}
                                                 >
-                                                    {formatLabel(lease.status)}
+                                                    {leaseStatusLabel(lease.status)}
                                                 </span>
                                             </td>
 
@@ -1365,9 +1403,9 @@ function LeasesPage() {
                                                                 }}
                                                             />
 
-                                                            <IconButton
-                                                                label={`Schedule ${lease.lease_number}`}
-                                                                icon={CalendarDays}
+                                                            <Button
+                                                                aria-label={`Confirm agreement ${lease.lease_number}`}
+                                                                leftIcon={CalendarDays}
                                                                 variant="secondary"
                                                                 onClick={() => {
                                                                     setCreateSuccess("");
@@ -1379,7 +1417,7 @@ function LeasesPage() {
                                                                     setRenewSuccess("");
                                                                     setScheduleLease(lease);
                                                                 }}
-                                                            />
+                                                            >Confirm agreement</Button>
 
                                                             <IconButton
                                                                 label={`Cancel ${lease.lease_number}`}
@@ -1399,9 +1437,9 @@ function LeasesPage() {
                                                         </>
                                                     ) : lease.status === "scheduled" ? (
                                                         <>
-                                                            <IconButton
-                                                                label={`Activate ${lease.lease_number}`}
-                                                                icon={ShieldCheck}
+                                                            <Button
+                                                                aria-label={`Start tenancy ${lease.lease_number}`}
+                                                                leftIcon={ShieldCheck}
                                                                 onClick={() => {
                                                                     setCreateSuccess("");
                                                                     setEditSuccess("");
@@ -1412,7 +1450,7 @@ function LeasesPage() {
                                                                     setRenewSuccess("");
                                                                     setActivateLease(lease);
                                                                 }}
-                                                            />
+                                                            >Start tenancy</Button>
 
                                                             <IconButton
                                                                 label={`Cancel ${lease.lease_number}`}
@@ -1564,6 +1602,21 @@ function LeasesPage() {
                 </div>
             </div>
 
+            <CreateInvoiceModal
+                open={Boolean(billingLease)}
+                initialLeasePublicId={billingLease?.public_id || ""}
+                onClose={() => setBillingLease(null)}
+                onCreated={data => {
+                    setBillingLease(null);
+                    setWorkflowInvoicePublicId(data?.invoice?.public_id || "");
+                }}
+            />
+            <InvoiceDetailModal
+                open={Boolean(workflowInvoicePublicId)}
+                invoicePublicId={workflowInvoicePublicId}
+                onClose={() => setWorkflowInvoicePublicId("")}
+            />
+
             <CreateLeaseModal
                 open={createOpen}
                 onClose={() =>
@@ -1588,6 +1641,7 @@ function LeasesPage() {
             <ScheduleLeaseModal
                 open={Boolean(scheduleLease)}
                 lease={scheduleLease}
+                allowExistingRegistration={user?.role === "admin"}
                 onClose={() =>
                     setScheduleLease(null)
                 }
@@ -1662,6 +1716,10 @@ function LeasesPage() {
             <LeaseClausesModal
                 open={Boolean(clausesLease)}
                 lease={clausesLease}
+                onContinue={clausesLease?.status === "draft" ? () => {
+                    setScheduleLease(clausesLease);
+                    setClausesLease(null);
+                } : undefined}
                 onClose={() =>
                     setClausesLease(null)
                 }

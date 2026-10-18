@@ -776,6 +776,18 @@ const applyLeaseClauseTemplateValidator = [
 ];
 
 module.exports = {
+    getResidentialMainlandPresetValidator: [rejectAllQueryFields, rejectRequestBody],
+    installResidentialMainlandTemplateValidator: [
+        rejectAllQueryFields,
+        requireJsonObject,
+        body().custom(value => {
+            if (Object.keys(value || {}).some(field => field !== "owner_public_id")) {
+                throw new Error("Only owner_public_id is allowed.");
+            }
+            return true;
+        }),
+        ownerPublicIdBody
+    ],
     getLeaseClauseTemplatesValidator,
     createLeaseClauseTemplateValidator,
     getSingleLeaseClauseTemplateValidator,

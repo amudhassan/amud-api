@@ -13,6 +13,8 @@ const validateRequest = require(
 );
 
 const {
+    getResidentialMainlandPresetValidator,
+    installResidentialMainlandTemplateValidator,
     getLeaseClauseTemplatesValidator,
     createLeaseClauseTemplateValidator,
     getSingleLeaseClauseTemplateValidator,
@@ -26,6 +28,8 @@ const {
 );
 
 const {
+    getResidentialMainlandPresetController,
+    installResidentialMainlandTemplateController,
     getLeaseClauseTemplatesController,
     createLeaseClauseTemplateController,
     getSingleLeaseClauseTemplateController,
@@ -38,9 +42,12 @@ const {
     "../controllers/leaseClauseTemplateController"
 );
 
-/*
- * GET /api/lease-clause-templates
- */
+router.get("/defaults/residential-mainland", authMiddleware,
+    getResidentialMainlandPresetValidator, validateRequest, getResidentialMainlandPresetController);
+router.post("/defaults/residential-mainland", authMiddleware,
+    installResidentialMainlandTemplateValidator, validateRequest, installResidentialMainlandTemplateController);
+
+/* GET /api/lease-clause-templates */
 router.get(
     "/",
     authMiddleware,

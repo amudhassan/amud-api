@@ -1,3 +1,4 @@
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     Building2,
     Pencil,
@@ -358,6 +359,7 @@ function OwnerShareholdersModal({
     }
 
     return (
+        <ModalPortal>
         <>
             <div
                 className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
@@ -981,6 +983,7 @@ function OwnerShareholdersModal({
                 }}
             />
         </>
+        </ModalPortal>
     );
 }
 

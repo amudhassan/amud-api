@@ -171,7 +171,7 @@ function MainLayout() {
     };
 
     return (
-        <div className="rental-app-shell relative isolate min-h-screen overflow-x-hidden bg-slate-50">
+        <div className={`rental-app-shell relative isolate min-h-screen overflow-x-hidden bg-slate-50 ${location.pathname === "/tenants" ? "modern-teal" : ""}`}>
             <style>{`
                 @keyframes rentalAmbientOne {
                     0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
@@ -195,7 +195,7 @@ function MainLayout() {
                     }
                     to {
                         opacity: 1;
-                        transform: translate3d(0, 0, 0);
+                        transform: none;
                     }
                 }
 
@@ -221,7 +221,7 @@ function MainLayout() {
                 }
 
                 .rental-page-enter {
-                    animation: rentalPageEnter 420ms cubic-bezier(.22,1,.36,1) both;
+                    animation: rentalPageEnter 420ms cubic-bezier(.22,1,.36,1) backwards;
                 }
 
                 @keyframes rentalSectionReveal {
@@ -231,7 +231,7 @@ function MainLayout() {
                     }
                     to {
                         opacity: 1;
-                        transform: translate3d(0, 0, 0);
+                        transform: none;
                     }
                 }
 
@@ -261,7 +261,7 @@ function MainLayout() {
 
                 .rental-section-effects > * > * {
                     animation: rentalSectionReveal
-                        520ms cubic-bezier(.22,1,.36,1) both;
+                        520ms cubic-bezier(.22,1,.36,1) backwards;
                 }
 
                 .rental-section-effects > * > *:nth-child(2) { animation-delay: 35ms; }

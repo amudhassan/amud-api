@@ -26,7 +26,7 @@ const resolvePropertyScope = async ({
         propertyPublicId:
             filters.property_public_id || null,
         permissionMode:
-            REPORT_PERMISSION_MODES.PROPERTY
+            REPORT_PERMISSION_MODES.EITHER
     });
 };
 

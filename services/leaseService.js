@@ -3,6 +3,7 @@ const {
 } = require("nanoid");
 
 const pool = require("../config/db");
+const { evaluateLeaseRegistration } = require("./leaseRegistrationPolicy");
 
 /**
  * Create a new draft lease.
@@ -570,14 +571,18 @@ const getLeases = async ({
     /*
      * 2. Prepare pagination.
      */
+    // Express 5 exposes query parameters as strings through a getter.
+    // Do not rely on validator sanitizers mutating a later req.query read.
+    const requestedPage = Number(filters.page);
+    const requestedLimit = Number(filters.limit);
     const page =
-        Number.isInteger(filters.page)
-            ? filters.page
+        Number.isInteger(requestedPage) && requestedPage > 0
+            ? requestedPage
             : 1;
 
     const limit =
-        Number.isInteger(filters.limit)
-            ? filters.limit
+        Number.isInteger(requestedLimit) && requestedLimit > 0 && requestedLimit <= 100
+            ? requestedLimit
             : 20;
 
     const offset =
@@ -880,8 +885,8 @@ const getLeases = async ({
             l.public_id,
             l.lease_number,
             l.status,
-            l.start_date,
-            l.end_date,
+            l.start_date::text AS start_date,
+            l.end_date::text AS end_date,
             l.currency_code,
             l.rent_amount,
             l.billing_frequency,
@@ -1199,8 +1204,8 @@ const getSingleLease = async ({
             l.public_id,
             l.lease_number,
             l.status,
-            l.start_date,
-            l.end_date,
+            l.start_date::text AS start_date,
+            l.end_date::text AS end_date,
 
             previous_lease.public_id
                 AS renewed_from_lease_public_id,
@@ -2566,14 +2571,17 @@ const scheduleLease = async ({
             };
         }
 
-        if (
-            lease.start_date < currentDate
-        ) {
+        const registration = evaluateLeaseRegistration({
+            startDate: lease.start_date,
+            endDate: lease.end_date,
+            currentDate,
+            role: authenticatedUser.role,
+            registrationRequested: scheduleData.register_existing_tenancy,
+            reason: scheduleData.registration_reason
+        });
+        if (!Object.prototype.hasOwnProperty.call(registration, "registrationNote")) {
             await client.query("ROLLBACK");
-
-            return {
-                pastStartDate: true
-            };
+            return registration;
         }
 
         /*
@@ -2589,6 +2597,8 @@ const scheduleLease = async ({
                     scheduled_at =
                         CURRENT_TIMESTAMP,
                     scheduled_by = $2,
+                    notes = CASE WHEN $4::text IS NULL THEN notes
+                        ELSE CONCAT_WS(E'\n', NULLIF(notes, ''), $4::text) END,
                     updated_at =
                         CURRENT_TIMESTAMP
                 WHERE id = $3
@@ -2606,7 +2616,8 @@ const scheduleLease = async ({
                 [
                     finalSignedAt,
                     authenticatedUser.id,
-                    lease.id
+                    lease.id,
+                    registration.registrationNote
                 ]
             );
 

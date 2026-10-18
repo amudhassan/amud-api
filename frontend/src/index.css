@@ -27,3 +27,84 @@ body,
 body {
     background: #f8fafc;
 }
+/* Modern Teal pilot: only the preview tenant directory opts into this class. */
+.rental-app-shell.modern-teal {
+    background: #f7f9f6;
+    --rental-section-rgb: 13 148 136;
+}
+.rental-app-shell.modern-teal > .pointer-events-none { display: none; }
+.rental-app-shell.modern-teal > aside {
+    background: linear-gradient(170deg, #064e50 0%, #073f43 65%, #07373d 100%);
+    border-right-color: #115e59;
+    box-shadow: 8px 0 32px -24px #134e4a66;
+}
+.rental-app-shell.modern-teal > aside > div:first-child {
+    background: transparent;
+    border-color: #ffffff18;
+}
+.rental-app-shell.modern-teal > aside > div:first-child::after { display: none; }
+.rental-app-shell.modern-teal > aside :is(.text-slate-300,.text-slate-400) { color: #b7d6d4; }
+.rental-app-shell.modern-teal > aside [class*="border-slate-"] { border-color: #ffffff18; }
+.rental-app-shell.modern-teal > aside [class*="bg-slate-900"] { background: #ffffff08; }
+.rental-app-shell.modern-teal > aside a[aria-current="page"] {
+    background: #0d9488;
+    border-color: #2dd4bf44;
+    box-shadow: 0 5px 16px -8px #022c22;
+}
+.rental-app-shell.modern-teal > aside a:not([aria-current="page"]):hover {
+    background: #ffffff0d;
+}
+.rental-app-shell.modern-teal .rental-topbar {
+    background: #ffffffed;
+    border-bottom-color: #dfeae5;
+    box-shadow: 0 4px 18px -14px #134e4a44;
+}
+.rental-app-shell.modern-teal .tenant-panel {
+    border-color: #dfe9e4;
+    border-radius: 18px;
+    box-shadow: 0 4px 20px -14px #134e4a33;
+    background: #fff;
+}
+.rental-app-shell.modern-teal .tenants-workspace h1 { color: #103e3e; }
+.rental-app-shell.modern-teal .tenant-stat { padding: 24px; }
+.rental-app-shell.modern-teal .tenant-stat .text-2xl {
+    font-size: 2rem;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.035em;
+}
+.rental-app-shell.modern-teal .tenant-stat .bg-slate-100 {
+    background: #e4f4f0; color: #0f766e; border-radius: 50%; width: 48px; height: 48px;
+}
+.rental-app-shell.modern-teal [data-tenant-stat="Active"] .bg-slate-100 { background: #dcfce7; color: #15803d; }
+.rental-app-shell.modern-teal [data-tenant-stat="Prospective"] .bg-slate-100 { background: #e0f2fe; color: #0369a1; }
+.rental-app-shell.modern-teal [data-tenant-stat="Blocked"] .bg-slate-100 { background: #fff1f2; color: #be123c; }
+.rental-app-shell.modern-teal .tenants-workspace :is(input,select) {
+    border-color: #dce7e2;
+    background-color: #fbfcfa;
+    border-radius: 10px;
+}
+.rental-app-shell.modern-teal .tenants-workspace :is(input,select):focus {
+    border-color: #0d9488;
+    --tw-ring-color: #ccfbf1;
+}
+.rental-app-shell.modern-teal .tenants-workspace button.bg-blue-600 {
+    background: #0f766e;
+    border-color: #0f766e;
+    box-shadow: 0 4px 12px -6px #0f766e88;
+}
+.rental-app-shell.modern-teal .tenants-workspace button.bg-blue-600:hover { background: #115e59; }
+.rental-app-shell.modern-teal .tenants-workspace .bg-blue-50 { background: #e7f5f1; }
+.rental-app-shell.modern-teal .tenants-workspace .text-blue-600 { color: #0f766e; }
+.rental-app-shell.modern-teal .tenant-directory thead { background: #f0f7f3; }
+.rental-app-shell.modern-teal .tenant-directory thead tr { color: #44645d; }
+.rental-app-shell.modern-teal .tenant-directory tbody tr { transition: background-color 140ms ease; }
+.rental-app-shell.modern-teal .tenant-directory tbody tr:hover { background: #f2faf6; }
+.rental-app-shell.modern-teal .tenant-directory td:first-child { min-width: 250px; }
+.rental-app-shell.modern-teal .tenant-directory td:first-child p:first-child { max-width: 340px; overflow-wrap: anywhere; }
+/* Keep the directory steady while reading and using its controls. */
+.rental-app-shell.modern-teal .rental-section-effects :is(div,section,article)[class*="bg-white"][class*="rounded-"][class*="border"]:hover,
+.rental-app-shell.modern-teal .rental-section-effects tbody tr:hover { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+    .rental-app-shell.modern-teal * { transition-duration: 0ms !important; }
+}

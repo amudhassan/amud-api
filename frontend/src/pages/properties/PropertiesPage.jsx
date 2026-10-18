@@ -1,3 +1,5 @@
+import { useActionAccess } from '../../routes/actionAccess';
+import ModalPortal from "../../components/ui/ModalPortal";
 import {
     Building2,
     ChevronLeft,
@@ -296,6 +298,8 @@ const validateCreateProperty = form => {
 };
 
 function PropertiesPage() {
+    const access = useActionAccess();
+
     const navigate = useNavigate();
     const [properties, setProperties] =
         useState([]);
@@ -962,7 +966,7 @@ function PropertiesPage() {
                         )}
                     </ActionGroup>
 
-                    <Button
+                    {access.anyProperty && (<Button
                         onClick={openCreateProperty}
                         variant="primary"
                         size="md"
@@ -970,7 +974,7 @@ function PropertiesPage() {
                         className="px-3.5"
                     >
                         Add Property
-                    </Button>
+                    </Button>)}
                 </div>
             </div>
 
@@ -1992,7 +1996,11 @@ function PropertiesPage() {
             </div>
 
             {deletedOpen && isAdmin && (
+                <ModalPortal>
                 <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="deleted-properties-title"
                     className="
                         fixed inset-0 z-50
                         flex items-center
@@ -2025,7 +2033,7 @@ function PropertiesPage() {
                             "
                         >
                             <div>
-                                <h2
+                                <h2 id="deleted-properties-title"
                                     className="
                                         text-xl
                                         font-bold
@@ -2462,10 +2470,15 @@ function PropertiesPage() {
                         </div>
                     </div>
                 </div>
+                </ModalPortal>
             )}
 
             {createOpen && (
+                <ModalPortal>
                 <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="create-property-title"
                     className="
                         fixed inset-0 z-50
                         overflow-y-auto
@@ -2498,7 +2511,7 @@ function PropertiesPage() {
                             "
                         >
                             <div>
-                                <h2 className="text-xl font-bold text-slate-950">
+                                <h2 id="create-property-title" className="text-xl font-bold text-slate-950">
                                     Add Property
                                 </h2>
                                 <p className="mt-1 text-sm text-slate-500">
@@ -3051,6 +3064,7 @@ function PropertiesPage() {
                         </form>
                     </div>
                 </div>
+                </ModalPortal>
             )}
         </div>
     );

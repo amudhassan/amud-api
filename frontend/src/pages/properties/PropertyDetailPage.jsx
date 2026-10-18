@@ -1,3 +1,4 @@
+import { useActionAccess } from '../../routes/actionAccess';
 import {
     ArrowLeft,
     Building2,
@@ -262,6 +263,8 @@ const DetailItem = ({
 );
 
 function PropertyDetailPage() {
+    const access = useActionAccess();
+
     const navigate = useNavigate();
     const { property_public_id } = useParams();
 
@@ -1287,7 +1290,7 @@ function PropertyDetailPage() {
                 </div>
 
                 <ActionGroup>
-                    {property.operational_status !==
+                    {access.property(property_public_id) && property.operational_status !==
                         "active" &&
                         property.operational_status !==
                             "sold" && (
@@ -1309,16 +1312,16 @@ function PropertyDetailPage() {
                         />
                     )}
 
-                    <IconButton
+                    {access.property(property_public_id) && (<IconButton
                         label="Edit property"
                         icon={Pencil}
                         onClick={openEdit}
                         disabled={isEditing}
                         variant="ghost"
                         className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                    />
+                    />)}
 
-                    <IconButton
+                    {access.property(property_public_id) && (<IconButton
                         label="Delete property"
                         icon={Trash2}
                         onClick={
@@ -1331,7 +1334,7 @@ function PropertyDetailPage() {
                             ownershipSaving
                         }
                         variant="danger"
-                    />
+                    />)}
 
                     <div
                         className="
@@ -2322,7 +2325,7 @@ function PropertyDetailPage() {
                             </div>
                         </div>
 
-                        <button
+                        {access.property(property_public_id) && (<button
                             type="button"
                             onClick={
                                 openOwnershipManager
@@ -2352,7 +2355,7 @@ function PropertyDetailPage() {
                         >
                             <Pencil className="h-4 w-4" />
                             Manage Ownership
-                        </button>
+                        </button>)}
                     </div>
 
                     {isManagingOwnership && (

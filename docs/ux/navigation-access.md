@@ -1,0 +1,9 @@
+# Menus from assigned access
+
+Login and profile responses include server-derived `navigation_modules`. The sidebar uses the same allowlist as the protected page routes, so an omitted page is also blocked through a pasted frontend URL. Missing module metadata defaults to personal-account pages only. Users is shown only to the existing administrator role. Settings is labelled My Settings because this screen contains the user's own profile, password, sessions and notification preferences.
+
+For regular users the server considers only unrevoked owner-user links to active, nondeleted owners. Property management flags enable properties/units and operational views; finance flags enable tenant/lease views, invoices, payments and reports. Maintenance flags independently enable maintenance. Owner administration appears for owner/representative/manager relationships. Preview legacy monitoring additionally requires finance access to its imported owner. Combined assignments contribute their allowed views; an accountant is not given global user administration simply because they have finance access.
+
+This is a navigation correction using existing grants, not implementation of the proposed fine-grained roles catalogue. Owner/record/action authorization continues in existing API services; frontend metadata is not a security boundary. Current admin behavior is preserved. The proposed technical-admin/financial-authority separation and per-action approval rules remain separate work. Changes to assignments are reflected on the next login/profile refresh; API access checks continue to use current relationships.
+
+Validation extends the real preview acceptance test with finance-only, admin, no-link and revoked-link menu assertions, hidden sidebar links and blocked direct frontend URLs. No schema migration or privilege grant is needed.

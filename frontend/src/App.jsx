@@ -34,6 +34,8 @@ import NotificationsPage from "./pages/notifications/NotificationsPage";
 import ReportsPage from "./pages/reports/ReportsPage";
 import SettingsPage from "./pages/settings/SettingsPage";
 
+import LegacyRentalMonitorPage from "./pages/legacy/LegacyRentalMonitorPage";
+
 function App() {
     return (
         <Routes>
@@ -153,6 +155,8 @@ function App() {
                         path="invoices"
                         element={<InvoicesPage />}
                     />
+
+                    <Route path="legacy-rental-monitor" element={<LegacyRentalMonitorPage />} />
 
                     <Route
                         path="payments"

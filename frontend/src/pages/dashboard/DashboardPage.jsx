@@ -32,6 +32,12 @@ const formatAmount = value =>
         maximumFractionDigits: 2
     }).format(Number(value || 0));
 
+const formatDate = value => {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+};
+
 const formatDateTime = value => {
     if (!value) return "";
 
@@ -475,6 +481,46 @@ function DashboardPage() {
                 <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 text-sm text-slate-500 shadow-sm backdrop-blur">
                     Portfolio information is not available for your current access level.
                 </div>
+            )}
+
+            {sectionAccess.portfolio_and_leases && dashboard?.lease_summary && (
+                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="lease-status-heading">
+                    <h2 id="lease-status-heading" className="text-lg font-bold text-slate-900">Lease Status</h2>
+                    <p className="mt-1 text-sm text-slate-500">Ended leases include previous terms that may already have been renewed. These counts do not indicate rent arrears.</p>
+                    <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+                        {[
+                            ["Active", "active_leases", "text-emerald-700 bg-emerald-50"],
+                            ["Ended / Expired", "expired_leases", "text-amber-800 bg-amber-50"],
+                            ["Expiring within 30 days", "expiring_30_days", "text-blue-700 bg-blue-50"]
+                        ].map(([label, key, color]) => (
+                            <div key={key} className={`rounded-xl p-4 ${color}`}>
+                                <dt className="text-sm font-medium">{label}</dt>
+                                <dd className="mt-2 text-2xl font-bold">{formatNumber(dashboard.lease_summary[key] || 0)}</dd>
+                            </div>
+                        ))}
+                    </dl>
+                    {dashboard.expired_leases && (
+                        <div className="mt-5 border-t border-slate-200 pt-4">
+                            <h3 className="font-semibold text-slate-900">Expired Leases</h3>
+                            <p className="mt-1 text-xs text-slate-500">Up to 10 ended terms. Check the tenant's current lease before arranging renewal.</p>
+                            {dashboard.expired_leases.count === 0 ? (
+                                <p className="mt-3 text-sm text-slate-500">No expired leases in your authorized portfolio.</p>
+                            ) : (
+                                <ul className="mt-3 divide-y divide-slate-100">
+                                    {dashboard.expired_leases.leases.map(lease => (
+                                        <li key={lease.public_id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-slate-900">{lease.tenant.display_name}</p>
+                                                <p className="text-slate-500">{lease.property.property_name} · {lease.unit.unit_code} · {lease.lease_number}</p>
+                                            </div>
+                                            <p className="font-medium text-amber-800">Ended {formatDate(lease.end_date)}</p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    )}
+                </section>
             )}
 
             <section className="grid gap-6 xl:grid-cols-3">
