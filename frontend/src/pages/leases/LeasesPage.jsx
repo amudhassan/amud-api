@@ -269,7 +269,8 @@ function LeasesPage() {
                         search.trim();
                 }
 
-                if (status) {
+                params.view = status === "archived" ? "archived" : "current";
+                if (status && status !== "archived") {
                     params.status = status;
                 }
 
@@ -1013,8 +1014,9 @@ function LeasesPage() {
                         "
                     >
                         <option value="">
-                            All statuses
+                            Latest / To follow up
                         </option>
+                        <option value="archived">History / Archived</option>
                         {LEASE_STATUSES.map(
                             leaseStatus => (
                                 <option

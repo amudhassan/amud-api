@@ -728,6 +728,21 @@ const getLeases = async ({
         );
     }
 
+    // Archive is a list view: legal status and financial history remain intact.
+    const archivedCondition = `(l.status IN ('expired', 'terminated') AND EXISTS (
+        SELECT 1 FROM leases successor
+        WHERE successor.owner_id = l.owner_id
+          AND successor.tenant_id = l.tenant_id
+          AND successor.unit_id = l.unit_id
+          AND successor.status IN ('scheduled', 'active', 'expired', 'terminated')
+          AND successor.start_date > l.start_date
+    ))`;
+    if (filters.view === 'archived') {
+        conditions.push(archivedCondition);
+    } else if (filters.view !== 'all') {
+        conditions.push(`NOT ${archivedCondition}`);
+    }
+
     /*
      * Lifecycle-status filter.
      */

@@ -509,9 +509,15 @@ const getLeasesValidator = [
     /*
      * Reject undocumented query parameters.
      */
+    query("view")
+        .optional()
+        .isIn(["current", "archived", "all"])
+        .withMessage("Invalid lease list view."),
+
     query()
         .custom(value => {
             const allowedFields = [
+                "view",
                 "search",
                 "status",
                 "owner_public_id",
