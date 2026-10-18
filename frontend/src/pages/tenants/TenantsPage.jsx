@@ -423,7 +423,7 @@ function TenantsPage() {
     ];
 
     return (
-        <div className="space-y-6">
+        <div className="tenants-workspace space-y-6">
             <div
                 className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"
             >
@@ -490,7 +490,7 @@ function TenantsPage() {
                 </div>
             )}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="tenant-panel rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -565,7 +565,8 @@ function TenantsPage() {
                     return (
                         <div
                             key={stat.label}
-                            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                            data-tenant-stat={stat.label}
+                            className="tenant-stat tenant-panel rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                         >
                             <div className="flex items-start justify-between gap-3">
                                 <div>
@@ -586,7 +587,7 @@ function TenantsPage() {
                 })}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="tenant-filters tenant-panel rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <form
                     onSubmit={handleSearchSubmit}
                     className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_190px_170px_190px_auto]"
@@ -712,7 +713,7 @@ function TenantsPage() {
                 </div>
             )}
 
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="tenant-directory tenant-panel overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h2 className="text-lg font-bold text-slate-950">
