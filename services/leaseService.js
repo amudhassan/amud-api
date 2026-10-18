@@ -571,14 +571,18 @@ const getLeases = async ({
     /*
      * 2. Prepare pagination.
      */
+    // Express 5 exposes query parameters as strings through a getter.
+    // Do not rely on validator sanitizers mutating a later req.query read.
+    const requestedPage = Number(filters.page);
+    const requestedLimit = Number(filters.limit);
     const page =
-        Number.isInteger(filters.page)
-            ? filters.page
+        Number.isInteger(requestedPage) && requestedPage > 0
+            ? requestedPage
             : 1;
 
     const limit =
-        Number.isInteger(filters.limit)
-            ? filters.limit
+        Number.isInteger(requestedLimit) && requestedLimit > 0 && requestedLimit <= 100
+            ? requestedLimit
             : 20;
 
     const offset =
