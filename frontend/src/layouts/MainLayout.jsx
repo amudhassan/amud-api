@@ -171,7 +171,7 @@ function MainLayout() {
     };
 
     return (
-        <div className={`rental-app-shell relative isolate min-h-screen overflow-x-hidden bg-slate-50 ${import.meta.env.VITE_PREVIEW_LEGACY_MONITORING === "true" && location.pathname === "/tenants" ? "modern-teal" : ""}`}>
+        <div className={`rental-app-shell relative isolate min-h-screen overflow-x-hidden bg-slate-50 ${location.pathname === "/tenants" ? "modern-teal" : ""}`}>
             <style>{`
                 @keyframes rentalAmbientOne {
                     0%, 100% { transform: translate3d(0, 0, 0) scale(1); }

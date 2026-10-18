@@ -295,7 +295,8 @@ const getDashboard = async ({
         maintenanceResult,
         recentPayments,
         recentMaintenance,
-        leaseResult
+        leaseResult,
+        expiredResult
     ] = await Promise.all([
         getOccupancyReport({
             filters,
@@ -327,6 +328,10 @@ const getDashboard = async ({
         }),
         getLeaseReport({
             filters: { ...filters, limit: 1 },
+            authenticatedUser
+        }),
+        getLeaseReport({
+            filters: { ...filters, status: "expired", limit: 10 },
             authenticatedUser
         })
     ]);
@@ -452,6 +457,12 @@ const getDashboard = async ({
             lease_summary:
                 propertyAccessible && !isScopeFailure(leaseResult)
                     ? leaseResult.report.summary
+                    : null,
+
+            expired_leases:
+                propertyAccessible && !isScopeFailure(expiredResult)
+                    ? { count: expiredResult.report.summary.expired_leases,
+                        leases: expiredResult.report.leases }
                     : null,
 
             expiring_leases_30_days:

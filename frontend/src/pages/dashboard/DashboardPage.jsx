@@ -32,6 +32,12 @@ const formatAmount = value =>
         maximumFractionDigits: 2
     }).format(Number(value || 0));
 
+const formatDate = value => {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+};
+
 const formatDateTime = value => {
     if (!value) return "";
 
@@ -493,6 +499,27 @@ function DashboardPage() {
                             </div>
                         ))}
                     </dl>
+                    {dashboard.expired_leases && (
+                        <div className="mt-5 border-t border-slate-200 pt-4">
+                            <h3 className="font-semibold text-slate-900">Expired Leases</h3>
+                            <p className="mt-1 text-xs text-slate-500">Up to 10 ended terms. Check the tenant's current lease before arranging renewal.</p>
+                            {dashboard.expired_leases.count === 0 ? (
+                                <p className="mt-3 text-sm text-slate-500">No expired leases in your authorized portfolio.</p>
+                            ) : (
+                                <ul className="mt-3 divide-y divide-slate-100">
+                                    {dashboard.expired_leases.leases.map(lease => (
+                                        <li key={lease.public_id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-slate-900">{lease.tenant.display_name}</p>
+                                                <p className="text-slate-500">{lease.property.property_name} · {lease.unit.unit_code} · {lease.lease_number}</p>
+                                            </div>
+                                            <p className="font-medium text-amber-800">Ended {formatDate(lease.end_date)}</p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    )}
                 </section>
             )}
 

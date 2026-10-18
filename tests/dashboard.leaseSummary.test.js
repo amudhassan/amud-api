@@ -8,7 +8,7 @@ const {getDashboard}=require('../services/reports/dashboardService');
 beforeEach(()=>{
  reports.getOccupancyReport.mockResolvedValue({report:{summary:{total_units:62}}});
  reports.getExpiringLeasesReport.mockResolvedValue({report:{expiring_count:0,leases:[]}});
- reports.getLeaseReport.mockResolvedValue({report:{summary:{active_leases:22,expired_leases:32,expiring_30_days:0}}});
+ reports.getLeaseReport.mockResolvedValue({report:{summary:{active_leases:22,expired_leases:32,expiring_30_days:0},leases:[]}});
 });
 test('ended lease totals remain visible even when no leases are expiring soon',async()=>{
  const filters={owner_public_id:'owner_demo',property_public_id:'property_demo'};
@@ -16,6 +16,8 @@ test('ended lease totals remain visible even when no leases are expiring soon',a
  const {dashboard}=await getDashboard({filters,authenticatedUser});
  expect(dashboard.lease_summary.expired_leases).toBe(32);
  expect(dashboard.expiring_leases_30_days.count).toBe(0);
+ expect(dashboard.expired_leases.count).toBe(32);
+ expect(reports.getLeaseReport).toHaveBeenCalledWith({filters:{...filters,status:'expired',limit:10},authenticatedUser});
  expect(reports.getLeaseReport).toHaveBeenCalledWith({filters:{...filters,limit:1},authenticatedUser});
 });
 test('does not expose lease summary without portfolio permission',async()=>{
