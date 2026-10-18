@@ -22,7 +22,7 @@ import {
 } from "react-router-dom";
 
 const navigationItems = [
-    ...(import.meta.env.VITE_PREVIEW_LEGACY_MONITORING === "true" ? [{ label: "Legacy Rental Monitoring", path: "/legacy-rental-monitor", icon: ReceiptText }] : []),
+    { label: "Rental Monitoring", path: "/legacy-rental-monitor", icon: ReceiptText },
     {
         label: "Dashboard",
         path: "/dashboard",

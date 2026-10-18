@@ -4,9 +4,8 @@ export function useExistingResidents() {
  const [rows,setRows]=useState([]);
  const [error,setError]=useState('');
  useEffect(()=>{
-  if(import.meta.env.VITE_PREVIEW_LEGACY_MONITORING!=='true')return;
   let active=true;
-  apiClient.get('/preview-existing-occupancies').then(r=>{if(active)setRows(r.data?.data||[]);}).catch(()=>{if(active)setError('Resident information could not be loaded. Refresh to retry.');});
+  apiClient.get(import.meta.env.VITE_PREVIEW_LEGACY_MONITORING==='true'?'/preview-existing-occupancies':'/existing-occupancies').then(r=>{if(active)setRows(r.data?.data||[]);}).catch(()=>{if(active)setError('Resident information could not be loaded. Refresh to retry.');});
   return ()=>{active=false;};
  },[]);
  return {rows,error};

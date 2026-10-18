@@ -17,8 +17,8 @@ test('ended lease totals remain visible even when no leases are expiring soon',a
  expect(dashboard.lease_summary.expired_leases).toBe(32);
  expect(dashboard.expiring_leases_30_days.count).toBe(0);
  expect(dashboard.expired_leases.count).toBe(32);
- expect(reports.getLeaseReport).toHaveBeenCalledWith({filters:{...filters,status:'expired',limit:10},authenticatedUser});
- expect(reports.getLeaseReport).toHaveBeenCalledWith({filters:{...filters,limit:1},authenticatedUser});
+ expect(reports.getLeaseReport).toHaveBeenCalledWith({filters:{...filters,outstanding_expired_only:true,status:'expired',limit:10},authenticatedUser});
+ expect(reports.getLeaseReport).toHaveBeenCalledWith({filters:{...filters,outstanding_expired_only:true,limit:1},authenticatedUser});
 });
 test('does not expose lease summary without portfolio permission',async()=>{
  reports.getOccupancyReport.mockResolvedValue({forbidden:true});

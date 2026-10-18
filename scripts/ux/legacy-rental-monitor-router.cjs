@@ -1,4 +1,4 @@
-// Mounted only by the guarded preview launcher, never app.js.
+// Shared imported-history queries; production mounts these behind a read-only wrapper.
 const express=require('express');
 const {authMiddleware}=require('../../middleware/authMiddleware');
 const {estimate,validDate,OWNER,NS}=require('./legacy-rental-monitor.cjs');
@@ -7,7 +7,7 @@ module.exports=function monitoringRouter(pool){
     const router=express.Router();router.use(authMiddleware);
     const fail=(res,status,message)=>res.status(status).json({message});
     router.use(async(req,res,next)=>{try{
-        const owner=(await pool.query('SELECT id FROM owners WHERE public_id=$1 AND deleted_at IS NULL',[OWNER])).rows[0];
+        const owner=(await pool.query('SELECT id FROM owners WHERE public_id=$1 AND status=\'active\' AND deleted_at IS NULL',[OWNER])).rows[0];
         if(!owner)return fail(res,404,'Import the owner profiles first.');
         if(req.user.role!=='admin'){
             const allowed=(await pool.query('SELECT 1 FROM owner_users WHERE owner_id=$1 AND user_id=$2 AND revoked_at IS NULL AND can_manage_finances=true',[owner.id,req.user.id])).rows[0];

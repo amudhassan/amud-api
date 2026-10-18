@@ -375,6 +375,16 @@ const getLeaseReport = async ({
         return scope;
     }
 
+    // Dashboard shows expired terms still awaiting renewal, not replaced history.
+    const outstandingExpiryCondition = `(l.status <> 'expired' OR NOT EXISTS (
+        SELECT 1 FROM leases successor
+        WHERE successor.owner_id = l.owner_id
+          AND successor.tenant_id = l.tenant_id
+          AND successor.unit_id = l.unit_id
+          AND successor.status IN ('scheduled', 'active', 'expired', 'terminated')
+          AND successor.start_date > l.start_date
+    ))`;
+
     const summaryBuilder =
         createConditionBuilder();
 
@@ -388,6 +398,10 @@ const getLeaseReport = async ({
         scope,
         filters
     });
+
+    if (filters.outstanding_expired_only === true) {
+        summaryConditions.push(outstandingExpiryCondition);
+    }
 
     if (filters.date_from) {
         const placeholder =
@@ -508,6 +522,10 @@ const getLeaseReport = async ({
         filters
     });
 
+    if (filters.outstanding_expired_only === true) {
+        detailConditions.push(outstandingExpiryCondition);
+    }
+
     if (filters.date_from) {
         const placeholder =
             detailBuilder.addValue(
@@ -585,8 +603,8 @@ const getLeaseReport = async ({
                 ON t.id = l.tenant_id
             WHERE ${detailConditions.join("\n              AND ")}
             ORDER BY
-                l.end_date,
-                l.id
+                l.end_date ${filters.outstanding_expired_only === true ? 'DESC' : 'ASC'},
+                l.id DESC
             LIMIT ${limitPlaceholder}
             `,
             detailBuilder.values

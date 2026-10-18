@@ -5,7 +5,7 @@ module.exports=pool=>{
  router.get('/',async(req,res,next)=>{try{
   const present=(await pool.query("SELECT to_regclass('preview_existing_occupancies') AS name")).rows[0].name;
   const values=req.user.role==='admin'?[]:[req.user.id];
-  const access=req.user.role==='admin'?'':`AND EXISTS(SELECT 1 FROM owner_users ou JOIN owners o ON o.id=ou.owner_id WHERE ou.owner_id=x.owner_id AND ou.user_id=$1 AND ou.revoked_at IS NULL AND o.deleted_at IS NULL AND o.status='active')`;
+  const access=req.user.role==='admin'?'':`AND EXISTS(SELECT 1 FROM owner_users ou JOIN owners o ON o.id=ou.owner_id WHERE ou.owner_id=x.owner_id AND ou.user_id=$1 AND ou.revoked_at IS NULL AND (ou.can_manage_properties=true OR ou.can_manage_finances=true) AND o.deleted_at IS NULL AND o.status='active')`;
   const source=present?`SELECT owner_id,tenant_id,unit_id,date_in::text,calculated_paid_through::text,'existing'::text AS origin FROM preview_existing_occupancies`:`SELECT NULL::bigint AS owner_id,NULL::bigint AS tenant_id,NULL::bigint AS unit_id,NULL::text AS date_in,NULL::text AS calculated_paid_through,NULL::text AS origin WHERE FALSE`;
   const result=await pool.query(`WITH residents AS (${source}), combined AS (
    SELECT * FROM residents r WHERE NOT EXISTS(SELECT 1 FROM leases l WHERE l.unit_id=r.unit_id AND l.status='active')

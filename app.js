@@ -227,6 +227,9 @@ app.get("/", async (req, res) => {
 /*
  * Global error handler must remain last.
  */
+app.use('/api/rental-monitor', require('./routes/rentalMonitoringRoutes'));
+app.use('/api/existing-occupancies', require('./scripts/ux/preview-existing-occupancy-router.cjs')(pool));
+
 app.use(errorHandler);
 
 const PORT =

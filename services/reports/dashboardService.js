@@ -327,11 +327,11 @@ const getDashboard = async ({
             authenticatedUser
         }),
         getLeaseReport({
-            filters: { ...filters, limit: 1 },
+            filters: { ...filters, outstanding_expired_only: true, limit: 1 },
             authenticatedUser
         }),
         getLeaseReport({
-            filters: { ...filters, status: "expired", limit: 10 },
+            filters: { ...filters, outstanding_expired_only: true, status: "expired", limit: 10 },
             authenticatedUser
         })
     ]);
