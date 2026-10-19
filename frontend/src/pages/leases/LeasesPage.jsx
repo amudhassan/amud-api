@@ -180,6 +180,9 @@ const statusClassName = status => {
 
 function LeasesPage() {
     const { user } = useAuth();
+    const [importedFollowUps, setImportedFollowUps] = useState([]);
+    const [followUpError, setFollowUpError] = useState("");
+    const [followUpsLoading, setFollowUpsLoading] = useState(true);
     const [nextLease, setNextLease] = useState(null);
     const [billingLease, setBillingLease] = useState(null);
     const [workflowInvoicePublicId, setWorkflowInvoicePublicId] = useState("");
@@ -333,6 +336,29 @@ function LeasesPage() {
     useEffect(() => {
         loadLeases();
     }, [loadLeases]);
+
+    useEffect(() => {
+        let cancelled = false;
+        setFollowUpsLoading(true);
+        apiClient.get(import.meta.env.VITE_PREVIEW_LEGACY_MONITORING === 'true'
+            ? '/preview-rental-monitor/follow-ups' : '/rental-monitor/follow-ups')
+            .then(response => { if (!cancelled) { setImportedFollowUps(response.data.data.rows); setFollowUpError(""); } })
+            .catch(requestError => {
+                if (!cancelled && ![403, 404].includes(requestError.response?.status)) {
+                    setFollowUpError("Imeshindikana kupakia wapangaji wa kufuatilia. Pakia ukurasa tena.");
+                }
+            })
+            .finally(() => { if (!cancelled) setFollowUpsLoading(false); });
+        return () => { cancelled = true; };
+    }, [leases]);
+    const visibleFollowUps = useMemo(() => importedFollowUps.filter(row => {
+        if (!["", "expired"].includes(status)) return false;
+        if (status === "expired" && row.status !== "expired") return false;
+        if (search && !`${row.tenant_name} ${row.property} ${row.unit}`.toLowerCase().includes(search.toLowerCase())) return false;
+        if (startDateFrom && row.date_in < startDateFrom) return false;
+        if (endDateTo && (!row.paid_through || row.paid_through > endDateTo)) return false;
+        return true;
+    }), [importedFollowUps, status, search, startDateFrom, endDateTo]);
 
     const handleSearchSubmit = event => {
         event.preventDefault();
@@ -943,6 +969,33 @@ function LeasesPage() {
                     </p>
                 </div>
             </div>
+
+            {(["", "expired"].includes(status)) && (followUpsLoading || followUpError || visibleFollowUps.length > 0) && (
+                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="border-b border-slate-200 px-5 py-4">
+                        <h2 className="font-semibold text-slate-900">Wapangaji wa kufuatilia {visibleFollowUps.length > 0 ? `(${visibleFollowUps.length})` : ""}</h2>
+                        <p className="mt-1 text-sm text-slate-500">Historia ya malipo yenye kodi iliyoisha au taarifa zinazohitaji uhakiki. Tarehe ya malipo kufikia si tarehe ya mwisho wa mkataba.</p>
+                    </div>
+                    {followUpsLoading ? <p className="px-5 py-4 text-sm text-slate-500">Inapakia taarifa za kufuatilia...</p> : followUpError ? <p role="alert" className="px-5 py-4 text-sm text-red-700">{followUpError}</p> : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200">
+                                <thead className="bg-slate-50"><tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    <th className="px-5 py-3.5">Mpangaji / Nyumba</th><th className="px-5 py-3.5">Malipo ya mwisho</th><th className="px-5 py-3.5">Malipo kufikia</th><th className="px-5 py-3.5">Status</th><th className="px-5 py-3.5">Historia</th>
+                                </tr></thead>
+                                <tbody className="divide-y divide-slate-100">{visibleFollowUps.map(row => (
+                                    <tr key={row.source_id} className="text-sm text-slate-700">
+                                        <td className="px-5 py-4"><p className="font-semibold">{row.tenant_name}</p><p className="text-xs text-slate-500">{row.property} · {row.unit || "Nyumba ihakikiwe"}</p></td>
+                                        <td className="px-5 py-4">{row.last_payment_date ? formatDate(row.last_payment_date) : "Hakuna malipo"}</td>
+                                        <td className="px-5 py-4">{row.paid_through ? formatDate(row.paid_through) : "Inahitaji uhakiki"}</td>
+                                        <td className="px-5 py-4"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${row.status === "expired" ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-700"}`}>{row.status === "expired" ? "Imeisha" : "Uhakiki"}</span><p className="mt-2 text-xs text-slate-500">{row.reason}</p></td>
+                                        <td className="px-5 py-4"><a className="font-medium text-blue-700 hover:underline" href={`/legacy-rental-monitor?tenant=${encodeURIComponent(row.tenant_public_id)}`}>Angalia malipo</a></td>
+                                    </tr>
+                                ))}</tbody>
+                            </table>
+                        </div>
+                    )}
+                </section>
+            )}
 
             <div
                 className="

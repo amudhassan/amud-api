@@ -17,7 +17,7 @@ module.exports=function monitoringRouter(pool){
         if(!installed)return fail(res,404,'Run the preview monitoring import first.');
         req.monitorOwnerId=owner.id;next();
     }catch(error){next(error);}});
-    router.get('/',async(req,res,next)=>{try{
+    router.get(['/', '/follow-ups'],async(req,res,next)=>{try{
         const asOf=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Dar_es_Salaam',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
         const payments=(await pool.query('SELECT source FROM preview_rental_monitor_payments WHERE namespace=$1 ORDER BY source->>\'date_created\',source_id',[NS])).rows.map(r=>r.source);
         const grouped=new Map();for(const p of payments){if(!grouped.has(p.tenant_id))grouped.set(p.tenant_id,[]);grouped.get(p.tenant_id).push(p);}
@@ -40,6 +40,16 @@ module.exports=function monitoringRouter(pool){
         const activeIds=new Set(activeRows.map(r=>r.source_id));const activePayments=payments.filter(p=>activeIds.has(p.tenant_id));
         const batch=(await pool.query('SELECT summary,imported_at FROM preview_rental_monitor_batches WHERE namespace=$1',[NS])).rows[0];
         batch.summary={...batch.summary,tenants:activeRows.length,payments:activePayments.length,total_payment_amount:activePayments.reduce((a,p)=>a+Math.round(Number(p.amount)*100),0)/100};
+        if (req.path === '/follow-ups') {
+            const profiles = (await pool.query(`SELECT t.public_id,t.display_name,t.status,t.deleted_at
+                FROM tenants t JOIN owner_tenants ot ON ot.tenant_id=t.id
+                WHERE ot.owner_id=$1`, [req.monitorOwnerId])).rows;
+            const leases = (await pool.query(`SELECT t.public_id AS tenant_public_id,u.public_id AS unit_public_id,
+                l.status,l.end_date::text FROM leases l JOIN tenants t ON t.id=l.tenant_id
+                JOIN units u ON u.id=l.unit_id WHERE l.owner_id=$1`, [req.monitorOwnerId])).rows;
+            const followups = require('../../services/importedLeaseFollowUpService').buildImportedLeaseFollowUps({rows:activeRows,profiles,leases,asOf});
+            return res.json({data:{as_of:asOf,rows:followups}});
+        }
         res.json({data:{as_of:asOf,rows:activeRows,orphan_payments:payments.filter(p=>!ids.has(p.tenant_id)),batch}});
     }catch(error){next(error);}});
     router.put('/:id/review',async(req,res,next)=>{

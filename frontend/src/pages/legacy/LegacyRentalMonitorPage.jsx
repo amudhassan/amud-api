@@ -16,6 +16,11 @@ export default function LegacyRentalMonitorPage() {
         catch (e) { setError(e.response?.data?.message || 'Unable to load monitoring.'); }
     }
     useEffect(() => { load(); }, []);
+    useEffect(() => {
+        const tenant = new URLSearchParams(window.location.search).get('tenant');
+        const row = data?.rows.find(item => item.tenant_public_id === tenant);
+        if (row) { setSelected(row); setPaidThrough(row.review.paid_through || ''); setEvidence(row.review.evidence || ''); }
+    }, [data]);
     function select(row) { setSelected(row); setPaidThrough(row.review.paid_through || ''); setEvidence(row.review.evidence || ''); setError(''); }
     async function save(event) {
         event.preventDefault(); setSaving(true);
