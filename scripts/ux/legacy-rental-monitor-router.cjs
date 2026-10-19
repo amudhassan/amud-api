@@ -34,7 +34,7 @@ module.exports=function monitoringRouter(pool){
                 (p.transaction_reference && p.transaction_reference===h.invoice) ||
                 (Number(p.amount)===Number(h.amount) && new Date(p.paid_at).toISOString().slice(0,10)===h.date_created.slice(0,10))));
             const newPaid=currentPayments.filter(p=>!p.imported_from_csv && p.status==='completed' && !potentiallyRepeated.includes(p) && new Date(p.paid_at).toISOString().slice(0,10)<=asOf).reduce((sum,p)=>sum+Math.round(Number(p.amount)*100),0)/100;
-            return {...r,history,estimate:estimate(r.source,history,asOf),account:calculateBalance(r.source,history,asOf,newPaid),duplicate_review:potentiallyRepeated.map(p=>p.receipt_number),current_payments:currentPayments,current_invoices:invoices.filter(i=>i.tenant_public_id===r.tenant_public_id)};
+            return {...r,history,payment_timeline:require('../../services/paymentTimelineService').buildPaymentTimeline(history,currentPayments,potentiallyRepeated.map(p=>p.receipt_number),asOf),estimate:estimate(r.source,history,asOf),account:calculateBalance(r.source,history,asOf,newPaid),duplicate_review:potentiallyRepeated.map(p=>p.receipt_number),current_payments:currentPayments,current_invoices:invoices.filter(i=>i.tenant_public_id===r.tenant_public_id)};
         });
         const ids=new Set(rows.map(r=>r.source_id));const activeRows=rows.filter(r=>r.source.status==='1');
         const activeIds=new Set(activeRows.map(r=>r.source_id));const activePayments=payments.filter(p=>activeIds.has(p.tenant_id));
