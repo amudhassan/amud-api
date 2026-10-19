@@ -427,7 +427,7 @@ function DetermineMaintenanceResponsibilityModal({
                 )
             ) {
                 setError(
-                    "The current responsibility concurrency snapshot is incomplete. Close and reopen this form."
+                    "Unable to load the latest record. Refresh and try again."
                 );
                 return;
             }
@@ -602,9 +602,7 @@ function DetermineMaintenanceResponsibilityModal({
                             </div>
                         )}
 
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
-                            Existing responsibility records use optimistic concurrency. If another operation changes the determination while this form is open, save is rejected so you can refresh safely.
-                        </div>
+
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <label className="block">

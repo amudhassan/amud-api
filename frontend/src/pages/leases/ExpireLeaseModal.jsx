@@ -281,13 +281,7 @@ function ExpireLeaseModal({
                                     text-amber-800
                                 "
                             >
-                                Expiry is allowed only
-                                when the lease is still
-                                active and its end date
-                                has already passed.
-                                The backend remains the
-                                final authority for this
-                                lifecycle transition.
+                                Only active leases whose end date has passed can be marked expired.
                             </div>
 
                             <div

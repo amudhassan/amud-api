@@ -172,11 +172,11 @@ function DeleteOwnerModal({
 
                         <div className="space-y-2 text-sm leading-6 text-amber-900">
                             <p className="font-semibold">
-                                This is a controlled soft delete.
+                                The owner’s history will be preserved.
                             </p>
 
                             <p>
-                                The owner will become inactive and disappear from the normal Owners list. Active owner-user links will also be revoked by the backend.
+                                The owner will become inactive and disappear from the Owners list. Linked users will lose access to this owner.
                             </p>
 
                             <p>

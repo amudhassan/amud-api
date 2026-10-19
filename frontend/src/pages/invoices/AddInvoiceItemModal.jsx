@@ -453,9 +453,7 @@ function AddInvoiceItemModal({
                                             )}
                                     </p>
 
-                                    <p className="mt-1 text-xs text-slate-500">
-                                        The backend/database will calculate and synchronize the final invoice totals after the item is saved.
-                                    </p>
+
                                 </div>
                             </div>
                         </div>

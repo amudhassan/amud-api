@@ -314,7 +314,7 @@ function CreateMaintenanceResponsibilityAllocationModal({
                 !responsibility.updated_at
             ) {
                 setError(
-                    "The responsibility concurrency snapshot is incomplete. Refresh the allocations and try again."
+                    "Unable to load the latest record. Refresh and try again."
                 );
                 return;
             }
@@ -471,7 +471,7 @@ function CreateMaintenanceResponsibilityAllocationModal({
                             Responsibility: <span className="font-semibold">{String(
                                 responsibility.responsibility_status ||
                                     "pending_review"
-                            ).replaceAll("_", " ")}</span>. Creating an allocation updates the responsibility concurrency timestamp automatically.
+                            ).replaceAll("_", " ")}</span>
                         </div>
 
                         <div className="grid gap-4 sm:grid-cols-2">

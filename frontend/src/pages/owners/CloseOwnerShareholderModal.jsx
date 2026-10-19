@@ -297,9 +297,7 @@ function CloseOwnerShareholderModal({
                     <div className="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" />
 
-                        <p className="text-sm leading-6 text-slate-600">
-                            The backend preserves the closed relationship for audit and validates the shareholding lifecycle before accepting this action.
-                        </p>
+
                     </div>
 
                     {error && (

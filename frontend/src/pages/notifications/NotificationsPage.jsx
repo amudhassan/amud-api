@@ -1204,9 +1204,7 @@ function NotificationsPage() {
                     </div>
                 </div>
 
-                <p className="mt-3 text-xs text-slate-400">
-                    Archive state is loaded from the backend. Read-state and category filters are applied to the currently loaded page, while backend pagination remains authoritative.
-                </p>
+
             </div>
 
             {selectedNotificationIds.length > 0 && (

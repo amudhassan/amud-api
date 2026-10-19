@@ -156,7 +156,7 @@ function PreventiveMaintenancePlanLifecycleModal({
 
             if (!latest.updated_at) {
                 throw new Error(
-                    "Preventive plan concurrency timestamp is missing."
+                    "Unable to load the latest record. Refresh and try again."
                 );
             }
 
@@ -218,7 +218,7 @@ function PreventiveMaintenancePlanLifecycleModal({
 
         if (!plan.updated_at) {
             setError(
-                "Preventive plan concurrency timestamp is missing. Refresh and try again."
+                "Unable to load the latest record. Refresh and try again."
             );
             return;
         }

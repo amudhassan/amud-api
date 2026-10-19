@@ -441,7 +441,7 @@ function EditOwnerUserModal({
 
                                 <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
                                     <KeyRound className="h-4 w-4 text-blue-600" />
-                                    Server-authorized access
+                                    Access permissions
                                 </div>
                             </div>
                         </div>
@@ -513,7 +513,7 @@ function EditOwnerUserModal({
                                     }
                                     description={
                                         initial.is_primary
-                                            ? "The current primary cannot be demoted directly. Promote another eligible owner user instead; the backend will transfer primary status atomically."
+                                            ? "Assign another primary user before changing this user’s role."
                                             : PRIMARY_ELIGIBLE_ROLES.includes(
                                                     form.relationship_role
                                                 )
@@ -610,9 +610,7 @@ function EditOwnerUserModal({
                             </div>
                         )}
 
-                        <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-xs leading-5 text-blue-800">
-                            The frontend sends only fields that changed. Backend authorization, primary-transfer rules, and anti-privilege-escalation checks remain authoritative.
-                        </div>
+
                     </div>
 
                     <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">

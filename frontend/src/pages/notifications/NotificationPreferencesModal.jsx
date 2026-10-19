@@ -493,7 +493,7 @@ function NotificationPreferencesModal({
 
                                     <ToggleRow
                                         label="Notifications Enabled"
-                                        description="Master preference for notification delivery. Mandatory access and critical-system rules remain backend controlled."
+                                        description="Enable or disable optional notifications."
                                         checked={form.notifications_enabled}
                                         onChange={value =>
                                             updateTopLevel(

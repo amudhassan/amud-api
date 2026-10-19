@@ -387,7 +387,7 @@ function OwnerShareholdersModal({
                             </h2>
 
                             <p className="mt-1 text-sm leading-6 text-slate-500">
-                                View active shareholders and the current ownership allocation recorded by the backend.
+                                Active shareholders and ownership allocation.
                             </p>
                         </div>
                     </div>
@@ -485,9 +485,7 @@ function OwnerShareholdersModal({
                                         Active Shareholders
                                     </h3>
 
-                                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                                        Closed shareholdings are historical records and are not returned by this active-list endpoint.
-                                    </p>
+
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2">
@@ -546,7 +544,7 @@ function OwnerShareholdersModal({
                                     </h4>
 
                                     <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">
-                                        This owner currently has no active shareholding relationships returned by the backend.
+                                        No active shareholdings.
                                     </p>
                                 </div>
                             ) : (

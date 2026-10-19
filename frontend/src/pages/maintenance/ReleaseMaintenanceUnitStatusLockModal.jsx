@@ -219,7 +219,7 @@ function ReleaseMaintenanceUnitStatusLockModal({
                         </h3>
 
                         <p className="mt-1 text-sm text-slate-500">
-                            Release the active unit-status lock and allow backend restoration rules to run.
+                            Release the active maintenance lock.
                         </p>
                     </div>
 
@@ -245,7 +245,7 @@ function ReleaseMaintenanceUnitStatusLockModal({
                         )}
 
                         <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900">
-                            When this is the final active maintenance lock for the unit, the backend restores the unit to the saved restoration status.
+                            Releasing the final maintenance lock restores the unit to its previous status.
                         </div>
 
                         <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
@@ -304,7 +304,7 @@ function ReleaseMaintenanceUnitStatusLockModal({
                                         lock
                                             ?.restoration_status
                                     ) ||
-                                        "Managed by backend"}
+                                        "Automatic"}
                                 </span>
                             </div>
 

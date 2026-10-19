@@ -491,9 +491,7 @@ function EditOwnerShareholderModal({
                                 className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
                             />
 
-                            <span className="block text-xs leading-5 text-slate-500">
-                                Existing shareholdings keep a valid effective date. The backend remains authoritative for lifecycle integrity.
-                            </span>
+
                         </label>
                     </div>
 

@@ -349,7 +349,7 @@ function RevokeMaintenanceResponsibilityAllocationModal({
             !authoritativeResponsibility.updated_at
         ) {
             setError(
-                "The concurrency snapshot is incomplete. Close and reopen the maintenance request, then try again."
+                "Unable to load the latest record. Refresh and try again."
             );
             return;
         }
@@ -464,7 +464,7 @@ function RevokeMaintenanceResponsibilityAllocationModal({
 
                         {loadingSnapshot && (
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                Refreshing allocation and concurrency state...
+                                Refreshing allocation...
                             </div>
                         )}
 

@@ -965,12 +965,7 @@ function EditLeaseModal({
                         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                             Only a lease in{" "}
                             <strong>Draft</strong>{" "}
-                            status can be edited.
-                            The lease owner is fixed;
-                            property, unit, tenant and
-                            draft terms remain subject
-                            to backend authorization
-                            and integrity checks.
+                            status can be edited. The lease owner cannot be changed.
                         </div>
 
                         <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-800">

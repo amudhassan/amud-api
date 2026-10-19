@@ -101,9 +101,7 @@ function DashboardPage() {
                         Financial Overview
                     </h2>
 
-                    <p className="mt-2 text-sm text-slate-500">
-                        Dashboard charts will appear here after API integration.
-                    </p>
+
 
                     <div
                         className="

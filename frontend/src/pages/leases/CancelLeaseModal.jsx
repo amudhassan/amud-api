@@ -284,11 +284,7 @@ function CancelLeaseModal({
                             text-sm text-rose-800
                         "
                     >
-                        Cancellation is a lifecycle action.
-                        Only Draft or Scheduled leases can be
-                        cancelled. The backend remains the
-                        authority for permissions and lease
-                        integrity checks.
+                        Only Draft or Scheduled leases can be cancelled.
                     </div>
 
                     {error && (
@@ -461,10 +457,7 @@ function CancelLeaseModal({
                                         text-amber-800
                                     "
                                 >
-                                    A scheduled lease may have reserved
-                                    its unit. The backend will safely
-                                    recalculate the unit status when this
-                                    lease is cancelled.
+                                    Cancelling this lease releases its reservation where applicable.
                                 </div>
                             )}
                         </div>

@@ -1530,7 +1530,7 @@ function ReportsPage() {
                             </button>
 
                             <p className="text-xs text-slate-400">
-                                Choose an owner to narrow the Property list, or keep All Owners / All Properties for the full reporting scope allowed by the backend.
+                                Choose an owner or property to filter the report.
                             </p>
                         </div>
 

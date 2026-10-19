@@ -208,7 +208,7 @@ function ReversePaymentModal({
                             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
 
                             <p>
-                                Reversal removes this completed payment from the current financial effect. The backend remains responsible for restoring the affected invoice balance/status and recording the reversal audit.
+                                Reversing this payment restores the affected invoice balance.
                             </p>
                         </div>
 

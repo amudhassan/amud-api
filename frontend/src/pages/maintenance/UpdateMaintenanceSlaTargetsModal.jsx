@@ -459,7 +459,7 @@ function UpdateMaintenanceSlaTargetsModal({
                         )}
 
                         <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
-                            Only changed SLA fields are sent to the API. Any changed target must be a future date and time.
+                            Choose a future date and time.
                         </div>
 
                         <div className="grid gap-4 sm:grid-cols-2">

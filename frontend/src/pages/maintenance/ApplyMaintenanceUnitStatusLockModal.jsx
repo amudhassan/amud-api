@@ -231,7 +231,7 @@ function ApplyMaintenanceUnitStatusLockModal({
                         )}
 
                         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-                            The backend preserves the unit&apos;s current operational status as its restoration status, then changes the unit to Maintenance until the lock is released.
+                            The unit will remain in Maintenance until the lock is released.
                         </div>
 
                         <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">

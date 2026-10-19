@@ -334,7 +334,7 @@ function UpdateTenantUserModal({
 
                         {!isCurrentPrimary && (
                             <p className="mt-1.5 text-xs leading-5 text-slate-500">
-                                Selecting Primary Contact requests an atomic primary transfer. The current primary contact will be demoted by the backend when the update succeeds.
+                                Selecting Primary Contact replaces the current primary contact.
                             </p>
                         )}
                     </div>

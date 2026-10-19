@@ -732,7 +732,7 @@ function CreateMaintenanceAssignmentModal({
                                         />
 
                                         <p className="mt-2 text-xs leading-5 text-slate-500">
-                                            The current general user-list API is admin-only, so owner-context assignment cannot safely browse all system accounts. Enter the authorized technician public ID supplied by your administrator.
+                                            Enter the technician ID supplied by your administrator.
                                         </p>
                                     </label>
                                 )}

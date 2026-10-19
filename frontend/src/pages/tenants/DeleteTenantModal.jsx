@@ -132,7 +132,7 @@ function DeleteTenantModal({
                     </div>
 
                     <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                        This is a destructive lifecycle action. The record is soft-deleted, not physically erased.
+                        The tenant will be archived. Historical records will be preserved.
                     </div>
 
                     <p className="text-sm leading-6 text-slate-600">

@@ -556,7 +556,7 @@ function MaintenanceCommentsPanel({
 
                 {!canCreate && (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-                        This request is terminal. Existing comments remain readable, but new comments cannot be added through this endpoint.
+                        This request is closed. Existing comments remain available; new comments cannot be added.
                     </div>
                 )}
 

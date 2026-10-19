@@ -277,10 +277,7 @@ function TerminateLeaseModal({
                             text-sm text-rose-800
                         "
                     >
-                        Termination is a lifecycle action for
-                        Active leases only. The backend remains
-                        authoritative for permissions, lease
-                        integrity and the final unit status.
+                        Only Active leases can be terminated.
                     </div>
 
                     {error && (
@@ -452,12 +449,7 @@ function TerminateLeaseModal({
                                     text-amber-800
                                 "
                             >
-                                Terminating an active lease may
-                                release its occupied unit. The
-                                backend will recalculate whether
-                                the unit should remain occupied,
-                                become reserved, or become
-                                available.
+                                Terminating this lease may release the occupied unit.
                             </div>
                         </div>
                     ) : null}

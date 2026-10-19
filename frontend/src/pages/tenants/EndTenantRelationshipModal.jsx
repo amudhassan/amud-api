@@ -132,12 +132,10 @@ function EndTenantRelationshipModal({
                     </div>
 
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                        If a draft, scheduled or active lease still depends on this relationship, the backend will block this operation.
+                        Resolve any draft, scheduled or active leases before ending this relationship.
                     </div>
 
-                    <p className="text-sm leading-6 text-slate-600">
-                        After the relationship is ended, this page will keep the tenant details in memory so you can complete a separate soft-delete action. If you leave or refresh first, the ended relationship will no longer appear in the selected owner's current tenant list.
-                    </p>
+
                 </div>
 
                 <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">

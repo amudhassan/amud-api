@@ -702,9 +702,7 @@ function AddOwnerUserModal({
                                 </p>
                             )}
 
-                            <p className="mt-2 text-xs leading-5 text-slate-500">
-                                Only eligible verified accounts are displayed. The selected account's public ID is sent to the API automatically.
-                            </p>
+
                         </div>
 
                         <div>
@@ -868,19 +866,7 @@ function AddOwnerUserModal({
                             )}
                         </div>
 
-                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                            <div className="flex items-start gap-3">
-                                <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-700" />
-                                <div>
-                                    <p className="text-sm font-semibold text-emerald-900">
-                                        Backend remains authoritative
-                                    </p>
-                                    <p className="mt-1 text-xs leading-5 text-emerald-800">
-                                        Duplicate active links, unverified users, second primary links and unauthorized permission grants are rejected by the API even if a request is manually constructed.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+
                     </div>
                 </div>
 

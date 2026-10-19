@@ -647,7 +647,7 @@ function SettingsPage() {
                                         />
                                     </div>
                                     <span className="block text-xs text-slate-400">
-                                        Email changes are not enabled in the current profile API.
+                                        Email cannot be changed here.
                                     </span>
                                 </label>
                             </div>
@@ -815,7 +815,7 @@ function SettingsPage() {
                     </div>
                 ) : sessions.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                        No active sessions were returned by the server.
+                        No active sessions.
                     </div>
                 ) : (
                     <div className="mt-4 divide-y divide-slate-100 rounded-2xl border border-slate-200">

@@ -518,7 +518,7 @@ function ApproveMaintenanceReopenRequestModal({
                         </label>
 
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
-                            Approval moves the maintenance request back to the reopening target recorded by the backend workflow.
+                            Approval reopens the maintenance request.
                         </div>
                     </div>
                 </div>

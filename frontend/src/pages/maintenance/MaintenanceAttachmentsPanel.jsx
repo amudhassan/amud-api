@@ -489,9 +489,7 @@ function MaintenanceAttachmentsPanel({
                         </div>
                     )}
 
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
-                    This screen reads registered attachment metadata only. The current backend attachment POST endpoint expects file metadata after a separate upload/storage pipeline has already stored the file.
-                </div>
+
             </div>
         </section>
     );

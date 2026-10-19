@@ -328,12 +328,7 @@ function DeleteUnitModal({
                             text-rose-800
                         "
                     >
-                        This removes the unit from
-                        current unit records. The
-                        backend preserves it as a
-                        soft-deleted record and forces
-                        its operational status to
-                        Inactive.
+                        This archives the unit and marks it Inactive.
                     </div>
 
                     <div

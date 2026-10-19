@@ -605,9 +605,7 @@ function AddOwnerShareholderModal({
                                         Select Shareholder Owner
                                     </h3>
 
-                                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                                        Only active owner records returned by the eligible-shareholder endpoint are shown.
-                                    </p>
+
                                 </div>
 
                                 <Button
@@ -915,14 +913,12 @@ function AddOwnerShareholderModal({
                                 />
 
                                 <p className="text-xs leading-5 text-slate-500">
-                                    Optional. Leave blank to use the backend default effective date.
+                                    Optional. Leave blank to use the default effective date.
                                 </p>
                             </label>
                         </div>
 
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
-                            The backend remains authoritative for duplicate share classes, company status, share totals and access permissions.
-                        </div>
+
                     </div>
 
                     <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">

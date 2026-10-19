@@ -688,9 +688,7 @@ function OwnersPage() {
                             Owner Directory
                         </h2>
 
-                        <p className="mt-1 text-xs text-slate-500">
-                            Only owner records authorized by the backend are displayed.
-                        </p>
+
                     </div>
 
                     <p className="text-xs font-medium text-slate-500">

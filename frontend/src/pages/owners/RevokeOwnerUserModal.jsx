@@ -235,7 +235,7 @@ function RevokeOwnerUserModal({
                         <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" />
 
                         <p className="text-sm leading-6 text-slate-600">
-                            Primary representatives are protected by the backend and cannot be revoked directly. Another eligible user must be promoted to primary first.
+                            Assign another primary representative before revoking this user.
                         </p>
                     </div>
 

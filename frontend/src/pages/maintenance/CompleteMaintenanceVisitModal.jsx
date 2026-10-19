@@ -385,7 +385,7 @@ function CompleteMaintenanceVisitModal({
                             />
 
                             <p className="mt-1 text-xs text-slate-500">
-                                Optional. Leave blank to use the backend lifecycle default.
+                                Optional. Leave blank to use the default time.
                             </p>
                         </label>
 

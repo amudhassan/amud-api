@@ -623,9 +623,7 @@ function CreateOwnerModal({
                         </div>
                     </section>
 
-                    <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-700">
-                        The backend controls access automatically. A regular user creating an owner is linked as the primary owner representative; an administrator may create an owner without creating that representative link.
-                    </div>
+
 
                     {error && (
                         <div

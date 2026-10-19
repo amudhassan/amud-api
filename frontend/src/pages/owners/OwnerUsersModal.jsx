@@ -364,7 +364,7 @@ function OwnerUsersModal({
                                 Access Directory
                             </h3>
                             <p className="mt-1 text-sm text-slate-500">
-                                Active linked users and their current access. Role and permission changes are controlled by the backend authority model.
+                                Linked users and their access.
                             </p>
                         </div>
 

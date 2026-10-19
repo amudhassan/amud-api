@@ -1152,9 +1152,7 @@ function CreateMaintenanceRequestModal({
                             </div>
                         )}
 
-                        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                            Select records from the authorized options below. Public IDs are submitted to the backend automatically.
-                        </div>
+
 
                         {tenantMode ? (
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

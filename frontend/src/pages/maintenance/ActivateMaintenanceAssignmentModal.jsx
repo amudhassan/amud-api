@@ -389,9 +389,7 @@ function ActivateMaintenanceAssignmentModal({
                                 Activation starts operational work
                             </p>
 
-                            <p className="mt-1 text-xs leading-5">
-                                The frontend first reloads the assignment so the latest status and updated-at timestamp are used for concurrency protection.
-                            </p>
+
                         </div>
 
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

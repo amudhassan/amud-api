@@ -413,7 +413,7 @@ function DeletedOwnersModal({
                             </h2>
 
                             <p className="mt-1 text-sm leading-6 text-slate-500">
-                                Administrator-only inventory for soft-deleted owner records. Restore returns an owner as inactive without reopening historical user links.
+                                Restore archived owners as inactive. Previous user access remains revoked.
                             </p>
                         </div>
                     </div>

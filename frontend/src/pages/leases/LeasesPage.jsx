@@ -974,7 +974,7 @@ function LeasesPage() {
                 <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                     <div className="border-b border-slate-200 px-5 py-4">
                         <h2 className="font-semibold text-slate-900">Wapangaji wa kufuatilia {visibleFollowUps.length > 0 ? `(${visibleFollowUps.length})` : ""}</h2>
-                        <p className="mt-1 text-sm text-slate-500">Historia ya malipo yenye kodi iliyoisha au taarifa zinazohitaji uhakiki. Tarehe ya malipo kufikia si tarehe ya mwisho wa mkataba.</p>
+
                     </div>
                     {followUpsLoading ? <p className="px-5 py-4 text-sm text-slate-500">Inapakia taarifa za kufuatilia...</p> : followUpError ? <p role="alert" className="px-5 py-4 text-sm text-red-700">{followUpError}</p> : (
                         <div className="overflow-x-auto">

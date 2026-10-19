@@ -514,7 +514,7 @@ function UsersPage() {
 
                         <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                             <ShieldCheck className="h-4 w-4" />
-                            Admin-only API
+                            Administrator access
                         </div>
                     </div>
                 </div>

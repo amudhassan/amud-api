@@ -178,7 +178,7 @@ function RespondMaintenanceVisitModal({
                 !visit.updated_at
             ) {
                 setError(
-                    "Visit concurrency data is missing. Close and reopen the maintenance request."
+                    "Unable to load the latest record. Refresh and try again."
                 );
                 return;
             }

@@ -343,9 +343,7 @@ function DisputeMaintenanceResolutionModal({
                             </p>
                         </label>
 
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
-                            This action uses the backend resolution-dispute lifecycle. The request and resolution states will be refreshed from the server after the dispute succeeds.
-                        </div>
+
                     </div>
                 </div>
 

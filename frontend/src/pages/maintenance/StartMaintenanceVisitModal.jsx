@@ -331,7 +331,7 @@ function StartMaintenanceVisitModal({
                                         visit.tenant_confirmation_status
                                     )}
                                 </strong>
-                                . The backend remains authoritative and may block work from starting until the visit is eligible.
+                                .
                             </div>
                         )}
 
@@ -407,7 +407,7 @@ function StartMaintenanceVisitModal({
                             />
 
                             <p className="mt-1 text-xs text-slate-500">
-                                Optional. Leave blank to let the backend apply its normal lifecycle timing.
+                                Optional. Leave blank to use the default time.
                             </p>
                         </label>
 

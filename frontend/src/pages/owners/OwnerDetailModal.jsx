@@ -466,9 +466,7 @@ function OwnerDetailModal({
                                     <h3 className="text-base font-bold text-slate-950">
                                         Owner Information
                                     </h3>
-                                    <p className="mt-1 text-sm text-slate-500">
-                                        Registration, contact and location details stored by the backend.
-                                    </p>
+
                                 </div>
 
                                 <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -565,9 +563,7 @@ function OwnerDetailModal({
                                                 <p className="text-sm font-semibold text-blue-900">
                                                     Administrator access
                                                 </p>
-                                                <p className="mt-1 text-sm leading-6 text-blue-700">
-                                                    No owner-user relationship is required for this view. Backend authorization remains authoritative.
-                                                </p>
+
                                             </div>
                                         </div>
                                     </div>

@@ -304,7 +304,7 @@ function CloseMaintenanceRequestModal({
                         </label>
 
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
-                            The backend will still block closure if any active assignment, active visit, pending cost approval, active unit-status lock or unresolved cost responsibility remains.
+                            Finish active assignments and visits, resolve cost approvals and responsibilities, and release unit locks before closing.
                         </div>
                     </div>
                 </div>

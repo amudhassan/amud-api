@@ -53,7 +53,7 @@ const lifecycleDefinitions = {
         endpoint: "generate",
         requiresActivePlan: true,
         helper:
-            "This creates the real maintenance request linked to this occurrence. Any configured default assignment and estimated cost are copied by the backend."
+            "Create a maintenance request using the configured assignment and estimated cost."
     },
     skip: {
         title: "Skip Preventive Occurrence",
@@ -66,7 +66,7 @@ const lifecycleDefinitions = {
         reasonPlaceholder:
             "Explain why this scheduled preventive occurrence is being skipped...",
         helper:
-            "Skipping is terminal for this occurrence. For recurring plans, the backend advances the schedule and counts the skipped occurrence as missed."
+            "Skip this occurrence. Recurring plans continue with the next scheduled occurrence."
     },
     fail: {
         title: "Mark Preventive Occurrence Failed",
@@ -200,7 +200,7 @@ function PreventiveMaintenanceOccurrenceLifecycleModal({
 
             if (!latestOccurrence.updated_at) {
                 throw new Error(
-                    "Preventive occurrence concurrency timestamp is missing."
+                    "Unable to load the latest record. Refresh and try again."
                 );
             }
 
@@ -209,7 +209,7 @@ function PreventiveMaintenanceOccurrenceLifecycleModal({
                 !latestPlan.updated_at
             ) {
                 throw new Error(
-                    "Preventive plan concurrency timestamp is missing."
+                    "Unable to load the latest record. Refresh and try again."
                 );
             }
 
@@ -285,7 +285,7 @@ function PreventiveMaintenanceOccurrenceLifecycleModal({
 
         if (!occurrence.updated_at) {
             setError(
-                "Preventive occurrence concurrency timestamp is missing. Refresh and try again."
+                "Unable to load the latest record. Refresh and try again."
             );
             return;
         }
@@ -305,7 +305,7 @@ function PreventiveMaintenanceOccurrenceLifecycleModal({
 
             if (!plan.updated_at) {
                 setError(
-                    "Preventive plan concurrency timestamp is missing. Refresh and try again."
+                    "Unable to load the latest record. Refresh and try again."
                 );
                 return;
             }
@@ -465,9 +465,7 @@ function PreventiveMaintenanceOccurrenceLifecycleModal({
                                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                                         <div className="flex items-start gap-2">
                                             <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" />
-                                            <p>
-                                                The generated request will be linked permanently to this occurrence. This action is idempotent at the backend.
-                                            </p>
+
                                         </div>
                                     </div>
                                 )}

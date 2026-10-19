@@ -933,7 +933,7 @@ function UnitDetailPage() {
             <Section
                 icon={Building2}
                 title="Parent Property"
-                description="Property relationship returned by the backend."
+                description="Property details."
             >
                 {property ? (
                     <div

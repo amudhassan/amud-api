@@ -530,7 +530,7 @@ function EditOwnerModal({
                                         </h3>
 
                                         <p className="mt-1 text-xs leading-5 text-slate-500">
-                                            Owner type and lifecycle status are restricted to administrators by the backend.
+                                            Only administrators can change the owner type or status.
                                         </p>
                                     </div>
                                 </div>

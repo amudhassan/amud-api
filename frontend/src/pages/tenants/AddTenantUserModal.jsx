@@ -623,7 +623,7 @@ function AddTenantUserModal({
                             </select>
 
                             <p className="mt-1.5 text-xs leading-5 text-slate-500">
-                                Selecting a role applies the backend-aligned default permission set. You can then adjust permissions before saving.
+                                Select a role, then adjust permissions if needed.
                             </p>
                         </div>
 

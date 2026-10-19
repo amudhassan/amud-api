@@ -248,9 +248,7 @@ function ChangeMaintenanceStatusModal({
                             </div>
                         )}
 
-                        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                            This action changes the maintenance lifecycle and creates an auditable status transition. Assignment, resolution and closure continue to use their dedicated APIs.
-                        </div>
+
 
                         <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto_1fr]">
                             <div>

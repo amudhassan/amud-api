@@ -314,7 +314,7 @@ function Sidebar({
                         `}
                         title={
                             collapsed
-                                ? "Backend Connected"
+                                ? "Connected"
                                 : undefined
                         }
                     >
@@ -333,7 +333,7 @@ function Sidebar({
                                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
 
                                 <span className="text-xs text-slate-400">
-                                    Backend Connected
+                                    Connected
                                 </span>
                             </div>
                         </div>
