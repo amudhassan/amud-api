@@ -1576,10 +1576,10 @@ function LeasesPage() {
                                                                 }}
                                                             />
                                                         </>
-                                                    ) : lease.status === "expired" ? (
-                                                        <IconButton
-                                                            label={`Renew ${lease.lease_number}`}
-                                                            icon={Repeat2}
+                                                    ) : lease.status === "expired" && lease.can_renew ? (
+                                                        <Button
+                                                            aria-label={`Renew ${lease.lease_number}`}
+                                                            leftIcon={Repeat2}
                                                             variant="secondary"
                                                             onClick={() => {
                                                                 setCreateSuccess("");
@@ -1592,7 +1592,7 @@ function LeasesPage() {
                                                                 setRenewSuccess("");
                                                                 setRenewLease(lease);
                                                             }}
-                                                        />
+                                                        >Renew lease</Button>
                                                     ) : (
                                                         <span className="text-xs text-slate-400">
                                                             —

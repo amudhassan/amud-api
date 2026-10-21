@@ -894,6 +894,21 @@ const getLeases = async ({
     const offsetPosition =
         values.length + 2;
 
+    const renewalAccessSelect = `(
+        l.status IN ('active', 'expired') AND
+        ${authenticatedUser.role === 'admin' ? 'TRUE' : `EXISTS (
+            SELECT 1 FROM owner_users ra WHERE ra.owner_id=l.owner_id
+            AND ra.user_id=$1 AND ra.revoked_at IS NULL
+            AND ra.can_manage_finances=TRUE
+            AND (ra.can_manage_properties=TRUE OR ra.relationship_role='accountant')
+        )`} AND NOT EXISTS (
+            SELECT 1 FROM leases newer WHERE
+            (newer.renewed_from_lease_id=l.id AND newer.status <> 'cancelled') OR
+            (newer.owner_id=l.owner_id AND newer.tenant_id=l.tenant_id AND newer.unit_id=l.unit_id
+             AND newer.start_date>l.start_date AND newer.status IN ('scheduled','active','expired','terminated'))
+        )
+    ) AS can_renew`;
+
     const leasesResult = await pool.query(
         `
         SELECT
@@ -914,6 +929,7 @@ const getLeases = async ({
             l.updated_at,
 
             ${financialAccessSelect},
+            ${renewalAccessSelect},
 
             o.public_id
                 AS owner_public_id,
@@ -965,6 +981,7 @@ const getLeases = async ({
             start_date: row.start_date,
             end_date: row.end_date,
 
+            can_renew: Boolean(row.can_renew),
             can_view_finances:
                 row.can_view_finances,
 
@@ -3873,8 +3890,8 @@ const renewLease = async ({
                     l.unit_id,
                     l.tenant_id,
                     l.status,
-                    l.start_date,
-                    l.end_date,
+                    l.start_date::text AS start_date,
+                    l.end_date::text AS end_date,
                     l.currency_code,
                     l.rent_amount,
                     l.billing_frequency,
@@ -4024,8 +4041,8 @@ const renewLease = async ({
                     WHERE owner_id = $1
                       AND user_id = $2
                       AND revoked_at IS NULL
-                      AND can_manage_properties = TRUE
                       AND can_manage_finances = TRUE
+                      AND (can_manage_properties = TRUE OR relationship_role = 'accountant')
                     LIMIT 1
                     FOR UPDATE
                     `,
@@ -4058,12 +4075,13 @@ const renewLease = async ({
                     public_id,
                     status
                 FROM leases
-                WHERE renewed_from_lease_id = $1
-                  AND status <> 'cancelled'
+                WHERE (renewed_from_lease_id = $1 AND status <> 'cancelled')
+                   OR (owner_id=$2 AND tenant_id=$3 AND unit_id=$4
+                       AND start_date>$5::date AND status IN ('scheduled','active','expired','terminated'))
                 LIMIT 1
                 FOR UPDATE
                 `,
-                [sourceLease.id]
+                [sourceLease.id, sourceLease.owner_id, sourceLease.tenant_id, sourceLease.unit_id, sourceLease.start_date]
             );
 
         if (

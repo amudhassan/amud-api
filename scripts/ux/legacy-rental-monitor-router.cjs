@@ -45,7 +45,7 @@ module.exports=function monitoringRouter(pool){
                 FROM tenants t JOIN owner_tenants ot ON ot.tenant_id=t.id
                 WHERE ot.owner_id=$1`, [req.monitorOwnerId])).rows;
             const leases = (await pool.query(`SELECT t.public_id AS tenant_public_id,u.public_id AS unit_public_id,
-                l.status,l.end_date::text FROM leases l JOIN tenants t ON t.id=l.tenant_id
+                l.public_id,l.status,l.end_date::text FROM leases l JOIN tenants t ON t.id=l.tenant_id
                 JOIN units u ON u.id=l.unit_id WHERE l.owner_id=$1`, [req.monitorOwnerId])).rows;
             const followups = require('../../services/importedLeaseFollowUpService').buildImportedLeaseFollowUps({rows:activeRows,profiles,leases,asOf});
             return res.json({data:{as_of:asOf,rows:followups}});

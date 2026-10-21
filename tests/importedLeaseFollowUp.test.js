@@ -14,8 +14,8 @@ test('confirmed renewal hides source record, including existing tenant alias on 
 test.each(['draft','cancelled'])('%s renewal does not hide follow-up',status=>{
  expect(run(row(),[profile],[{tenant_public_id:'tenant_one',unit_public_id:'unit_one',status,end_date:'2026-12-31'}])).toHaveLength(1);
 });
-test('canonical expired contract stays in normal list, avoiding a duplicate',()=>{
- expect(run(row(),[profile],[{tenant_public_id:'tenant_one',unit_public_id:'unit_one',status:'expired',end_date:'2026-03-31'}])).toEqual([]);
+test('monitoring keeps the resident while linking the latest ended contract in Leases',()=>{
+ expect(run(row(),[profile],[{public_id:'lease_ended',tenant_public_id:'tenant_one',unit_public_id:'unit_one',status:'expired',end_date:'2026-03-31'}])[0]).toMatchObject({latest_lease_public_id:'lease_ended',contract_end:'2026-03-31',status:'expired'});
 });
 test('partial-month payments do not produce a guessed date',()=>{
  expect(run(row({history:[{amount:650000,date_created:'2025-10-01'}]}))[0].paid_through).toBeNull();

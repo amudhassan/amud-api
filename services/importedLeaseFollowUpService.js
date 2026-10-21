@@ -13,8 +13,9 @@ function buildImportedLeaseFollowUps({ rows, profiles, leases, asOf }) {
                 (row.source.unit_public_id && l.unit_public_id === row.source.unit_public_id)));
         if (live) return [];
         const own = leases.filter(l => l.tenant_public_id === row.tenant_public_id && !['draft', 'cancelled'].includes(l.status));
-        // Canonical ended leases already appear in the main lease list.
-        if (own.length) return [];
+        // Keep the monitoring view alongside the latest ended contract in Leases.
+        const latestEnded = own.filter(l => l.status === 'expired').sort((a,b) => b.end_date.localeCompare(a.end_date))[0];
+        if (own.length && !latestEnded) return [];
         const reviewedEnd = row.review?.paid_through;
         if (validDate(reviewedEnd) && reviewedEnd >= asOf) return [];
         if (row.account.status !== 'expired' && row.account.status !== 'needs_review') return [];
@@ -36,7 +37,8 @@ function buildImportedLeaseFollowUps({ rows, profiles, leases, asOf }) {
             total_paid: row.account.total_paid,
             reason: status === 'expired' ? 'Kodi imeisha; renewal haijarekodiwa' : 'Taarifa zinahitaji uhakiki',
             coverage_basis: validDate(reviewedEnd) ? 'reviewed' : 'payment_history',
-            contract_end: null
+            contract_end: latestEnded?.end_date || null,
+            latest_lease_public_id: latestEnded?.public_id || null
         }];
     }).sort((a,b) => (a.paid_through || '9999').localeCompare(b.paid_through || '9999') || a.tenant_name.localeCompare(b.tenant_name));
 }
